@@ -11,8 +11,8 @@ android {
         applicationId = "com.pelican.comictv"
         minSdk = 23
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.7.0"
+        versionCode = 10
+        versionName = "0.7.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {

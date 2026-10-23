@@ -1,31 +1,31 @@
-# Validação — Comic TV 0.7.0
+# Validação — Comic TV 0.7.1
 
-23/10/2026 · versionCode9 · minSdk23 · targetSdk36.
+23/10/2026 · versionCode 10 · minSdk 23 · targetSdk 36.
 
-## Continuidade online
+## Correção
 
-OK no leitor online → Edições da saga / série. O leitor encerra e aguarda carregamentos/prévias antes de salvar e navegar; o botão de tentar novamente não reinicia operações depois desse encerramento. A fonte é consultada para uma lista atualizada fora do leitor ativo.
+O instalador verifica o Android mínimo no AndroidManifest.xml binário do APK antes de chamar PackageManager ou oferecer o arquivo ao instalador nativo. Caso a TV seja incompatível, apresenta o Android/API exigido e a API atual. Preserva conferências de pacote, versão, feature de extensão e certificado SHA-256; nenhum código do APK é executado na inspeção.
 
-A tela destaca a edição atual, oferece anterior/próxima, seleção de qualquer edição e localização da atual. A sequência da fonte pode ser invertida explicitamente, com preferência salva por título. Duplicatas conservam a primeira entrada; capítulo ausente não recebe vizinhos inventados. Limite de 10.000 itens antes da deduplicação. Navegar pela lista não grava progresso; abrir edição já lida conserva sua página.
+A leitura do manifesto é limitada a 1 MiB expandido, com verificação de chunks, pools UTF-8/UTF-16, atributos, namespace Android, resource IDs e duplicações. Metadados inválidos ou versão de desenvolvimento não numérica são recusados. O rótulo da lista de instaladas passou a dizer “API compatível”, sem prometer funcionamento de todos os sites.
 
-Back cancela uma abertura pendente para impedir navegação tardia durante a transição. Recriar a Activity não desativa permanentemente o ViewModel retido. Consulta do contexto mantém compatibilidade com registros de leitura anteriores, confere confiança/certificado e traduz falhas de API ausente.
+## Evidência real de HQ Now
+
+APK consultado: tachiyomi-pt.hqnow-v1.6.0.apk, pacote eu.kanade.tachiyomi.extension.pt.hqnow, versionCode 106000. apksigner conferiu certificado 9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2, igual ao pin Keiyoushi. aapt2 revelou minSdk 26. O novo leitor JVM também retornou26; a política aceitou API 26 e recusou API 23 com mensagem específica. São testes de metadados e política, sem execução do APK no computador ou no Android.
+
+Uma consulta pública à API usada pela fonte retornou Saga do Infinito (id 1079),17 edições. A primeira, Prelúdio- Em Busca de Poder parte 1, retornou 52 páginas. HEAD do primeiro endereço de imagem respondeu 200, image/jpeg. O código da extensão inverte a lista recebida do site; a opção de inverter sequência do leitor permite escolher a apresentação desejada. Isso verifica serviço e referências, sem certificar carregamento da extensão dentro do Comic TV.
+
+Referência do código inspecionado: https://github.com/keiyoushi/extensions-source/blob/main/src/pt/hqnow/src/eu/kanade/tachiyomi/extension/pt/hqnow/HQNow.kt
 
 ## Verificação
 
-112 testes JVM: 75 core, 7 mihon e 30 app, sem falhas ou erros. Incluem sequência, inversão, duplicatas, lacunas, limites, falha/repetição de abertura, seleção desconhecida, navegação após cancelamento e encerramento de carregamento antes de consultar outra fonte. Os testes de sequência e ViewModel foram escritos antes das respectivas implementações. A regressão de carregamento sobrevivendo ao fechamento falhou antes da correção.
+119 testes JVM passaram: 82 core, 7 mihon, 30 app, sem falhas ou erros. Os testes novos foram observados falhar antes da implementação. Incluem pools UTF-8/UTF-16, valores inteiros/string/default, metadados inválidos, namespace, resource ID, duplicações, truncamento e tamanho expandido. Uma sonda adicional com 5.000 mutações determinísticas do manifesto real não produziu exceções inesperadas.
 
-Build debug, compilação de instrumentação do app e lint aprovados (0 erros e 34 avisos). A assinatura final v1/v2 e os SDKs/atividade Leanback são conferidos na entrega. A instrumentação não foi executada: sem TV/emulador conectado. Revisões independentes corrigiram transição com trabalho ainda ativo, cancelamento ao voltar e retenção do ViewModel durante recriação.
+Build debug, compilação de instrumentação do app e lint aprovados:0 erros e 34 avisos. Revisão independente sem Critical/Important pendentes. Assinatura final v1/v2 verificada; aapt2 confirma versão, SDKs e atividade Leanback. Sem dispositivo/emulador conectado; instrumentação e execução real de extensão continuam pendentes.
 
-SHA-256 do APK: F5033675801CCA2167FB206EE749C9A516C16282127AA12B139441F47A21819B.
+SHA-256 do APK: `36DF75F090B60A0A805AE81F49DD969B0E580041483E556ACDF018FA19DEF229`.
 
-## Repositórios
+## Teste físico pendente
 
-O cadastro já existe desde 0.5.0: Fontes → Adicionar Keiyoushi ou informar URL → Ver extensões → Instalar → confirmar no Android → Atualizar instaladas → escolher fonte. Não instala todas as extensões de um repositório automaticamente. A versão atual inclui esse fluxo.
+Atualizar APK sem desinstalar. Fontes → adicionar repositório → instalar extensão → confirmar no Android → Atualizar instaladas. Em TV com Android 8/API 26 ou superior, testar HQ Now/Saga do Infinito, abertura de edição, miniaturas e passagem entre edições. Em Android anterior, confirmar mensagem de requisito mínimo. O suporte do aplicativo a Android 6 não reduz o requisito de cada extensão.
 
-Keiyoushi e Suwayomi foram lidos pelo cliente real na verificação 0.5.0; HQ Now foi identificado no índice. Execução real de extensões, listas de sagas, D-pad, QR e passagem entre edições na TV continuam pendentes. APIs1.2–1.6 hospedadas não garantem compatibilidade universal; QuickJS indisponível.
-
-## Teste na TV
-
-Atualizar sem desinstalar. Instalar/abrir uma fonte; buscar saga/série e abrir uma edição. Avançar páginas, OK → Edições da saga / série, localizar atual e abrir a próxima. Reabrir a anterior e conferir página salva. Inverter sequência e conferir que a escolha persiste por título. Testar falha de rede, Back durante consulta e retomada pela biblioteca.
-
-Portal web foi adiado pela prioridade de leitura online. Sua preparação local está separada do repositório ativo; não houve publicação, contratação ou alteração da hospedagem do Conchat. Rede local e FTP continuam disponíveis para importações ocasionais.
+Recursos 0.7.0 de continuidade online permanecem incluídos. Portal remoto continua adiado, sem alteração da hospedagem do Conchat.

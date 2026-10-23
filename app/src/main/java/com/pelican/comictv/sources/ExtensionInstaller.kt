@@ -58,6 +58,9 @@ class ExtensionInstaller(private val context: Context) {
 
     @Suppress("DEPRECATION")
     private fun verify(file: File, expected: ExtensionEntry, fingerprint: String) {
+        // Read bounded metadata first: PackageManager may reject an APK whose minSdk
+        // exceeds this device, obscuring the actual compatibility error.
+        ApkRequirements.requireSupported(ApkRequirements.minimumSdk(file), Build.VERSION.SDK_INT)
         val signatureFlag = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
         val info = context.packageManager.getPackageArchiveInfo(file.path,
             signatureFlag or PackageManager.GET_META_DATA or PackageManager.GET_CONFIGURATIONS) ?: error("O download não é um APK válido.")

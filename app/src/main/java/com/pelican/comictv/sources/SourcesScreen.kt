@@ -112,7 +112,7 @@ private fun SourcesHome(state: SourcesState, vm: SourcesViewModel) {
         items(state.installed, key = { it.packageName }) { extension ->
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${extension.name} · ${extension.versionName}", fontSize = 18.sp)
-                Muted(if (extension.compatible) "Compatível" else "Incompatível com este aplicativo")
+                Muted(if (extension.compatible) "API compatível · funcionamento depende da fonte" else "API incompatível com este aplicativo")
                 Muted("Certificado: ${extension.fingerprints.joinToString()}")
             }
         }

@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.7.0
+## Versão 0.7.1
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.
@@ -18,6 +18,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Transferência pela rede local (Wi-Fi/Ethernet), com URL temporária, QR code, upload pelo navegador e acompanhamento na TV.
 - Servidor FTP temporário, com usuário/senha por sessão, QR code e recebimento em modo passivo.
 - Fontes Mihon: múltiplos repositórios, índices atuais e legados, download verificado de extensões e instalação confirmada pelo Android.
+- Verificação do Android mínimo exigido pelo APK antes da instalação, com mensagem de incompatibilidade específica.
 - Catálogo online com populares, recentes, busca, detalhes e capítulos/edições na sequência da fonte; leitura no mesmo leitor, com progresso na biblioteca.
 - Nas ferramentas do leitor online, Edições da saga / série abre a lista atualizada, destaca a edição atual e oferece anterior/próxima e ordem invertível por título.
 
@@ -93,6 +94,8 @@ No catálogo, escolha uma capa para abrir detalhes e capítulos. Sagas como as d
 Para continuar outra edição durante a leitura, pressione OK → **Edições da saga / série**. A posição é salva antes de consultar a fonte. A lista identifica a edição atual, permite abrir anterior/próxima ou qualquer item e pode inverter a sequência; a escolha de ordem fica salva por título. A ordem da fonte não é presumida como cronológica. Edições já abertas retomam sua própria página. A leitura automática continua limitada às páginas da edição atual.
 
 Compatibilidade é por extensão: APIs 1.2–1.6 são hospedadas, mas bibliotecas adicionais, preferências específicas e fontes que exigem QuickJS podem precisar de adaptação. QuickJS não está incluído. Desafios de sites dependem do WebView do Android. A leitura do índice Keiyoushi e a identificação do HQ Now foram verificadas no computador; execução do APK, catálogo real e leitura na TV ainda exigem teste no dispositivo. Detalhes em `docs/FONTES-ONLINE.md`.
+
+O Comic TV aceita Android 6/API 23 ou superior; isso não reduz o requisito de cada extensão. O APK HQ Now 1.6.0 verificado exige Android 8/API 26. Desde 0.7.1 o requisito é lido diretamente do manifesto do APK antes de oferecê-lo ao instalador, preservando as verificações de pacote, versão e certificado. “API compatível” na lista de instaladas descreve a versão da interface, sem certificar funcionamento de cada site.
 
 ## Transferência FTP
 

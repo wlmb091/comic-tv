@@ -44,3 +44,9 @@ Android23 WebView compatibility uses the upstream challenge-status bridge fallba
 rather than the newer isolated-world APIs (WebKit1.17 requires Android24).
 Rx coroutine cancellation hooks are registered before subscription starts, enabling
 legacy synchronous HTTP calls to cancel without waiting for network timeouts.
+
+0.7.1 installation preflight reads the APK's bounded binary manifest to explain its
+minimum Android API before invoking PackageManager/native installation. HQNow1.6.0
+version106000 requires API26, despite the Comic TV host retaining API23 support.
+The actual downloaded APK certificate matches the Keiyoushi repository pin. This
+is static APK inspection, not execution of extension code on Android.
