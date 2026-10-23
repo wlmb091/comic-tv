@@ -2,7 +2,7 @@ package com.pelican.comictv.reader
 
 enum class ReaderMode { Reading, Tools, Pan, Timeline }
 enum class FitMode { Page, Width, Height }
-enum class ReaderAction { Left, Right, Up, Down, Select, Back, StartPan, ToggleFit, ToggleRtl, StartTimeline }
+enum class ReaderAction { Left, Right, Up, Down, Select, OpenTools, Back, TogglePan, StartPan, ToggleFit, ToggleRtl, StartTimeline }
 
 data class ReaderState(
     val page: Int = 0,
@@ -16,6 +16,7 @@ data class ReaderState(
     val timelinePage: Int? = null,
 ) {
     fun reduce(action: ReaderAction): ReaderState {
+        if (action == ReaderAction.OpenTools) return copy(mode = ReaderMode.Tools, timelinePage = null)
         if (mode == ReaderMode.Timeline) {
             val cursor = (timelinePage ?: page).coerceIn(0, (pageCount - 1).coerceAtLeast(0))
             return when (action) {
@@ -32,6 +33,11 @@ data class ReaderState(
                 }
                 else -> this
             }
+        }
+        if (action == ReaderAction.TogglePan) return when (mode) {
+            ReaderMode.Reading -> copy(mode = ReaderMode.Pan)
+            ReaderMode.Pan -> copy(mode = ReaderMode.Reading)
+            else -> this
         }
         if (action == ReaderAction.StartTimeline) return copy(mode = ReaderMode.Timeline,
             timelinePage = page.coerceIn(0, (pageCount - 1).coerceAtLeast(0)))

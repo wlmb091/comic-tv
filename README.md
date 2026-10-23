@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.7.1
+## Versão 0.7.5
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.
@@ -12,6 +12,8 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Leitor com ajuste à página, largura ou altura, zoom de 1x a 3x e deslocamento explícito.
 - Progresso e preferências por edição em Room.
 - Tema escuro com foco âmbar, seguindo o conceito aprovado.
+- Navegação lateral por ícones com rótulo ao receber foco; catálogo com cabeçalho rolável, grade ampla e títulos sobre as capas.
+- Capas ausentes na busca são consultadas nos detalhes dos itens visíveis, com cache limitado e até duas consultas simultâneas.
 - Barra para escolher página/seção pelo D-pad, com confirmação antes de carregar e salvar a nova posição.
 - Miniaturas da posição selecionada e até duas vizinhas de cada lado, geradas sob demanda em cache separado de 32 MiB.
 - Leitura automática: slides de imagens ou rolagem de texto EPUB, com 10 segundos por página/tela inicialmente e intervalos de 5,10,20,30 ou 60 segundos. Pausa com comandos manuais, ferramentas, erro ou segundo plano.
@@ -55,7 +57,7 @@ Testes que exigem emulador ou dispositivo Android:
 | Biblioteca e menus | Setas movem o foco; OK seleciona |
 | Leitor | Esquerda/direita trocam páginas, respeitando a direção configurada |
 | Leitor | Cima/baixo aumentam/reduzem zoom em 25%, de 100% a 300% |
-| Leitor | OK abre ferramentas |
+| Leitor de imagens | OK rápido (<1s) alterna zoom/mover; segurar OK por 2s abre ferramentas |
 | Ferramentas | Ajuste alterna página inteira, largura e altura |
 | Mover página | As quatro setas deslocam a página; Voltar retorna às ferramentas |
 | Ferramentas | Voltar retorna à leitura |
@@ -91,7 +93,7 @@ Abra **Fontes → Adicionar Keiyoushi** ou informe a URL HTTPS de outro reposit�
 
 No catálogo, escolha uma capa para abrir detalhes e capítulos. Sagas como as do HQ Now são apresentadas conforme o título e a sequência de edições que a extensão retornar. Ao sair da leitura online, você volta à lista anterior. O capítulo aberto aparece na biblioteca para continuar depois; as páginas são carregadas sob demanda e compartilham o cache de 256 MiB, com prévias em 32 MiB separados. A retomada consulta a fonte novamente; esta versão não é um gerenciador de downloads completos para leitura offline.
 
-Para continuar outra edição durante a leitura, pressione OK → **Edições da saga / série**. A posição é salva antes de consultar a fonte. A lista identifica a edição atual, permite abrir anterior/próxima ou qualquer item e pode inverter a sequência; a escolha de ordem fica salva por título. A ordem da fonte não é presumida como cronológica. Edições já abertas retomam sua própria página. A leitura automática continua limitada às páginas da edição atual.
+Para continuar outra edição durante a leitura, segure OK por 2 segundos → **Edições da saga / série**. A posição é salva antes de consultar a fonte. A lista identifica a edição atual, permite abrir anterior/próxima ou qualquer item e pode inverter a sequência; a escolha de ordem fica salva por título. A ordem da fonte não é presumida como cronológica. Edições já abertas retomam sua própria página. A leitura automática continua limitada às páginas da edição atual.
 
 Compatibilidade é por extensão: APIs 1.2–1.6 são hospedadas, mas bibliotecas adicionais, preferências específicas e fontes que exigem QuickJS podem precisar de adaptação. QuickJS não está incluído. Desafios de sites dependem do WebView do Android. A leitura do índice Keiyoushi e a identificação do HQ Now foram verificadas no computador; execução do APK, catálogo real e leitura na TV ainda exigem teste no dispositivo. Detalhes em `docs/FONTES-ONLINE.md`.
 

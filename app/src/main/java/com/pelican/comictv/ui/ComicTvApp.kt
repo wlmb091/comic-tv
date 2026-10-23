@@ -4,6 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.painterResource
+import com.pelican.comictv.R
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,7 +82,7 @@ import androidx.compose.ui.platform.LocalContext
             TvShell("settings", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
                     ScreenTitle("Seu controle, sua leitura", "Comic TV · versão ${BuildConfig.VERSION_NAME}")
-                    Text("← →  Página anterior / próxima\n↑ ↓  Aumentar / reduzir zoom\nOK  Abrir ferramentas\nMover página  Deslocar com as quatro setas\nVoltar  Sair do modo ativo e retornar", fontSize = 20.sp, lineHeight = 34.sp)
+                    Text("← →  Página anterior / próxima\n↑ ↓  Aumentar / reduzir zoom\nOK rápido  Alternar zoom/mover\nSegurar OK 2s  Abrir ferramentas\nMover página  Deslocar com as quatro setas\nVoltar  Sair do modo ativo e retornar", fontSize = 20.sp, lineHeight = 34.sp)
                     TvButton("Voltar à biblioteca", { nav.popBackStack("library", false) })
                 }
             }
@@ -113,19 +117,34 @@ import androidx.compose.ui.platform.LocalContext
 }
 
 @Composable private fun TvShell(selected: String, onNavigate: (String) -> Unit, content: @Composable () -> Unit) {
-    Row(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 36.dp, vertical = 28.dp),
-        horizontalArrangement = Arrangement.spacedBy(30.dp)) {
-        Column(Modifier.width(166.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(Modifier.padding(bottom = 28.dp)) {
-                Text("COMIC ", fontSize = 24.sp)
-                Text("TV", color = TvColors.Amber, fontSize = 24.sp)
+    val routes = listOf("library" to "Biblioteca", "sources" to "Fontes", "import" to "Importar", "settings" to "Configurações")
+    val icons = listOf(R.drawable.nav_library, R.drawable.nav_sources, R.drawable.nav_import, R.drawable.nav_settings)
+    var focusedRoute by remember { mutableStateOf<String?>(null) }
+    Box(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 20.dp, vertical = 16.dp)) {
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.width(60.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("TV", Modifier.height(44.dp), color = TvColors.Amber, fontSize = 24.sp)
+                routes.forEachIndexed { index, (route, title) ->
+                    androidx.tv.material3.Button(onClick = { if (route != selected) onNavigate(route) },
+                        modifier = Modifier.size(56.dp).onFocusChanged {
+                            if (it.isFocused) focusedRoute = route else if (focusedRoute == route) focusedRoute = null
+                        }, contentPadding = PaddingValues(0.dp),
+                        colors = androidx.tv.material3.ButtonDefaults.colors(
+                            containerColor = if (route == selected) TvColors.Amber else TvColors.Panel,
+                            contentColor = if (route == selected) TvColors.Ink else Color.White,
+                            focusedContainerColor = TvColors.Amber, focusedContentColor = TvColors.Ink)) {
+                        androidx.tv.material3.Icon(painterResource(icons[index]), contentDescription = title, modifier = Modifier.size(26.dp))
+                    }
+                }
             }
-            listOf("library" to "Biblioteca", "sources" to "Fontes", "import" to "Importar", "settings" to "Configurações").forEach { (route, title) ->
-                TvButton(title, { if (route != selected) onNavigate(route) }, Modifier.fillMaxWidth(), primary = route == selected)
-            }
-            Spacer(Modifier.weight(1f))
-            Text("SUA PRÓXIMA\nHISTÓRIA ESTÁ AQUI.", fontSize = 12.sp, lineHeight = 19.sp, color = TvColors.Muted)
+            Box(Modifier.weight(1f).fillMaxHeight()) { content() }
         }
-        Box(Modifier.weight(1f).fillMaxHeight()) { content() }
+        // An overlay label explains the focused icon without reserving catalog width.
+        val focusedIndex = routes.indexOfFirst { it.first == focusedRoute }
+        if (focusedIndex >= 0) Text(routes[focusedIndex].second,
+            Modifier.padding(start = 68.dp, top = (62 + focusedIndex * 68).dp)
+                .background(TvColors.Panel).padding(horizontal = 14.dp, vertical = 10.dp),
+            fontSize = 16.sp, color = TvColors.Amber)
     }
 }

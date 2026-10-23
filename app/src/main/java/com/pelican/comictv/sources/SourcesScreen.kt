@@ -14,6 +14,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -44,6 +48,11 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
     val pages = rememberSaveableStateHolder()
     val nested = state.details != null || state.activeSource != null || state.selectedRepository != null
     BackHandler(enabled = nested) { viewModel.back() }
+    if (state.activeSource != null && state.details == null) {
+        val source = state.activeSource!!
+        pages.SaveableStateProvider("catalog:${source.packageName}:${source.id}") { SourceCatalog(state, viewModel) }
+        return
+    }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenTitle("Fontes online", state.activeSource?.let { "${it.name} · ${it.language}" }
             ?: "Repositórios, extensões e histórias para explorar")
@@ -166,35 +175,78 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
         val index = state.titles.indexOfFirst { it.key == focusedTitle }
         if (index >= 0) {
             restoreTarget = state.titles[index].key
-            grid.scrollToItem(index)
+            grid.scrollToItem(index + 3)
             snapshotFlow { positioned == restoreTarget }.first { it }
             restore.requestFocus()
             restoreTarget = null
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            TvButton(if (!state.latest && state.query.isBlank()) "Populares ✓" else "Populares", { vm.showCatalog(false) })
-            TvButton(if (state.latest && state.query.isBlank()) "Recentes ✓" else "Recentes", { vm.showCatalog(true) })
+    var searchVisible by rememberSaveable { mutableStateOf(state.query.isNotBlank()) }
+    var previousCatalog by rememberSaveable { mutableStateOf("${state.latest}:${state.query}") }
+    LaunchedEffect(state.latest, state.query) {
+        val catalog = "${state.latest}:${state.query}"
+        if (catalog != previousCatalog) {
+            previousCatalog = catalog
+            focusedTitle = null
+            restoreTarget = null
+            grid.scrollToItem(0)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            SourceInput(query, { query = it }, "Buscar nesta fonte", Modifier.weight(1f)) { if (!state.busy) vm.search(query.trim()) }
-            SourceButton("Buscar", !state.busy && query.isNotBlank()) { vm.search(query.trim()) }
-        }
-        LazyVerticalGrid(GridCells.Adaptive(145.dp), Modifier.fillMaxSize().focusRestorer(), state = grid, contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-            if (state.titles.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Muted(if (state.busy) "Buscando histórias…" else "Nenhum título encontrado.") }
-            items(state.titles, key = { it.key }) { title ->
-                val focus = if (restoreTarget == title.key) Modifier.focusRequester(restore).onGloballyPositioned { positioned = title.key } else Modifier
-                Card(onClick = { vm.showDetails(title) }, modifier = focus.onFocusChanged { if (it.isFocused) focusedTitle = title.key }, colors = CardDefaults.colors(containerColor = TvColors.Panel),
-                    scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {
-                    Column {
-                        AsyncImage(title.coverUrl, title.title, Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Panel), contentScale = ContentScale.Fit)
-                        Text(title.title, Modifier.padding(12.dp), maxLines = 3, overflow = TextOverflow.Ellipsis, fontSize = 17.sp)
+    }
+    LazyVerticalGrid(GridCells.Adaptive(140.dp), Modifier.fillMaxSize().focusRestorer(), state = grid,
+        contentPadding = PaddingValues(10.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item(key = "catalog-heading", span = { GridItemSpan(maxLineSpan) }) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(state.activeSource?.name ?: "Fontes online", fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Fontes online · ${state.activeSource?.language.orEmpty()}", fontSize = 14.sp, color = TvColors.Muted)
                     }
+                    TvButton("Voltar", { vm.back() })
+                }
+                if (state.busy) Text("Carregando…", color = TvColors.Amber, fontSize = 16.sp)
+                state.message?.let { Text(it, color = TvColors.Amber, fontSize = 16.sp) }
+            }
+        }
+        item(key = "catalog-controls", span = { GridItemSpan(maxLineSpan) }) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton(if (!state.latest && state.query.isBlank()) "Populares ✓" else "Populares", { vm.showCatalog(false) })
+                TvButton(if (state.latest && state.query.isBlank()) "Recentes ✓" else "Recentes", { vm.showCatalog(true) })
+                TvButton(if (searchVisible) "Fechar busca" else "Buscar", { searchVisible = !searchVisible })
+            }
+        }
+        // Keep three header entries even while search is collapsed, so restoration has a stable offset.
+        item(key = "catalog-search", span = { GridItemSpan(maxLineSpan) }) {
+            if (searchVisible) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                SourceInput(query, { query = it }, "Buscar nesta fonte", Modifier.weight(1f)) { if (!state.busy) vm.search(query.trim()) }
+                SourceButton("Buscar", !state.busy && query.isNotBlank()) { vm.search(query.trim()) }
+            }
+        }
+        if (state.titles.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Muted(if (state.busy) "Buscando histórias…" else "Nenhum título encontrado.") }
+        items(state.titles, key = { it.key }) { title ->
+            LaunchedEffect(state.activeSource, title.key) {
+                if (title.coverUrl.isNullOrBlank()) vm.resolveTitlePreview(title)
+            }
+            val label = title.title.ifBlank { "Título não informado" }
+            var loaded by remember(title.coverUrl) { mutableStateOf(false) }
+            var failed by remember(title.coverUrl) { mutableStateOf(false) }
+            val focus = if (restoreTarget == title.key) Modifier.focusRequester(restore).onGloballyPositioned { positioned = title.key } else Modifier
+            Card(onClick = { vm.showDetails(title) }, modifier = focus.fillMaxWidth()
+                .semantics { contentDescription = label }
+                .onFocusChanged { if (it.isFocused) focusedTitle = title.key }, colors = CardDefaults.colors(containerColor = TvColors.Panel),
+                scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {
+                Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Panel)) {
+                    if (!loaded) Text(if (title.coverUrl.isNullOrBlank() || failed) "Capa indisponível" else "Carregando capa…",
+                        Modifier.align(Alignment.Center).padding(10.dp), color = TvColors.Muted, fontSize = 14.sp)
+                    if (!title.coverUrl.isNullOrBlank()) AsyncImage(title.coverUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
+                        onSuccess = { loaded = true }, onError = { failed = true })
+                    Text(label, Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.94f), Color.Black)))
+                        .padding(start = 8.dp, end = 8.dp, top = 18.dp, bottom = 8.dp),
+                        minLines = 3, maxLines = 3, overflow = TextOverflow.Ellipsis, fontSize = 16.sp, lineHeight = 20.sp)
                 }
             }
-            if (state.hasNextPage) item(span = { GridItemSpan(maxLineSpan) }) { SourceButton("Carregar mais", !state.busy) { vm.loadMore() } }
         }
+        if (state.hasNextPage) item(span = { GridItemSpan(maxLineSpan) }) { SourceButton("Carregar mais", !state.busy) { vm.loadMore() } }
     }
 }
 

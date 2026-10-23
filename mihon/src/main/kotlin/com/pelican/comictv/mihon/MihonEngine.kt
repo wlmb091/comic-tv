@@ -93,6 +93,11 @@ class MihonEngine(context: Context) {
         CatalogResult(result.mangas.map(::mapTitle), result.hasNextPage)
     }
 
+    suspend fun titlePreview(handle: SourceHandle, title: OnlineTitle): OnlineTitle = withContext(Dispatchers.IO) {
+        val manga = SManga.create().apply { url = title.key; this.title = title.title; thumbnail_url = title.coverUrl; description = title.description }
+        val result = source(handle).getMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
+        OnlineTitle(title.key, runCatching { result.title }.getOrDefault(title.title), result.thumbnail_url, result.description)
+    }
     suspend fun details(source: SourceHandle, title: OnlineTitle): OnlineDetails = withContext(Dispatchers.IO) {
         val manga = SManga.create().apply { url = title.key; this.title = title.title; thumbnail_url = title.coverUrl; description = title.description }
         // 1.6 sources override getMangaUpdate; older sources use the vendored Rx bridge.

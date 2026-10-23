@@ -1,27 +1,25 @@
-# Validação — Comic TV 0.7.4
+# Validação — Comic TV 0.7.5
 
-23/10/2026 · versionCode 13 · minSdk 26 (Android 8) · compileSdk/targetSdk 36.
+23/10/2026 · versionCode14 · Android8/API26 ou superior.
 
-## Causa comprovada
+## Alterações
 
-O aparelho reportou AbstractMethodError em GeneratedSerializer.typeParametersSerializers ao explorar HQ Now. A biblioteca kotlinx-serialization-core-jvm 1.9.0 já contém implementação padrão desse método (verificada com javap). Porém, no DEX do Comic TV 0.7.3, o método tinha flags PUBLIC ABSTRACT e nenhum corpo. O D8 reescrevia interfaces para o piso Android23 do host. A extensão compilada separadamente para Android26 depende da implementação padrão e não recebe as pontes sintéticas criadas durante a compilação do host.
-
-## Correção e impacto
-
-App e módulo mihon passam a minSdk26, preservando as implementações padrão no DEX. Mantidas as versões de serialização e rede: atualizar apenas a biblioteca não corrigiria a transformação feita no empacotamento. Android8/API26 foi escolhido como piso compatível com o APK HQ Now inspecionado. Android6/7 deixam de ser suportados a partir desta versão.
-
-README e documentação do runtime atualizados. Adicionado tools/check-extension-abi.mjs, que inspeciona o DEX final, identifica a interface e verifica assinatura, visibilidade pública, método não estático/não abstrato e corpo executável. O teste é específico para o método que falhou; não certifica compatibilidade completa com todas as extensões.
+- Catálogo com cabeçalho, controles e busca dentro da grade rolável. Busca recolhível, capas inteiras 2:3 e nomes em até três linhas sobre fundo escuro. Grade adaptativa de aproximadamente cinco colunas na área de TV comum, dependendo da resolução/densidade.
+- Barra lateral de 60dp com ícones, nomes acessíveis e rótulo ao receber foco; substitui botões largos de166dp.
+- Resultados sem capa consultam detalhes pela própria extensão somente para cartões compostos pelo catálogo. Até duas consultas simultâneas, cache LRU128 por fonte/título, cancelamento ao sair da composição. Falhas não são armazenadas: revisitar um item permite nova tentativa, podendo gerar outra consulta.
+- Evidência: busca HQNow por Spawn retornou nomes completos, sem campo de capa; detalhes do título1454 trouxeram hqCover com resposta HTTP200/jpeg. O código da extensão não solicita hqCover na busca. Os números isolados na imagem eram compatíveis com texto cortado pelo viewport; não foram inventados nomes ou substituídos dados da fonte.
+- Leitor de imagens: toque central inferior a1s alterna Zoom/Pan; segurar2s abre ferramentas, consumindo a soltura para evitar clique acidental no menu. Intervalo1–2s não executa ação. Repetições não reiniciam o cronômetro; pausa, saída e perda de foco cancelam o gesto. Timeline mantém confirmação rápida e EPUB de texto mantém controles anteriores.
 
 ## Verificação
 
-- Verificador DEX reproduziu a falha em 0.7.3 e passou em 0.7.4.
-- 126 testes JVM passaram sem falhas ou erros.
-- assembleDebug, mihon:assembleDebugAndroidTest e lintDebug passaram.
-- Comparação de tipos usados pelo HQ Now com APK final: nenhuma classe não pertencente à plataforma ausente.
-- Assinatura v2 válida; aapt2 confirma code13, versão0.7.4, minSdk26.
-- SHA-256 APK: 43552E8427A887C4FE352061195C7FFFB5241B254DB8C79C9550EBFF73937A3A.
-- Revisão independente sem bloqueios; implementação no DEX final confirmada após a revisão.
+- 136 testes JVM passaram, sem falhas/erros: 87 core,10 mihon,39 app.
+- Novos testes cobrem cache de capas, isolamento por fonte, retentativa, limite de concorrência/cancelamento e limiares/repetição/cancelamento do botão central.
+- assembleDebug, assembleDebugAndroidTest e lintDebug passaram.
+- Verificador DEX confirma implementação padrão GeneratedSerializer preservada no APK.
+- apksigner verificou assinatura; aapt2 confirma versão0.7.5/code14/minSdk26.
+- SHA256: EC0E90ECFCFFF60EEA6E42AAA8899EBE0A1979B2B02D213BBA5D254638BF605F.
+- Revisões independentes de catálogo/ícones e gesto do leitor sem bloqueios.
 
-## Limite da validação
+## Verificação no aparelho pendente
 
-Sem aparelho conectado para executar a extensão. A correção do método no APK foi comprovada; abrir catálogo, sagas e páginas na TV ainda requer teste no aparelho. Atualizar normalmente, abrir Fontes, Atualizar instaladas e HQ Now — Explorar.
+Não houve execução em TV/emulador nesta etapa. Testar foco/D-pad, busca Spawn e carregamento gradual das capas, rolagem completa, retorno dos detalhes ao cartão e gesto rápido/longo no controle físico. Algumas fontes podem não fornecer capa ou retornar erro; nesse caso o título e a indicação de capa indisponível permanecem visíveis.

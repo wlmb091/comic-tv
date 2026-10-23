@@ -15,6 +15,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     val state = _state.asStateFlow()
     private var job: Job? = null
     private var page = 1
+    private val previews = TitlePreviewResolver(engine::titlePreview)
 
     init { refreshInstalled() }
     fun installationMessage(message: String) { _state.update { it.copy(message = message) } }
@@ -81,6 +82,18 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         currentCoroutineContext().ensureActive()
         _state.update { it.copy(message = "APK verificado. Confirme a instalação na TV e atualize as instaladas ao voltar.") }
         onReady(file)
+    }
+    suspend fun resolveTitlePreview(title: OnlineTitle) {
+        val source = _state.value.activeSource ?: return
+        try {
+            val preview = previews.resolve(source, title)
+            currentCoroutineContext().ensureActive()
+            _state.update { old ->
+                if (old.activeSource != source) old else old.copy(titles = old.titles.map { if (it.key == title.key) preview else it })
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { Log.w("ComicTV-Sources", "Cover details unavailable: ${source.packageName}", e) }
+        catch (e: LinkageError) { Log.w("ComicTV-Sources", "Cover details compatibility failure: ${source.packageName}", e) }
     }
     fun activateSource(source: SourceHandle) = task {
         require(source in _state.value.sources)

@@ -29,6 +29,10 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import com.pelican.comictv.ui.*
 import kotlin.math.min
+import android.os.SystemClock
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -52,6 +56,17 @@ import kotlin.math.min
     var renderError by remember(image?.file) { mutableStateOf(false) }
     val displayedError = error ?: if (renderError) "Não foi possível decodificar esta página." else null
     val focus = remember { FocusRequester() }
+    val centerPress = remember { CenterPressController() }
+    val gestureScope = rememberCoroutineScope()
+    var holdJob by remember { mutableStateOf<Job?>(null) }
+    val cancelCenter = { holdJob?.cancel(); holdJob = null; centerPress.cancel() }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) cancelCenter()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cancelCenter() }
+    }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val statusHeight = with(LocalDensity.current) { 40.dp.roundToPx() }
     val pageAreaHeight = (size.height - statusHeight).coerceAtLeast(1)
@@ -62,21 +77,36 @@ import kotlin.math.min
     LaunchedEffect(state.mode) { if (state.mode != ReaderMode.Tools) focus.requestFocus() }
     Box(Modifier.fillMaxSize().background(Color.Black).clipToBounds().onSizeChanged { size = it }
         .onPreviewKeyEvent { event ->
-            if (state.mode == ReaderMode.Tools) false else {
+            val isCenter = event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter
+            if (isCenter && (state.mode != ReaderMode.Tools || centerPress.isPressed)) {
+                if (event.type == KeyEventType.KeyDown) {
+                    if (event.nativeKeyEvent.repeatCount == 0 && centerPress.down(SystemClock.uptimeMillis())) {
+                        holdJob = gestureScope.launch {
+                            delay(2000)
+                            centerPress.hold(SystemClock.uptimeMillis())?.let(viewModel::action)
+                        }
+                    }
+                } else if (event.type == KeyEventType.KeyUp) {
+                    holdJob?.cancel()
+                    holdJob = null
+                    if (event.nativeKeyEvent.isCanceled) centerPress.cancel()
+                    else centerPress.up(SystemClock.uptimeMillis(), state.mode)?.let(viewModel::action)
+                }
+                true
+            } else if (state.mode == ReaderMode.Tools) false else {
                 val action = when (event.key) {
                     Key.DirectionLeft -> ReaderAction.Left
                     Key.DirectionRight -> ReaderAction.Right
                     Key.DirectionUp -> ReaderAction.Up
                     Key.DirectionDown -> ReaderAction.Down
-                    Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> ReaderAction.Select
                     else -> null
                 }
                 if (action == null) false else {
-                    if (event.type == (if (action == ReaderAction.Select) KeyEventType.KeyUp else KeyEventType.KeyDown)) viewModel.action(action)
+                    if (event.type == KeyEventType.KeyDown) viewModel.action(action)
                     true
                 }
             }
-        }.focusRequester(focus).focusable()) {
+        }.onFocusChanged { if (!it.hasFocus) cancelCenter() }.focusRequester(focus).focusable()) {
         image?.let { page ->
             val fittedScale = if (size.width > 0) min(size.width.toFloat() / page.width, pageAreaHeight.toFloat() / page.height) else 1f
             val fittedWidth = page.width * fittedScale
@@ -105,7 +135,7 @@ import kotlin.math.min
             Column(Modifier.align(Alignment.Center).widthIn(max = 540.dp).background(TvColors.Panel, RoundedCornerShape(12.dp)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Text(text, fontSize = 20.sp)
-                Text("Pressione OK para abrir as ferramentas e tentar novamente.", color = TvColors.Muted, fontSize = 16.sp)
+                Text("Segure OK por 2s para abrir as ferramentas e tentar novamente.", color = TvColors.Muted, fontSize = 16.sp)
             }
         }
         if (state.mode == ReaderMode.Timeline) {
@@ -114,7 +144,7 @@ import kotlin.math.min
             Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(40.dp).background(Color.Black).padding(horizontal = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (state.pageCount > 0) "Página ${state.page + 1} de ${state.pageCount}" else "Leitor", fontSize = 14.sp)
-                Text(if (state.mode == ReaderMode.Pan) "↑ ↓ ← →  Mover  ·  Voltar  Ferramentas" else "← →  Páginas  ·  ↑ ↓  Zoom  ·  OK  Ferramentas", fontSize = 14.sp, color = TvColors.Muted)
+                Text(if (state.mode == ReaderMode.Pan) "↑ ↓ ← →  Mover  ·  OK  Zoom  ·  Segure OK 2s  Ferramentas" else "← →  Páginas  ·  ↑ ↓  Zoom  ·  OK  Mover  ·  Segure OK 2s  Ferramentas", fontSize = 14.sp, color = TvColors.Muted)
                 Text(if (automatic.enabled) "Automático · ${automatic.secondsPerScreen}s" else "${(state.zoom * 100).toInt()}%", fontSize = 14.sp, color = TvColors.Amber)
             }
         } else {
