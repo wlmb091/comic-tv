@@ -3,11 +3,16 @@ package com.pelican.comictv.library
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.*
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,70 +29,118 @@ import kotlinx.coroutines.flow.first
 ) {
     val grid = rememberLazyGridState()
     val restore = remember { FocusRequester() }
-    val empty = remember { FocusRequester() }
+    var history by rememberSaveable { mutableStateOf(false) }
     var target by remember { mutableStateOf<String?>(null) }
     var positioned by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(comics.isNotEmpty()) {
-        if (comics.isEmpty()) { empty.requestFocus(); return@LaunchedEffect }
-        val index = comics.indexOfFirst { it.id == focusedId }.coerceAtLeast(0)
-        target = comics[index].id
-        grid.scrollToItem(index)
-        snapshotFlow { positioned == target }.first { it }
+    val recent = comics.filter { it.lastRead > 0 }.sortedByDescending { it.lastRead }
+    val visible = if (history) recent else comics
+    // Capture the entry target once: database emissions must not take focus from navigation.
+    val entryId = remember { focusedId }
+    var restored by remember { mutableStateOf(false) }
+    LaunchedEffect(comics, history) {
+        if (restored || entryId == null) return@LaunchedEffect
+        val index = visible.indexOfFirst { it.id == entryId }
+        if (index < 0) return@LaunchedEffect
+        target = entryId
+        positioned = null
+        val headerItems = if (!history && recent.isNotEmpty()) 4 else 2
+        grid.scrollToItem(headerItems + index)
+        snapshotFlow { positioned == entryId }.first { it }
         restore.requestFocus()
         target = null
+        restored = true
     }
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        ScreenTitle("Sua biblioteca", if (comics.isEmpty()) "Um lugar para todas as suas histórias." else "${comics.size} edições · escolha sua próxima leitura")
-        if (comics.isEmpty()) {
-            Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center) {
-                Text("Sua coleção começa aqui", fontSize = 28.sp)
-                Spacer(Modifier.height(14.dp))
-                Text("Importe CBZ, ZIP, CBR, RAR, PDF ou EPUB para começar.\nSua leitura será salva automaticamente.", color = TvColors.Muted, fontSize = 18.sp, lineHeight = 28.sp)
-                Spacer(Modifier.height(28.dp))
-                TvButton("Importar quadrinhos", onImport, Modifier.focusRequester(empty), primary = true)
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(140.dp), state = grid,
+        modifier = Modifier.fillMaxSize().focusRestorer(),
+        contentPadding = PaddingValues(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Sua biblioteca", fontSize = 26.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TvButton("Biblioteca · ${comics.size}", { history = false }, primary = !history)
+                    TvButton("Histórico · ${recent.size}", { history = true }, primary = history)
+                }
             }
-        } else {
-            val recent = comics.filter { it.lastRead > 0 }.sortedByDescending { it.lastRead }.take(2)
-            if (recent.isNotEmpty()) {
-                Text("Continuar lendo", fontSize = 21.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    recent.forEach { comic ->
-                        Card(onClick = { onFocus(comic.id); onOpen(comic.id) }, modifier = Modifier.weight(1f),
-                            colors = CardDefaults.colors(containerColor = TvColors.Panel)) {
-                            Row(Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                                AsyncImage(repository.cover(comic.id), null, Modifier.width(48.dp).height(68.dp), contentScale = ContentScale.Crop)
-                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Text(comic.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 17.sp)
-                                    Text("Página ${comic.currentPage + 1} de ${comic.pageCount}", color = TvColors.Muted, fontSize = 13.sp)
-                                    ProgressTrack((comic.currentPage + 1f) / comic.pageCount, Modifier.fillMaxWidth())
+        }
+        if (!history && recent.isNotEmpty()) {
+            item(key = "recent-heading", span = { GridItemSpan(maxLineSpan) }) {
+                Text("Continuar lendo · ${recent.size} no histórico →", fontSize = 19.sp)
+            }
+            item(key = "recent-row", span = { GridItemSpan(maxLineSpan) }) {
+                LazyRow(
+                    contentPadding = PaddingValues(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    items(recent, key = { it.id }) { comic ->
+                        Card(
+                            onClick = { onFocus(comic.id); onOpen(comic.id) },
+                            modifier = Modifier.width(280.dp).onFocusChanged { if (it.isFocused) onFocus(comic.id) },
+                            border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
+                            colors = CardDefaults.colors(containerColor = TvColors.Panel),
+                        ) {
+                            Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                AsyncImage(repository.cover(comic.id), null, Modifier.width(40.dp).height(60.dp), contentScale = ContentScale.Fit)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(comic.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 16.sp)
+                                    Text(readingStatus(comic), color = TvColors.Muted, fontSize = 13.sp)
+                                    ProgressTrack(readingFraction(comic), Modifier.fillMaxWidth())
                                 }
                             }
                         }
                     }
                 }
             }
-            Text("Sua coleção", fontSize = 21.sp)
-            LazyVerticalGrid(columns = GridCells.Fixed(4), state = grid,
-                modifier = Modifier.weight(1f).focusRestorer(), contentPadding = PaddingValues(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
-                items(comics, key = { it.id }) { comic ->
-                    val restoreModifier = if (target == comic.id) Modifier.focusRequester(restore).onGloballyPositioned { positioned = comic.id } else Modifier
-                    Card(onClick = { onFocus(comic.id); onOpen(comic.id) }, modifier = restoreModifier
-                        .onFocusChanged { if (it.isFocused) onFocus(comic.id) },
-                        scale = CardDefaults.scale(focusedScale = 1.04f),
-                        border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
-                        colors = CardDefaults.colors(containerColor = TvColors.Panel)) {
-                        Column {
-                            AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxWidth().aspectRatio(2f / 3f)
-                                .background(TvColors.Panel), contentScale = ContentScale.Fit)
-                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(comic.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 16.sp)
-                                if (comic.lastRead > 0) ProgressTrack((comic.currentPage + 1f) / comic.pageCount, Modifier.fillMaxWidth())
-                            }
-                        }
+        }
+        item(key = "collection-heading", span = { GridItemSpan(maxLineSpan) }) {
+            Text(if (history) "Todas as leituras · mais recentes primeiro" else "Sua coleção", fontSize = 19.sp)
+        }
+        if (visible.isEmpty()) {
+            item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
+                Column(Modifier.fillMaxWidth().padding(vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(if (history) "Nenhuma leitura no histórico" else "Sua coleção começa aqui", fontSize = 24.sp)
+                    Text(
+                        if (history) "Abra uma edição para encontrá-la aqui, inclusive depois de terminar."
+                        else "Importe CBZ, ZIP, CBR, RAR, PDF ou EPUB para começar.",
+                        color = TvColors.Muted, fontSize = 17.sp,
+                    )
+                    if (history) TvButton("Ver biblioteca", { history = false })
+                    else TvButton("Importar quadrinhos", onImport, primary = true)
+                }
+            }
+        }
+        items(visible, key = { it.id }) { comic ->
+            val restoreModifier = if (target == comic.id) Modifier.focusRequester(restore)
+                .onGloballyPositioned { positioned = comic.id } else Modifier
+            Card(
+                onClick = { onFocus(comic.id); onOpen(comic.id) },
+                modifier = restoreModifier.onFocusChanged { if (it.isFocused) onFocus(comic.id) },
+                scale = CardDefaults.scale(focusedScale = 1.03f),
+                border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
+                colors = CardDefaults.colors(containerColor = TvColors.Panel),
+            ) {
+                Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Panel)) {
+                    AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.94f), Color.Black)))
+                        .padding(start = 8.dp, end = 8.dp, top = 18.dp, bottom = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(comic.title, minLines = 2, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                            fontSize = 16.sp, lineHeight = 20.sp)
+                        if (comic.lastRead > 0) ProgressTrack(readingFraction(comic), Modifier.fillMaxWidth())
                     }
                 }
             }
         }
     }
 }
+
+private fun readingFraction(comic: ComicEntity): Float =
+    (comic.currentPage + 1f) / comic.pageCount.coerceAtLeast(1)
+
+private fun readingStatus(comic: ComicEntity): String =
+    if (comic.pageCount > 0 && comic.currentPage >= comic.pageCount - 1) "Concluído"
+    else "Página ${comic.currentPage + 1} de ${comic.pageCount}"

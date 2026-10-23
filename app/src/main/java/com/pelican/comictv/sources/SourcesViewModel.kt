@@ -40,14 +40,14 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         val records = (_state.value.repositories.filterNot { it.baseUrl == fetched.baseUrl } + SavedRepository(fetched.baseUrl, fetched.name, fetched.fingerprint))
         withContext(Dispatchers.IO) { preferences.save(records) }
         _state.update { it.copy(repositories = records, selectedRepository = fetched.baseUrl, extensions = fetched.extensions,
-            activeSource = null, details = null, message = "${fetched.extensions.size} extensões disponíveis.") }
+            managerPage = SourceManagerPage.REPOSITORIES, details = null, message = "${fetched.extensions.size} extensões disponíveis.") }
     }
 
     fun selectRepository(base: String) = task {
         val trusted = _state.value.repositories.first { it.baseUrl == base }
         val fetched = withContext(Dispatchers.IO) { runInterruptible { client.fetch(base) } }
         require(fetched.fingerprint == trusted.fingerprint) { "A assinatura do repositório mudou; atualização bloqueada." }
-        _state.update { it.copy(selectedRepository = base, extensions = fetched.extensions, activeSource = null, details = null) }
+        _state.update { it.copy(selectedRepository = base, extensions = fetched.extensions, managerPage = SourceManagerPage.REPOSITORIES, details = null) }
     }
     fun refresh() { _state.value.selectedRepository?.let(::selectRepository) ?: refreshInstalled() }
     fun removeRepository(base: String) = task {
@@ -72,9 +72,23 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         }
         _state.update { it.copy(repositories = records, installed = installed, loadFailures = failures,
             sources = sources.sortedWith(compareBy<SourceHandle> { !it.language.startsWith("pt") }.thenBy { it.name }),
-            message = when (failures.size) { 0 -> "${sources.size} fontes disponíveis."; 1 -> "Uma extensão falhou ao abrir. Veja o motivo em Extensões no aparelho, abaixo."; else -> "${failures.size} extensões falharam ao abrir. Veja os motivos abaixo." }) }
+            message = when (failures.size) { 0 -> "${sources.size} fontes disponíveis."; 1 -> "Uma extensão falhou ao abrir. Veja o motivo em Gerenciar / Extensões."; else -> "${failures.size} extensões falharam ao abrir. Veja os motivos em Gerenciar / Extensões." }) }
+        val selection = _state.value.activeSource?.let { SourceSelection(it.packageName, it.id) } ?: preferences.selectedSource()
+        val restored = selection?.resolve(sources)
+        if (restored != null && _state.value.activeSource == null && _state.value.managerPage == null) {
+            activateSourceInternal(restored, restoring = true)
+        } else if (restored != null && _state.value.activeSource != null) {
+            _state.update { it.copy(activeSource = restored) }
+        } else if (selection != null && restored == null) {
+            withContext(Dispatchers.IO) { preferences.saveSelectedSource(null) }
+            _state.update { it.copy(activeSource = null, details = null, titles = emptyList(), managerPage = SourceManagerPage.SOURCES,
+                message = "A fonte anterior não está disponível. Escolha outra fonte.") }
+        }
     }
 
+    fun openSourceManager(page: SourceManagerPage = SourceManagerPage.SOURCES) {
+        _state.update { it.copy(managerPage = page, details = null, selectedRepository = null) }
+    }
     fun prepareInstall(entry: ExtensionEntry, onReady: (File) -> Unit) = task {
         val repo = _state.value.repositories.firstOrNull { it.baseUrl == _state.value.selectedRepository } ?: error("Abra o repositório da extensão.")
         require(entry in _state.value.extensions) { "Extensão não pertence ao índice aberto." }
@@ -95,9 +109,15 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         catch (e: Exception) { Log.w("ComicTV-Sources", "Cover details unavailable: ${source.packageName}", e) }
         catch (e: LinkageError) { Log.w("ComicTV-Sources", "Cover details compatibility failure: ${source.packageName}", e) }
     }
-    fun activateSource(source: SourceHandle) = task {
+    fun activateSource(source: SourceHandle) = task { activateSourceInternal(source) }
+    private suspend fun activateSourceInternal(source: SourceHandle, restoring: Boolean = false) {
         require(source in _state.value.sources)
+        withContext(Dispatchers.IO) { preferences.saveSelectedSource(source) }
+        currentCoroutineContext().ensureActive()
+        if (restoring && (_state.value.activeSource != null || _state.value.managerPage != null)) return
+        _state.update { it.copy(activeSource = source, managerPage = null, selectedRepository = null, details = null, titles = emptyList(), hasNextPage = false, query = "", latest = false) }
         val result = engine.catalog(source)
+        currentCoroutineContext().ensureActive()
         page = 1
         _state.update { it.copy(activeSource = source, selectedRepository = null, details = null, titles = result.titles,
             hasNextPage = result.hasNextPage, latest = false, query = "") }
@@ -135,12 +155,13 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     }
     fun back(): Boolean {
         val old = _state.value
-        if (old.details == null && old.activeSource == null && old.selectedRepository == null) return false
+        if (old.details == null && old.managerPage == null && old.selectedRepository == null) return false
         job?.cancel()
         _state.value = when {
             old.details != null -> old.copy(details = null, busy = false, message = null)
-            old.activeSource != null -> old.copy(activeSource = null, titles = emptyList(), busy = false, message = null)
-            else -> old.copy(selectedRepository = null, extensions = emptyList(), busy = false, message = null)
+            old.selectedRepository != null -> old.copy(selectedRepository = null, extensions = emptyList(), busy = false, message = null)
+            old.activeSource != null -> old.copy(managerPage = null, busy = false, message = null)
+            else -> return false
         }
         return true
     }

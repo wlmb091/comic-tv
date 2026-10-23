@@ -14,6 +14,13 @@ class SourcePreferences(context: Context) {
         require(repositories.size <= 32) { "Limite de 32 repositórios." }
         check(preferences.edit().putString("repositories", gson.toJson(repositories)).commit()) { "Não foi possível salvar os repositórios." }
     }
+    fun selectedSource(): SourceSelection? = runCatching {
+        gson.fromJson(preferences.getString("selected-source", null), SourceSelection::class.java)
+    }.getOrNull()
+    fun saveSelectedSource(source: SourceHandle?) {
+        val selection = source?.let { SourceSelection(it.packageName, it.id) }
+        check(preferences.edit().putString("selected-source", selection?.let(gson::toJson)).commit()) { "Não foi possível salvar a fonte." }
+    }
     fun isTrusted(fingerprint: String) = repositories().any { it.fingerprint == fingerprint }
     fun reversedSequence(context: OnlineEditions): Boolean = preferences.getBoolean(sequenceKey(context), false)
     fun saveSequenceOrder(context: OnlineEditions, reversed: Boolean) {

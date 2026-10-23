@@ -1,7 +1,12 @@
 package com.pelican.comictv.sources
 
 data class SavedRepository(val baseUrl: String, val name: String, val fingerprint: String)
+data class SourceSelection(val packageName: String, val sourceId: Long) {
+    fun resolve(sources: List<SourceHandle>): SourceHandle? = sources.firstOrNull { it.packageName == packageName && it.id == sourceId }
+}
+enum class SourceManagerPage { SOURCES, REPOSITORIES }
 data class SourcesState(
+    val managerPage: SourceManagerPage? = null,
     val repositories: List<SavedRepository> = emptyList(),
     val selectedRepository: String? = null,
     val extensions: List<ExtensionEntry> = emptyList(),

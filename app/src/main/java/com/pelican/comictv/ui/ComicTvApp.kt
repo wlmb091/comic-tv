@@ -1,6 +1,12 @@
 package com.pelican.comictv.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -119,32 +125,39 @@ import androidx.compose.ui.platform.LocalContext
 @Composable private fun TvShell(selected: String, onNavigate: (String) -> Unit, content: @Composable () -> Unit) {
     val routes = listOf("library" to "Biblioteca", "sources" to "Fontes", "import" to "Importar", "settings" to "Configurações")
     val icons = listOf(R.drawable.nav_library, R.drawable.nav_sources, R.drawable.nav_import, R.drawable.nav_settings)
-    var focusedRoute by remember { mutableStateOf<String?>(null) }
+    var focusWithin by remember { mutableStateOf(false) }
+    val hover = remember { MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
+    val expanded = focusWithin || hovered
     Box(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 20.dp, vertical = 16.dp)) {
-        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.width(60.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("TV", Modifier.height(44.dp), color = TvColors.Amber, fontSize = 24.sp)
-                routes.forEachIndexed { index, (route, title) ->
-                    androidx.tv.material3.Button(onClick = { if (route != selected) onNavigate(route) },
-                        modifier = Modifier.size(56.dp).onFocusChanged {
-                            if (it.isFocused) focusedRoute = route else if (focusedRoute == route) focusedRoute = null
-                        }, contentPadding = PaddingValues(0.dp),
-                        colors = androidx.tv.material3.ButtonDefaults.colors(
-                            containerColor = if (route == selected) TvColors.Amber else TvColors.Panel,
-                            contentColor = if (route == selected) TvColors.Ink else Color.White,
-                            focusedContainerColor = TvColors.Amber, focusedContentColor = TvColors.Ink)) {
-                        androidx.tv.material3.Icon(painterResource(icons[index]), contentDescription = title, modifier = Modifier.size(26.dp))
+        // The content keeps its full width while the drawer floats above its left edge.
+        Box(Modifier.fillMaxSize().padding(start = 80.dp)) { content() }
+        Column(Modifier.width(if (expanded) 228.dp else 64.dp).fillMaxHeight()
+            .background(TvColors.Panel, RoundedCornerShape(18.dp))
+            .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(18.dp))
+            .onFocusChanged { focusWithin = it.hasFocus }.focusGroup().hoverable(hover).padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.CenterStart) {
+                Text(if (expanded) "COMIC TV" else "TV", Modifier.padding(start = if (expanded) 8.dp else 9.dp),
+                    color = TvColors.Amber, fontSize = if (expanded) 22.sp else 24.sp, maxLines = 1)
+            }
+            routes.forEachIndexed { index, (route, title) ->
+                androidx.tv.material3.Button(onClick = { if (route != selected) onNavigate(route) },
+                    modifier = Modifier.fillMaxWidth().height(56.dp), contentPadding = PaddingValues(0.dp),
+                    shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                    scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1f),
+                    colors = androidx.tv.material3.ButtonDefaults.colors(
+                        containerColor = if (route == selected) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
+                        contentColor = if (route == selected) TvColors.Amber else Color.White,
+                        focusedContainerColor = TvColors.Amber, focusedContentColor = TvColors.Ink)) {
+                    Row(Modifier.fillMaxWidth().fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.width(48.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            androidx.tv.material3.Icon(painterResource(icons[index]), contentDescription = title, modifier = Modifier.size(26.dp))
+                        }
+                        if (expanded) Text(title, Modifier.padding(start = 8.dp), fontSize = 17.sp, maxLines = 1)
                     }
                 }
             }
-            Box(Modifier.weight(1f).fillMaxHeight()) { content() }
         }
-        // An overlay label explains the focused icon without reserving catalog width.
-        val focusedIndex = routes.indexOfFirst { it.first == focusedRoute }
-        if (focusedIndex >= 0) Text(routes[focusedIndex].second,
-            Modifier.padding(start = 68.dp, top = (62 + focusedIndex * 68).dp)
-                .background(TvColors.Panel).padding(horizontal = 14.dp, vertical = 10.dp),
-            fontSize = 16.sp, color = TvColors.Amber)
     }
 }
