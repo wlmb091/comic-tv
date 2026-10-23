@@ -7,6 +7,7 @@ data class SourcesState(
     val extensions: List<ExtensionEntry> = emptyList(),
     val installed: List<InstalledExtension> = emptyList(),
     val sources: List<SourceHandle> = emptyList(),
+    val loadFailures: Map<String, String> = emptyMap(),
     val activeSource: SourceHandle? = null,
     val titles: List<OnlineTitle> = emptyList(),
     val details: OnlineDetails? = null,

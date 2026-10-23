@@ -113,6 +113,11 @@ private fun SourcesHome(state: SourcesState, vm: SourcesViewModel) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("${extension.name} · ${extension.versionName}", fontSize = 18.sp)
                 Muted(if (extension.compatible) "API compatível · funcionamento depende da fonte" else "API incompatível com este aplicativo")
+                Muted(extension.packageName)
+                state.loadFailures[extension.packageName]?.let { reason ->
+                    Text("Falha ao abrir: $reason", color = TvColors.Amber, fontSize = 17.sp)
+                    SourceButton("Tentar carregar novamente", !state.busy) { vm.refreshInstalled() }
+                }
                 Muted("Certificado: ${extension.fingerprints.joinToString()}")
             }
         }

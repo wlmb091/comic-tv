@@ -60,18 +60,18 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         val records = preferences.repositories()
         val installed = withContext(Dispatchers.IO) { engine.installed() }
         val sources = ArrayList<SourceHandle>()
-        var failed = 0
+        val failures = linkedMapOf<String, String>()
         for (extension in installed.take(100)) {
             currentCoroutineContext().ensureActive()
             val pin = records.firstOrNull { it.fingerprint in extension.fingerprints }?.fingerprint ?: continue
             try { sources += withContext(Dispatchers.IO) { engine.load(extension.packageName, pin) } }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { failed++; Log.e("ComicTV-Sources", "Extension load failed: ${extension.packageName}", e) }
-            catch (e: LinkageError) { failed++; Log.e("ComicTV-Sources", "Extension linkage failed: ${extension.packageName}", e) }
+            catch (e: Exception) { failures[extension.packageName] = extensionLoadDiagnostic(e); Log.e("ComicTV-Sources", "Extension load failed: ${extension.packageName}", e) }
+            catch (e: LinkageError) { failures[extension.packageName] = extensionLoadDiagnostic(e); Log.e("ComicTV-Sources", "Extension linkage failed: ${extension.packageName}", e) }
         }
-        _state.update { it.copy(repositories = records, installed = installed,
+        _state.update { it.copy(repositories = records, installed = installed, loadFailures = failures,
             sources = sources.sortedWith(compareBy<SourceHandle> { !it.language.startsWith("pt") }.thenBy { it.name }),
-            message = if (failed > 0) "$failed extensões não puderam ser abertas. As demais continuam disponíveis." else it.message) }
+            message = when (failures.size) { 0 -> "${sources.size} fontes disponíveis."; 1 -> "Uma extensão falhou ao abrir. Veja o motivo em Extensões no aparelho, abaixo."; else -> "${failures.size} extensões falharam ao abrir. Veja os motivos abaixo." }) }
     }
 
     fun prepareInstall(entry: ExtensionEntry, onReady: (File) -> Unit) = task {
