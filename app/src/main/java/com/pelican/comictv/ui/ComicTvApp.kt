@@ -67,7 +67,7 @@ import androidx.compose.ui.platform.LocalContext
         composable("settings") {
             TvShell("settings", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    ScreenTitle("Seu controle, sua leitura", "Comic TV · versão 0.2.0")
+                    ScreenTitle("Seu controle, sua leitura", "Comic TV · versão 0.2.1")
                     Text("← →  Página anterior / próxima\n↑ ↓  Aumentar / reduzir zoom\nOK  Abrir ferramentas\nMover página  Deslocar com as quatro setas\nVoltar  Sair do modo ativo e retornar", fontSize = 20.sp, lineHeight = 34.sp)
                     TvButton("Voltar à biblioteca", { nav.popBackStack("library", false) })
                 }

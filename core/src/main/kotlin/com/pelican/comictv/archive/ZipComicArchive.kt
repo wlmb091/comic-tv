@@ -13,7 +13,7 @@ data class ArchiveLimits(
     val maxArchiveBytes: Long = 1024L * 1024 * 1024,
 )
 
-class ComicArchiveException(message: String, cause: Throwable? = null) : IOException(message, cause)
+class ComicArchiveException(message: String, cause: Throwable? = null) : ComicImportException(message, cause)
 
 class ZipComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) {
     fun index(file: File): List<PageRef> = guarded {
@@ -28,19 +28,24 @@ class ZipComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) {
             val entries = zip.entries()
             var count = 0
             var total = 0L
+            var containsComicFiles = false
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
                 if (++count > limits.maxEntries) throw ComicArchiveException("O arquivo contém entradas demais.")
                 validateName(entry.name)
                 if (!seen.add(entry.name)) throw ComicArchiveException("O arquivo contém páginas com nomes duplicados.")
                 if (entry.isDirectory || entry.name.split('/').any { it == "__MACOSX" || it.startsWith(".") }) continue
+                if (entry.name.substringAfterLast('.', "").lowercase() in setOf("cbz", "zip")) containsComicFiles = true
                 if (entry.name.substringAfterLast('.', "").lowercase() !in setOf("jpg", "jpeg", "png", "webp")) continue
                 if (entry.size > limits.maxPageBytes) throw ComicArchiveException("Uma página excede o limite permitido.")
                 total += entry.size.coerceAtLeast(0)
                 if (total > limits.maxTotalBytes) throw ComicArchiveException("O conteúdo descompactado é grande demais.")
                 names.add(entry.name)
             }
-            if (names.isEmpty()) throw ComicArchiveException("Nenhuma página JPEG, PNG ou WebP foi encontrada.")
+            if (names.isEmpty()) {
+                if (containsComicFiles) throw ComicArchiveException("Este ZIP contém outros arquivos CBZ/ZIP, não as páginas da HQ. Envie os arquivos CBZ/ZIP diretamente, sem compactá-los novamente.")
+                throw ComicArchiveException("Nenhuma página JPEG, PNG ou WebP foi encontrada.")
+            }
             names.sortedWith(NaturalOrder).mapIndexed { i, key -> PageRef(i, key) }
         }
     }

@@ -12,7 +12,8 @@ button:disabled{opacity:.5;cursor:wait}button:focus-visible,input:focus-visible{
 progress{width:100%;height:10px;accent-color:#ffbd59;margin-top:24px}#status{white-space:pre-wrap;overflow-wrap:anywhere}
 </style></head><body><main><small>COMIC TV</small><h1>Enviar quadrinhos</h1>
 <p>Adicione arquivos à biblioteca da sua TV. Mantenha a tela de transferência aberta na TV durante o envio.</p>
-<form id="form"><label>Escolha arquivos CBZ ou ZIP<input id="files" type="file" accept=".cbz,.zip" multiple required></label>
+<form id="form"><label>Escolha arquivos CBZ ou ZIP<input id="files" type="file" multiple required></label>
+<p>Selecione o CBZ original, sem compactá-lo novamente. Um ZIP de quadrinho deve conter as imagens das páginas.</p>
 <p>Até 1 GiB por arquivo. Os arquivos selecionados serão enviados um de cada vez.</p><button id="send">Enviar para a TV</button></form>
 <progress id="progress" max="100" value="0" aria-label="Progresso do envio"></progress><p id="status" role="status" aria-live="polite">Pronto para enviar.</p>
 <script>

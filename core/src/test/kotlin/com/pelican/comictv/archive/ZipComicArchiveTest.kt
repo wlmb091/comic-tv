@@ -28,6 +28,13 @@ class ZipComicArchiveTest {
         assertTrue(NaturalOrder.compare("9.jpg", "99999999999999999999.jpg") < 0)
     }
 
+    @Test fun `zip of comic files explains that comics must be sent directly`() {
+        val error = assertThrows(ComicArchiveException::class.java) {
+            ZipComicArchive().index(zip("Thanos 01.cbz" to byteArrayOf(1), "Thanos 02.cbz" to byteArrayOf(2)))
+        }
+        assertTrue(error.message.orEmpty().contains("Envie os arquivos CBZ/ZIP diretamente"))
+    }
+
     @Test fun `rejects traversal and absolute names`() {
         listOf("../page.jpg", "/page.jpg", "C:/page.jpg", "a\\..\\page.jpg").forEach { name ->
             assertThrows(ComicArchiveException::class.java) { ZipComicArchive().index(zip(name to byteArrayOf(1))) }

@@ -2,6 +2,7 @@ package com.pelican.comictv.transfer
 
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response
+import com.pelican.comictv.archive.ComicImportException
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -143,9 +144,12 @@ class LocalUploadServer(
             if (!accepting || expired()) throw IOException("Sessão encerrada")
             update { it.copy(message = "Validando $name") }
             try { onReceived(target, name) }
-            catch (_: Exception) {
-                update { it.copy(message = "Arquivo recusado: verifique se é um CBZ/ZIP válido") }
-                return response(UploadStatus.Invalid, "Arquivo recusado. Verifique se é um CBZ/ZIP válido e se há espaço disponível.")
+            catch (error: Exception) {
+                val reason = generateSequence<Throwable>(error) { it.cause }.take(8)
+                    .filterIsInstance<ComicImportException>().firstOrNull()?.message
+                    ?: "Não foi possível importar este arquivo. Verifique o formato e o espaço disponível na TV."
+                update { it.copy(message = "Arquivo recusado: $reason") }
+                return response(UploadStatus.Invalid, reason)
             }
             update { it.copy(completed = it.completed + 1, message = "Importação concluída: $name") }
             return response(NanoHTTPD.Response.Status.OK, "Quadrinho adicionado à biblioteca.")

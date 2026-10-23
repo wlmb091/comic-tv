@@ -51,6 +51,35 @@ class LocalUploadServerTest {
             assertEquals(1, server.status.completed)
         } finally { server.close(); root.deleteRecursively() }
     }
+
+    @Test fun `archive validation reason reaches browser and TV`() {
+        val root = Files.createTempDirectory("reason").toFile()
+        val reason = "Nenhuma página JPEG, PNG ou WebP foi encontrada."
+        val server = LocalUploadServer("127.0.0.1", root, onReceived = { _, _ ->
+            throw com.pelican.comictv.archive.ComicArchiveException(reason)
+        })
+        try {
+            server.open()
+            val result = request(server.url + "/upload?name=Thanos.zip", byteArrayOf(1))
+            assertEquals(422, result.first)
+            assertTrue(result.second.contains(reason))
+            assertTrue(server.status.message.contains(reason))
+        } finally { server.close(); root.deleteRecursively() }
+    }
+
+    @Test fun `unexpected exceptions do not disclose internal paths to browser`() {
+        val root = Files.createTempDirectory("private-error").toFile()
+        val server = LocalUploadServer("127.0.0.1", root, onReceived = { _, _ ->
+            throw IllegalStateException("/data/user/0/private/database-secret")
+        })
+        try {
+            server.open()
+            val result = request(server.url + "/upload?name=Thanos.cbz", byteArrayOf(1))
+            assertEquals(422, result.first)
+            assertFalse(result.second.contains("database-secret"))
+            assertFalse(server.status.message.contains("database-secret"))
+        } finally { server.close(); root.deleteRecursively() }
+    }
     @Test fun `rejects excess and invalid content without orphan files`() {
         val root = Files.createTempDirectory("limits").toFile()
         val server = LocalUploadServer("127.0.0.1", root, maxBytes = 8, onReceived = { _, _ -> throw java.io.IOException("Quadrinho inválido") })

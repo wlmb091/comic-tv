@@ -1,51 +1,40 @@
-# Validação — Comic TV 0.2.0
+# Validação — Comic TV 0.2.1
 
-Data: 23 de outubro de 2026. Incremento de transferência pela rede local.
+Data: 23 de outubro de 2026. Correção da seleção de arquivos e diagnóstico de importação.
 
-## Resultados confirmados
+## Relato e evidências
 
-- `:core:test :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`: BUILD SUCCESSFUL.
-- 31 testes JVM, zero falhas e zero erros: 15 testes anteriores do núcleo, dez testes HTTP, cinco do ViewModel do leitor e um de cancelamento da importação.
-- Android Lint: zero erros e 21 avisos de manutenção; não foi criada uma baseline para esconder resultados.
-- APK debug 0.2.0, versionCode 2, minSdk 23, targetSdk 36.
-- Assinaturas v1 e v2 verificadas com `apksigner`.
-- Sintaxe do JavaScript embutido na página de envio verificada com `node --check`.
-- Revisão independente e reavaliação das correções sem problemas relevantes remanescentes identificados.
-- Nova montagem do APK após inclusão das licenças nos assets: BUILD SUCCESSFUL.
+As fotos do usuário mostram o seletor de arquivos do iPhone com CBZs desabilitados, enquanto ZIP é selecionável. O upload de Thanos.zip chega a 100% e recebe a mensagem genérica do importador. O usuário repetiu o envio compactando apenas um arquivo e observou a mesma recusa.
 
-O build usou o JDK/SDK e os scripts locais descritos no relatório histórico `VALIDACAO-0.1.0.md`. Os repositórios Gradle do produto continuam sendo Google/Maven Central; o proxy local de desenvolvimento não integra o aplicativo.
+O HTML 0.2.0 aplicava `accept=".cbz,.zip"` ao seletor nativo. A atualização remove essa restrição do seletor; as verificações de extensão/tamanho no JavaScript e no servidor, assim como a validação do conteúdo ZIP, continuam ativas. Isso contorna a dependência do seletor em registrar/reconhecer o tipo CBZ.
 
-## O que os testes HTTP exercitam
+Referências técnicas consultadas: [documentação do seletor file](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/file) e [relato WebKit de arquivos desabilitados por accept no iOS](https://bugs.webkit.org/show_bug.cgi?id=229456). Esses relatos não provam o comportamento de toda versão do iOS nem substituem o novo teste no aparelho do usuário.
 
-São conexões reais HTTP e sockets em loopback no computador, usando o servidor incluído no aplicativo. Cobrem página protegida por token, upload em streaming de 65.537 bytes com conteúdo exato, tamanho excessivo, recusa na validação, interrupção, nova tentativa, expiração, parada, proibição de reabrir sessão encerrada, nomes inseguros, Host/origem incorretos, limpeza de uploads abandonados e preservação de outros arquivos. Duas conexões verificam que o segundo upload recebe 409 enquanto o primeiro conclui. Um teste encerra o servidor com um upload ainda incompleto e confere sua remoção.
+O ZIP original e o CBZ original não foram fornecidos, portanto a causa exata da recusa desse arquivo permanece sem confirmação. Um ZIP contendo CBZs em vez de imagens é uma hipótese compatível com o relato; esse caso foi reproduzido com fixture e agora recebe orientação específica. Não foi acrescentada importação recursiva de coleções ZIP.
 
-O teste adicional do repositório usa arquivos ZIP reais e um adaptador de capa controlado para cancelar a importação durante a geração da capa. Confirma que nenhum registro nem original é promovido após o cancelamento. Foi observado falhando antes da correção. A checagem de cancelamento acontece imediatamente antes do commit não cancelável no Room.
+## Alterações
 
-## Funcionamento implementado
+- Seletor da página de envio sem filtro nativo, mantendo seleção múltipla e validação após a escolha.
+- Orientação para enviar o CBZ original, sem compactá-lo novamente.
+- ZIP sem imagens que contém outros CBZ/ZIP agora explica que os quadrinhos devem ser enviados diretamente.
+- Erros controlados de arquivo/imagem são apresentados no navegador e no estado da TV. Falhas inesperadas continuam mascaradas e são registradas no log Android para diagnóstico, sem colocar detalhes internos na resposta HTTP.
+- versionName 0.2.1, versionCode 3; configuração de assinatura debug preservada para atualização da versão anterior.
 
-Importar → Enviar pela rede local → Iniciar transferência. A TV resolve o IPv4 da conexão ativa Wi-Fi/Ethernet e abre o servidor naquela interface, com porta disponível e token aleatório. Mostra endereço completo, QR, estado e progresso. A página recebida pelo navegador envia vários arquivos sequencialmente. A validação e a persistência são as mesmas da importação local.
+## Verificação executada
 
-A sessão termina ao parar, sair da tela, colocar o aplicativo em segundo plano, mudar de endereço de rede ou expirar após 15 minutos. Novas sessões removem sobras `.upload` de sessões anteriores. Não há serviço de rede permanente nem listagem/download da biblioteca.
+`core:test`, `app:testDebugUnitTest`, `app:assembleDebug`, `app:assembleDebugAndroidTest` e `app:lintDebug`: BUILD SUCCESSFUL.
 
-## Validação pendente em dispositivo
+35 testes JVM, zero falhas. Três regressões foram observadas falhando antes da correção: filtro do seletor, diagnóstico de ZIP com CBZs e propagação do erro de validação. Um teste adicional confirma que exceções inesperadas não expõem caminhos internos ao navegador/TV. Foram mantidos os testes anteriores de limite, streaming, cancelamento e persistência.
 
-O adb iniciou nesta sessão, mas não havia dispositivos conectados nem emulador configurado. Os testes Android de UI/Room compilaram, sem execução em dispositivo. Ainda não foram confirmados em TV real: resolução de endereço por ConnectivityManager, leitura física do QR, envio de celular pela LAN, layout a distância, foco/restauração, ciclo de vida real e desempenho com arquivos grandes. Os testes HTTP no computador não substituem essas verificações.
+Lint: zero erros e 21 avisos. JavaScript: `node --check` aprovado. Assinatura do APK: v1/v2 verificadas. Manifesto: minSdk 23 e targetSdk 36. Revisão independente do diff sem problemas relevantes identificados.
 
-Somente IPv4 em Wi-Fi/Ethernet está contemplado neste incremento. Redes de convidados, isolamento de clientes e restrições do roteador podem impedir acesso. O armazenamento precisa comportar o temporário e a cópia validada; o servidor verifica espaço antes de receber. A contagem de dispositivos deriva de requisições recentes do navegador e é atualizada com o tráfego da sessão.
+Não houve execução em iPhone/TV durante esta correção. Os testes de interface/Room compilaram, sem execução em dispositivo. A correção do seletor e o arquivo real do usuário ainda exigem o novo teste físico.
 
-FTP, portal web remoto e extensões Mihon continuam pendentes. Marcadores, galeria e outros formatos também permanecem nos incrementos planejados.
+## Como retestar
 
-## Roteiro de teste na TV
+1. Instalar Comic-TV-0.2.1-debug.apk sobre a versão anterior.
+2. Iniciar uma nova sessão de rede na TV e abrir o novo QR/endereço no celular.
+3. Escolher o CBZ original diretamente, sem criar um ZIP em volta dele.
+4. Se houver recusa, conservar a mensagem específica e fornecer o CBZ/ZIP original para análise do conteúdo.
 
-1. Instalar Comic-TV-0.2.0-debug.apk sobre a versão anterior e conferir a biblioteca preservada.
-2. Abrir Importar → Enviar pela rede local e iniciar a sessão.
-3. Escanear o QR no celular conectado à mesma rede e enviar um CBZ/ZIP real.
-4. Confirmar o estado de sucesso no navegador/TV e abrir a edição pela biblioteca.
-5. Enviar vários arquivos, cancelar um envio, parar e abrir uma nova sessão; o endereço antigo deve parar de funcionar.
-6. Repetir por Ethernet, com queda de rede, segundo plano e pouco espaço disponível.
-
-## Arquivo entregue
-
-Comic-TV-0.2.0-debug.apk
-
-SHA-256: `1C885001444D9DE8472179A807AE62B6E16245D2FAAB7864A7CD24532818114B`.
+SHA-256 do APK: `E28DF8B69BE377E5CC8A89582554585B72D35EA22F079A03C6319DC5DD281B93`.

@@ -3,6 +3,7 @@ package com.pelican.comictv.transfer
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.SystemClock
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.zxing.BarcodeFormat
@@ -43,7 +44,13 @@ class LocalTransferViewModel(private val context: Context, private val library: 
                     onStatus = { status -> _state.update {
                         if (generation.get() == sessionGeneration) it.copy(status = status) else it
                     } },
-                    onReceived = { file, name -> runBlocking { withContext(job) { library.importComic(file, name) } } })
+                    onReceived = { file, name ->
+                        try { runBlocking { withContext(job) { library.importComic(file, name) } } }
+                        catch (e: Exception) {
+                            if (e !is CancellationException) Log.e("ComicTvTransfer", "Falha ao importar quadrinho recebido.", e)
+                            throw e
+                        }
+                    })
                 server = instance
                 val url = withContext(Dispatchers.IO) { instance.open(); instance.url }
                 val qr = withContext(Dispatchers.Default) {

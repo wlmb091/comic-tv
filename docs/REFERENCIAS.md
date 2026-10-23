@@ -41,3 +41,6 @@ As três novas imagens esclarecem as referências anteriores e substituem as hip
 
 ## Implementação registrada — 23/10/2026
 Rede local HTTP com endereço temporário e QR implementada na versão 0.2.0; interface segue o tema próprio aprovado. Testes HTTP reais em loopback passaram, mas envio/QR em TV física ainda precisam de validação. FTP, portal remoto e extensões permanecem no plano.
+
+## Correção 0.2.1 — 23/10/2026
+Usuário testou em iPhone e relatou CBZs inativos no seletor e ZIP recusado após upload completo. Removido filtro accept do seletor web, sem remover validação no envio/servidor. Mensagens de erro controladas agora chegam à TV/navegador; ZIP contendo CBZs sem páginas recebe orientação específica. Arquivos reais não fornecidos: causa da recusa original ainda não confirmada. Build/lint aprovados e 35 testes JVM passaram; reteste físico pendente.

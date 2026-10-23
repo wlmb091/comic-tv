@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.2.0
+## Versão 0.2.1
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP pelo seletor de arquivos do Android, incluindo USB quando oferecido pelo dispositivo.
@@ -62,6 +62,8 @@ Limites: 1 GiB por arquivo, 5.000 entradas ZIP, 32 MiB por página extraída, 2 
 A seleção de arquivos locais depende da presença de um seletor compatível na TV. Como alternativa, abra **Importar → Enviar pela rede local → Iniciar transferência**. Escaneie o QR com o celular ou digite o endereço completo em um navegador na mesma rede e selecione arquivos CBZ/ZIP. Não é necessário instalar aplicativo no celular.
 
 A sessão de rede dura até 15 minutos, aceita um envio por vez e termina ao parar, sair da tela, mudar de rede ou colocar o aplicativo em segundo plano. A TV precisa de espaço para o upload temporário e sua cópia validada. Redes de convidados com isolamento de clientes podem impedir o acesso. O endereço possui um token temporário e não permite consultar ou baixar a biblioteca. Detalhes em `docs/REDE-LOCAL.md`.
+
+No celular, selecione o CBZ original diretamente, sem compactá-lo novamente. Um ZIP de quadrinho deve conter as imagens das páginas. Um ZIP com outros CBZ/ZIP recebe uma mensagem explicativa; coleções dentro de outro ZIP ainda não são importadas automaticamente. Desde 0.2.1 o seletor web não aplica um filtro de tipo do sistema, para evitar bloquear CBZs no iPhone; arquivos continuam sendo validados no envio e na TV.
 
 ## Próximos incrementos acordados
 
