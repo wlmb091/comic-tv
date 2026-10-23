@@ -56,3 +56,6 @@ Web: parear TV e portal de envio por token temporário, digitável ou incluído 
 Todos os transportes escrevem por streaming em arquivo temporário e usam o mesmo fluxo de validação/promoção da importação local. Limites de arquivo e espaço em disco continuam aplicáveis. Sessões podem ser encerradas pelo usuário; transferência incompleta não aparece como HQ pronta. Não fixar IPs, tokens ou domínio mostrados nas fotos.
 
 A tela seguirá o design próprio aprovado: fundo escuro, foco âmbar, textos grandes, QR com contraste e comandos acessíveis por controle. Transferências são requisitos do produto; sua inclusão não significa que já estejam implementadas no incremento local.
+
+## Formatos — entrega 0.3.0 em 23/10/2026
+Implementados RAR/CBR, PDF e EPUB de imagens/texto, além de ZIP/CBZ. Detecção pelo conteúdo; EPUB segue a sequência do pacote. Texto nativo com fonte ajustável e rolagem pelo D-pad. Limites e recursos não suportados estão documentados em VALIDACAO-0.3.0.md; validação em TV física pendente.

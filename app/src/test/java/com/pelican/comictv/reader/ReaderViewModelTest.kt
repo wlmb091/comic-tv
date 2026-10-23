@@ -23,20 +23,32 @@ class ReaderViewModelTest {
         var initDelay = 0L
         var saveDelay = 0L
         var failIndex = false
+        var textFile: File? = null
         override suspend fun getComic(id: String): ComicEntity {
             delay(initDelay)
             return ComicEntity(id, "Teste", 3, currentPage = 1)
         }
         override suspend fun pages(comicId: String): List<PageRef> {
             if (failIndex) { failIndex = false; throw java.io.IOException("Index unavailable") }
-            return (0..2).map { PageRef(it, "$it.jpg") }
+            return (0..2).map { PageRef(it, if (textFile != null) "epub:text:$it" else "$it.jpg") }
         }
         override suspend fun materialize(comicId: String, page: PageRef): File {
             delay(if (page.index == 1) 100 else 1)
-            return File("page-${page.index}")
+            return textFile ?: File("page-${page.index}")
         }
         override suspend fun saveProgress(id: String, page: Int) { delay(saveDelay); saved += page }
         override suspend fun savePreferences(id: String, fit: Int, rtl: Boolean) = Unit
+    }
+
+    @Test fun epubTextDoesNotGoThroughImageDecoder() = runTest(dispatcher) {
+        val file = File.createTempFile("epub-text", ".txt").apply { writeText("Texto do livro.") }
+        try {
+            val vm = ReaderViewModel(FakeRepository().apply { textFile = file }, "text", SavedStateHandle(),
+                ioDispatcher = dispatcher, pageDimensions = { error("Text must not be decoded as a bitmap") })
+            advanceUntilIdle()
+            assertNull(vm.error.value)
+            assertEquals(file, vm.image.value!!.file)
+        } finally { file.delete() }
     }
 
     @Test fun stalePageCannotReplaceLatestPageAndProgressIsSaved() = runTest(dispatcher) {

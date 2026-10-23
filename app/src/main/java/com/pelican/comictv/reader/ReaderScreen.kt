@@ -32,6 +32,10 @@ import kotlin.math.min
     val image by viewModel.image.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    image?.takeIf { it.text != null }?.let { page ->
+        EpubTextScreen(viewModel, state, page, error, onExit)
+        return
+    }
     var renderError by remember(image?.file) { mutableStateOf(false) }
     val displayedError = error ?: if (renderError) "Não foi possível decodificar esta página." else null
     val focus = remember { FocusRequester() }

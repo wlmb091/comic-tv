@@ -1,40 +1,44 @@
-# Validação — Comic TV 0.2.1
+# Validação — Comic TV 0.3.0
 
-Data: 23 de outubro de 2026. Correção da seleção de arquivos e diagnóstico de importação.
+Data: 23/10/2026. versionCode 4. Mantida a assinatura debug usada nas entregas anteriores.
 
-## Relato e evidências
+APK `Comic-TV-0.3.0-debug.apk`: assinatura v1/v2 verificada; minSdk 23, targetSdk 36. SHA-256: `5B1221645F076A02501969D86F2FBAA70746B86FE27778CCE18F24DA957DEB05`. JavaScript do upload passou em `node --check`.
 
-As fotos do usuário mostram o seletor de arquivos do iPhone com CBZs desabilitados, enquanto ZIP é selecionável. O upload de Thanos.zip chega a 100% e recebe a mensagem genérica do importador. O usuário repetiu o envio compactando apenas um arquivo e observou a mesma recusa.
+## Mudanças
 
-O HTML 0.2.0 aplicava `accept=".cbz,.zip"` ao seletor nativo. A atualização remove essa restrição do seletor; as verificações de extensão/tamanho no JavaScript e no servidor, assim como a validação do conteúdo ZIP, continuam ativas. Isso contorna a dependência do seletor em registrar/reconhecer o tipo CBZ.
+- ZIP/CBZ e RAR/CBR identificados pela assinatura, independentemente da extensão. O CBZ 02 do usuário contém RAR4; não precisa mais de conversão.
+- RAR4/RAR5 por Junrar 8.1.2, acesso aleatório ao arquivo em disco, sem descobrir volumes vizinhos. Preflight limita número e tamanho dos cabeçalhos antes da alocação do decoder. Limites de entrada, tamanho e dicionário; saída temporária limitada, com cleanup e verificação de CRC pelo decoder. Senha, multipartes e links são recusados.
+- PDF pelo PdfRenderer Android, uma página por vez, com lado maior limitado a 2048 pixels. Arquivo original preservado.
+- EPUB identificado pelo container, leitura em ordem de spine. Imagens raster no leitor existente; texto básico em tela nativa com fonte 18–40 sp, rolagem pelo D-pad e posição relativa salva por seção. Esquerda/direita mudam seções, OK abre fonte/opções. Scripts não são executados; URLs externas e DRM/encryption são recusados.
+- Seletor e upload aceitam CBZ, ZIP, CBR, RAR, PDF e EPUB. Mantida a ausência de filtro nativo accept para não bloquear CBZ no iPhone.
+- Java desugaring habilitado para minSdk 23. Licenças Junrar, SLF4J e Jsoup incluídas nos assets e documentação.
 
-Referências técnicas consultadas: [documentação do seletor file](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/file) e [relato WebKit de arquivos desabilitados por accept no iOS](https://bugs.webkit.org/show_bug.cgi?id=229456). Esses relatos não provam o comportamento de toda versão do iOS nem substituem o novo teste no aparelho do usuário.
+## Evidências executadas
 
-O ZIP original e o CBZ original não foram fornecidos, portanto a causa exata da recusa desse arquivo permanece sem confirmação. Um ZIP contendo CBZs em vez de imagens é uma hipótese compatível com o relato; esse caso foi reproduzido com fixture e agora recebe orientação específica. Não foi acrescentada importação recursiva de coleções ZIP.
+Build final: `core:test`, `app:testDebugUnitTest`, `app:assembleDebug`, `app:assembleDebugAndroidTest`, `app:lintDebug`: BUILD SUCCESSFUL.
 
-## Alterações
+46 testes JVM, zero falhas. RAR e upload de novos tipos foram observados falhando antes da implementação. EPUB inicialmente falhou na ordem de spine/texto e na rejeição de URLs inseguras; esses casos passaram após implementação. O teste de texto no ViewModel falhou quando tentava decodificar texto como bitmap, e passou com a nova representação.
 
-- Seletor da página de envio sem filtro nativo, mantendo seleção múltipla e validação após a escolha.
-- Orientação para enviar o CBZ original, sem compactá-lo novamente.
-- ZIP sem imagens que contém outros CBZ/ZIP agora explica que os quadrinhos devem ser enviados diretamente.
-- Erros controlados de arquivo/imagem são apresentados no navegador e no estado da TV. Falhas inesperadas continuam mascaradas e são registradas no log Android para diagnóstico, sem colocar detalhes internos na resposta HTTP.
-- versionName 0.2.1, versionCode 3; configuração de assinatura debug preservada para atualização da versão anterior.
+Cobertura dos testes novos: RAR4 e RAR5 sólido, ordem natural, extração reversa, extensão incorreta, caminhos inseguros, duplicatas, senha, corrupção de dados, limites e cancelamento/cleanup. EPUB com texto e imagens intercalados, ordem não alfabética do spine, texto longo/acentos/emoji, scripts ignorados, URLs externas, saída do pacote, encryption e limite de markup. HTTP aceita os novos sufixos e mantém os testes existentes de sessão, streaming e isolamento.
 
-## Verificação executada
+Os dois arquivos Thanos reais foram indexados e todas as páginas extraídas pelo novo núcleo com heap JVM de 192 MiB: 52 páginas do 01 (ZIP), 52 do 02 (RAR4). Os SHA-256 das 104 páginas conferem com extração independente: .NET ZipFile para 01; WinRAR/UnRAR para 02. Zero divergências. Conteúdo do usuário não foi incluído no Git; fixtures são sintéticas.
 
-`core:test`, `app:testDebugUnitTest`, `app:assembleDebug`, `app:assembleDebugAndroidTest` e `app:lintDebug`: BUILD SUCCESSFUL.
+Android Lint: zero erros, 27 avisos. Os seis avisos adicionais desta entrega são sugestões de conveniência KTX (Bitmap, Canvas, SharedPreferences); os demais são os avisos anteriores de dependências, configuração e recursos.
 
-35 testes JVM, zero falhas. Três regressões foram observadas falhando antes da correção: filtro do seletor, diagnóstico de ZIP com CBZs e propagação do erro de validação. Um teste adicional confirma que exceções inesperadas não expõem caminhos internos ao navegador/TV. Foram mantidos os testes anteriores de limite, streaming, cancelamento e persistência.
+Revisão independente identificou e corrigiu cache integral de RAR em memória, limite de cabeçalhos tardio, diferença de KeyDown/KeyUp entre texto e imagens e ocultação de erros de persistência no leitor de texto. Reavaliação das correções sem problemas Important/Critical remanescentes.
 
-Lint: zero erros e 21 avisos. JavaScript: `node --check` aprovado. Assinatura do APK: v1/v2 verificadas. Manifesto: minSdk 23 e targetSdk 36. Revisão independente do diff sem problemas relevantes identificados.
+## Limites e testes pendentes
 
-Não houve execução em iPhone/TV durante esta correção. Os testes de interface/Room compilaram, sem execução em dispositivo. A correção do seletor e o arquivo real do usuário ainda exigem o novo teste físico.
+Sem TV ou emulador conectado (`adb devices` vazio). Testes instrumentados compilaram, incluindo PDF sintético com duas páginas; NÃO foram executados. PdfRenderer, fonte/rolagem EPUB e foco precisam ser validados na TV. Nenhum PDF/EPUB real do usuário foi fornecido. A execução JVM não comprova comportamento Android em todos os aparelhos.
 
-## Como retestar
+EPUB é um subconjunto offline: texto básico e JPEG/PNG/WebP, sem fidelidade de CSS, fontes embutidas, áudio/vídeo ou SVG independente. SVG com imagem raster referenciada é interpretado como imagem. A paginação do texto é por seções de até 12.000 caracteres; não corresponde a páginas impressas. Conteúdo protegido não é desbloqueado. PDFs são rasterizados; zoom maior não adiciona detalhes além da resolução de renderização.
 
-1. Instalar Comic-TV-0.2.1-debug.apk sobre a versão anterior.
-2. Iniciar uma nova sessão de rede na TV e abrir o novo QR/endereço no celular.
-3. Escolher o CBZ original diretamente, sem criar um ZIP em volta dele.
-4. Se houver recusa, conservar a mensagem específica e fornecer o CBZ/ZIP original para análise do conteúdo.
+Barra de páginas, fontes Mihon, HQ Now e sagas ainda não foram implementados. Estudos de Hikari e requisitos permanecem em ANALISE-HIKARI.md. Esta entrega conclui os formatos solicitados, com as limitações acima.
 
-SHA-256 do APK: `E28DF8B69BE377E5CC8A89582554585B72D35EA22F079A03C6319DC5DD281B93`.
+## Reteste na TV
+
+1. Instalar Comic-TV-0.3.0-debug.apk sobre a versão anterior.
+2. Iniciar transferência pela rede local. Selecionar os dois CBZs originais do Thanos, sem renomear ou recompactar, e confirmar 52 páginas em cada edição.
+3. Testar também RAR/CBR e um PDF sem senha. Abrir páginas inicial/final, zoom, retorno e retomada.
+4. Enviar EPUB ilustrado e EPUB de texto sem DRM. Verificar sequência, fonte via OK, rolagem ↑/↓, seções ←/→, saída e retomada.
+5. Registrar mensagem exata caso um documento seja recusado e informar seu formato real.

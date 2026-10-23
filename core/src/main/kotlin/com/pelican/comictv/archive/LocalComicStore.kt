@@ -5,7 +5,7 @@ import java.io.File
 import java.io.InputStream
 import java.io.IOException
 
-class LocalComicStore(private val root: File, private val archive: ZipComicArchive = ZipComicArchive()) {
+class LocalComicStore(private val root: File, private val archive: ComicArchiveReader = ComicArchive()) {
     fun original(id: String): File {
         require(id.matches(Regex("[A-Za-z0-9-]+"))) { "Invalid comic ID" }
         return File(root, "$id.cbz")

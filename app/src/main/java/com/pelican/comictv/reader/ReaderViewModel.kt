@@ -13,7 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
-data class PageImage(val file: File, val width: Int, val height: Int)
+data class PageImage(val file: File, val width: Int, val height: Int, val text: String? = null)
 
 class ReaderViewModel(
     private val repository: ReaderRepository,
@@ -101,9 +101,10 @@ class ReaderViewModel(
         loadJob = viewModelScope.launch {
             try {
                 val file = repository.materialize(comicId, page)
-                val dimensions = withContext(ioDispatcher) { pageDimensions(file) }
+                val text = if (page.key.startsWith("epub:text:")) withContext(ioDispatcher) { file.readText(Charsets.UTF_8) } else null
+                val dimensions = if (text != null) 1 to 1 else withContext(ioDispatcher) { pageDimensions(file) }
                 ensureActive()
-                if (_state.value.page == expected) _image.value = PageImage(file, dimensions.first, dimensions.second)
+                if (_state.value.page == expected) _image.value = PageImage(file, dimensions.first, dimensions.second, text)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (_state.value.page == expected) _error.value = e.message ?: "Não foi possível carregar esta página." }
             finally { if (isActive && _state.value.page == expected) _loading.value = false }

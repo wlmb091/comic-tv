@@ -42,7 +42,7 @@ import kotlinx.coroutines.flow.first
             Column(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.Center) {
                 Text("Sua coleção começa aqui", fontSize = 28.sp)
                 Spacer(Modifier.height(14.dp))
-                Text("Importe um arquivo CBZ ou ZIP para começar.\nSua leitura será salva automaticamente.", color = TvColors.Muted, fontSize = 18.sp, lineHeight = 28.sp)
+                Text("Importe CBZ, ZIP, CBR, RAR, PDF ou EPUB para começar.\nSua leitura será salva automaticamente.", color = TvColors.Muted, fontSize = 18.sp, lineHeight = 28.sp)
                 Spacer(Modifier.height(28.dp))
                 TvButton("Importar quadrinhos", onImport, Modifier.focusRequester(empty), primary = true)
             }

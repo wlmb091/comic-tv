@@ -32,7 +32,7 @@ import kotlinx.coroutines.CancellationException
             Text(comic?.title ?: "Carregando edição…", fontSize = 34.sp, maxLines = 3)
             Spacer(Modifier.height(18.dp))
             comic?.let { item ->
-                Text("${item.pageCount} páginas · CBZ / ZIP", fontSize = 18.sp, color = TvColors.Muted)
+                Text("${item.pageCount} páginas", fontSize = 18.sp, color = TvColors.Muted)
                 Spacer(Modifier.height(28.dp))
                 Text(if (item.lastRead > 0) "Página ${item.currentPage + 1} de ${item.pageCount}" else "Uma nova história para descobrir.", fontSize = 18.sp)
                 Spacer(Modifier.height(14.dp))

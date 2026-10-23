@@ -15,8 +15,8 @@ data class ArchiveLimits(
 
 class ComicArchiveException(message: String, cause: Throwable? = null) : ComicImportException(message, cause)
 
-class ZipComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) {
-    fun index(file: File): List<PageRef> = guarded {
+class ZipComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : ComicArchiveReader {
+    override fun index(file: File): List<PageRef> = guarded {
         if (file.length() > limits.maxArchiveBytes) throw ComicArchiveException("O arquivo excede o limite de 1 GiB.")
         val signature = file.inputStream().use { input -> ByteArray(4).also { input.read(it) } }
         if (signature[0] != 0x50.toByte() || signature[1] != 0x4b.toByte()) {
@@ -50,7 +50,7 @@ class ZipComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) {
         }
     }
 
-    fun extract(file: File, page: PageRef, destination: File): File = guarded {
+    override fun extract(file: File, page: PageRef, destination: File): File = guarded {
         validateName(page.key)
         ZipFile(file).use { zip ->
             val entry = zip.getEntry(page.key) ?: throw ComicArchiveException("Página não encontrada no arquivo.")

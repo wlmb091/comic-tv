@@ -17,7 +17,7 @@ import java.util.UUID
 
 class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val coverGenerator: CoverGenerator = BitmapCoverGenerator()) : ReaderRepository {
-    private val archive = ZipComicArchive()
+    private val archive = ComicArchive(pdfReader = PdfComicArchive())
     private val store = LocalComicStore(File(context.filesDir, "originals"), archive)
     private val pageDirectory = File(context.cacheDir, "pages").apply { mkdirs() }
     private val covers = File(context.filesDir, "covers").apply { mkdirs() }
@@ -61,7 +61,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
                 // Validate the first page before publishing the import.
                 cache.materialize("$id-0", setOfNotNull(protectedPage),
                     write = { archive.extract(store.original(id), pages.first(), it) },
-                    validate = { coverGenerator.generate(it, cover(id)) })
+                    validate = { if (pages.first().key.startsWith("epub:text:")) generateTextCover(title, cover(id)) else coverGenerator.generate(it, cover(id)) })
                 val comic = ComicEntity(id, title, pages.size)
                 currentCoroutineContext().ensureActive()
                 withContext(NonCancellable) { dao.insert(comic) }
@@ -87,7 +87,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
             val original = store.original(comicId)
             val target = runInterruptible {
                 cache.materialize("$comicId-${page.index}", setOfNotNull(protectedPage),
-                    write = { archive.extract(original, page, it) }, validate = { validateDimensions(it) })
+                    write = { archive.extract(original, page, it) }, validate = { if (!page.key.startsWith("epub:text:")) validateDimensions(it) })
             }
             protectedPage = target.name
             cache.trim(setOf(target.name))

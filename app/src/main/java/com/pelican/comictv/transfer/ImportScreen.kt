@@ -24,10 +24,10 @@ import com.pelican.comictv.ui.*
         ScreenTitle("Traga suas histórias", "Escolha como adicionar quadrinhos à sua biblioteca.")
         Column(Modifier.fillMaxWidth().background(TvColors.Panel).padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Arquivo local", fontSize = 23.sp)
-            Text("Selecione um CBZ ou ZIP no armazenamento da TV ou em um dispositivo USB.", fontSize = 17.sp, color = TvColors.Muted)
+            Text("Selecione CBZ, ZIP, CBR, RAR, PDF ou EPUB no armazenamento da TV ou em um dispositivo USB.", fontSize = 17.sp, color = TvColors.Muted)
             TvButton(if (busy) "Importando… aguarde" else "Escolher arquivo", {
                 if (!busy) try { picker.launch(arrayOf("*/*")) }
-                catch (_: ActivityNotFoundException) { onMessage("Esta TV não oferece um seletor de arquivos. Use um dispositivo com seletor instalado; a transferência por rede será adicionada em um próximo incremento.") }
+                catch (_: ActivityNotFoundException) { onMessage("Esta TV não oferece um seletor de arquivos. Use a opção Enviar pela rede local para transferir pelo celular.") }
             }, Modifier.focusRequester(first), primary = true)
         }
         if (message != null) Text(message, color = TvColors.Amber, fontSize = 17.sp)

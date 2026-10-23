@@ -12,8 +12,8 @@ button:disabled{opacity:.5;cursor:wait}button:focus-visible,input:focus-visible{
 progress{width:100%;height:10px;accent-color:#ffbd59;margin-top:24px}#status{white-space:pre-wrap;overflow-wrap:anywhere}
 </style></head><body><main><small>COMIC TV</small><h1>Enviar quadrinhos</h1>
 <p>Adicione arquivos à biblioteca da sua TV. Mantenha a tela de transferência aberta na TV durante o envio.</p>
-<form id="form"><label>Escolha arquivos CBZ ou ZIP<input id="files" type="file" multiple required></label>
-<p>Selecione o CBZ original, sem compactá-lo novamente. Um ZIP de quadrinho deve conter as imagens das páginas.</p>
+<form id="form"><label>Escolha CBZ, ZIP, CBR, RAR, PDF ou EPUB<input id="files" type="file" multiple required></label>
+<p>Selecione o arquivo original, sem compactá-lo novamente. O formato é reconhecido pelo conteúdo. EPUB aceita imagens e texto; arquivos protegidos por senha ou DRM não são suportados.</p>
 <p>Até 1 GiB por arquivo. Os arquivos selecionados serão enviados um de cada vez.</p><button id="send">Enviar para a TV</button></form>
 <progress id="progress" max="100" value="0" aria-label="Progresso do envio"></progress><p id="status" role="status" aria-live="polite">Pronto para enviar.</p>
 <script>
@@ -23,7 +23,7 @@ function upload(file){return new Promise((resolve,reject)=>{const xhr=new XMLHtt
 xhr.upload.onprogress=e=>{if(e.lengthComputable){progress.value=e.loaded/e.total*100;status.textContent=e.loaded===e.total?'Validando '+file.name+' na TV…':'Enviando '+file.name+' · '+Math.round(progress.value)+'%';}};
 xhr.onload=()=>xhr.status===200?resolve():reject(new Error(xhr.responseText||'A TV recusou o arquivo.'));xhr.onerror=()=>reject(new Error('Conexão interrompida. Verifique a rede e a tela da TV.'));xhr.ontimeout=()=>reject(new Error('O envio demorou demais. Inicie outra sessão na TV.'));xhr.send(file);});}
 form.addEventListener('submit',async e=>{e.preventDefault();if(active)return;const selected=Array.from(files.files);if(!selected.length)return;
-if(selected.some(f=>!(/\.(cbz|zip)$/i.test(f.name))||f.size===0||f.size>1073741824)){status.textContent='Selecione CBZ/ZIP de até 1 GiB, com conteúdo.';return;}
+if(selected.some(f=>!(/\.(cbz|zip|cbr|rar|pdf|epub)$/i.test(f.name))||f.size===0||f.size>1073741824)){status.textContent='Selecione CBZ, ZIP, CBR, RAR, PDF ou EPUB de até 1 GiB, com conteúdo.';return;}
 active=true;button.disabled=true;files.disabled=true;let completed=0;
 try{for(const file of selected){progress.value=0;status.textContent='Preparando '+file.name+'…';await upload(file);completed++;}status.textContent=completed+' arquivo(s) adicionado(s) à biblioteca da TV.';}
 catch(error){status.textContent=error.message+'\nArquivos concluídos neste envio: '+completed;}

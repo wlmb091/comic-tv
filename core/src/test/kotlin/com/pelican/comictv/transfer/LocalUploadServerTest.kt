@@ -10,6 +10,18 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class LocalUploadServerTest {
+    @Test fun `accepts rar and cbr filenames for the shared importer`() {
+        val root = Files.createTempDirectory("rar-upload").toFile()
+        val received = mutableListOf<String>()
+        val server = LocalUploadServer("127.0.0.1", root, onReceived = { _, name -> received.add(name) })
+        try {
+            server.open()
+            for (name in listOf("Comic.rar", "Comic.CBR", "Book.PDF", "Book.epub")) {
+                assertEquals(200, request(server.url + "/upload?name=$name", byteArrayOf(1)).first)
+            }
+            assertEquals(listOf("Comic.rar", "Comic.CBR", "Book.PDF", "Book.epub"), received)
+        } finally { server.close(); root.deleteRecursively() }
+    }
     private fun request(url: String, bytes: ByteArray? = null): Pair<Int, String> {
         val connection = URL(url).openConnection() as HttpURLConnection
         connection.connectTimeout = 2_000; connection.readTimeout = 5_000

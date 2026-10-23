@@ -118,8 +118,8 @@ class LocalUploadServer(
         if (length <= 0 || length > maxBytes) return response(NanoHTTPD.Response.Status.PAYLOAD_TOO_LARGE, "Limite de 1 GiB por arquivo.")
         val name = session.parameters["name"]?.singleOrNull()?.takeIf {
             it.length in 1..200 && !it.contains('/') && !it.contains('\\') && it.none { c -> c.code < 32 } &&
-                it.substringAfterLast('.', "").lowercase() in setOf("cbz", "zip")
-        } ?: return response(NanoHTTPD.Response.Status.BAD_REQUEST, "Selecione um arquivo CBZ ou ZIP com nome válido.")
+                it.substringAfterLast('.', "").lowercase() in setOf("cbz", "zip", "cbr", "rar", "pdf", "epub")
+        } ?: return response(NanoHTTPD.Response.Status.BAD_REQUEST, "Selecione CBZ, ZIP, CBR, RAR, PDF ou EPUB com nome válido.")
         if (!gate.tryAcquire()) return response(NanoHTTPD.Response.Status.CONFLICT, "Outro envio está em andamento. Tente novamente em instantes.")
         val target = File(temporaryDirectory, "${UUID.randomUUID()}.upload")
         try {

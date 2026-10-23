@@ -44,3 +44,7 @@ Rede local HTTP com endereço temporário e QR implementada na versão 0.2.0; in
 
 ## Correção 0.2.1 — 23/10/2026
 Usuário testou em iPhone e relatou CBZs inativos no seletor e ZIP recusado após upload completo. Removido filtro accept do seletor web, sem remover validação no envio/servidor. Mensagens de erro controladas agora chegam à TV/navegador; ZIP contendo CBZs sem páginas recebe orientação específica. Arquivos reais não fornecidos: causa da recusa original ainda não confirmada. Build/lint aprovados e 35 testes JVM passaram; reteste físico pendente.
+
+## Hikari — referência adicional de 23/10/2026
+Esclarecimento do usuário: “linha do tempo” abrange tanto a barra para escolher páginas no leitor quanto a sequência de capas/edições da saga. Ambas devem funcionar pelo D-pad; implementação pendente.
+Usuário solicitou examinar https://github.com/codegeasse1/hikari, em especial linha do tempo, fonte HQ Now e acesso separado às sagas do site. Análise de código registrada em [ANALISE-HIKARI.md](ANALISE-HIKARI.md), distinguindo funções confirmadas, relato do usuário e propostas. A versão consultada já contém adaptações para TV, sem validação física nesta análise. Catálogo de sagas não foi confirmado na extensão Keiyoushi examinada; identificar a fonte usada no Hikari antes de prometer equivalência. Preservar identidade própria e suporte a múltiplos repositórios. Solicitação RAR/CBR permanece pendente.
