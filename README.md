@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.6.0
+## Versão 0.7.0
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.
@@ -19,6 +19,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Servidor FTP temporário, com usuário/senha por sessão, QR code e recebimento em modo passivo.
 - Fontes Mihon: múltiplos repositórios, índices atuais e legados, download verificado de extensões e instalação confirmada pelo Android.
 - Catálogo online com populares, recentes, busca, detalhes e capítulos/edições na sequência da fonte; leitura no mesmo leitor, com progresso na biblioteca.
+- Nas ferramentas do leitor online, Edições da saga / série abre a lista atualizada, destaca a edição atual e oferece anterior/próxima e ordem invertível por título.
 
 O projeto está em desenvolvimento. Consulte `VALIDACAO.md` para resultados reais de compilação e testes; a existência do código não significa validação em uma TV.
 
@@ -89,6 +90,8 @@ Abra **Fontes → Adicionar Keiyoushi** ou informe a URL HTTPS de outro reposit�
 
 No catálogo, escolha uma capa para abrir detalhes e capítulos. Sagas como as do HQ Now são apresentadas conforme o título e a sequência de edições que a extensão retornar. Ao sair da leitura online, você volta à lista anterior. O capítulo aberto aparece na biblioteca para continuar depois; as páginas são carregadas sob demanda e compartilham o cache de 256 MiB, com prévias em 32 MiB separados. A retomada consulta a fonte novamente; esta versão não é um gerenciador de downloads completos para leitura offline.
 
+Para continuar outra edição durante a leitura, pressione OK → **Edições da saga / série**. A posição é salva antes de consultar a fonte. A lista identifica a edição atual, permite abrir anterior/próxima ou qualquer item e pode inverter a sequência; a escolha de ordem fica salva por título. A ordem da fonte não é presumida como cronológica. Edições já abertas retomam sua própria página. A leitura automática continua limitada às páginas da edição atual.
+
 Compatibilidade é por extensão: APIs 1.2–1.6 são hospedadas, mas bibliotecas adicionais, preferências específicas e fontes que exigem QuickJS podem precisar de adaptação. QuickJS não está incluído. Desafios de sites dependem do WebView do Android. A leitura do índice Keiyoushi e a identificação do HQ Now foram verificadas no computador; execução do APK, catálogo real e leitura na TV ainda exigem teste no dispositivo. Detalhes em `docs/FONTES-ONLINE.md`.
 
 ## Transferência FTP
@@ -99,7 +102,7 @@ Cada sessão dura até 15 minutos e termina ao parar, sair da tela, mudar de red
 
 ## Próximos incrementos acordados
 
-- **Web:** portal próprio com token temporário e QR de pareamento; depende de backend e hospedagem próprios.
+- **Web:** portal próprio com token temporário e QR de pareamento; adiado em favor da leitura online por extensões, conforme a prioridade esclarecida pelo usuário. Fontes online não dependem desse portal nem da hospedagem do Conchat.
 - Ferramentas adicionais, marcadores, galeria, outros formatos de arquivo e zoom por tiles.
 
 O portal remoto ainda não está ativo. Os servidores da rede local e FTP funcionam somente durante uma sessão iniciada pelo usuário.

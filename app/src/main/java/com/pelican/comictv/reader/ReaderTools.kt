@@ -15,7 +15,8 @@ import com.pelican.comictv.ui.*
 
 @Composable fun ReaderTools(state: ReaderState, hasError: Boolean, onAction: (ReaderAction) -> Unit,
     onRetry: () -> Unit, onExit: () -> Unit, modifier: Modifier = Modifier,
-    automatic: AutomaticReading = AutomaticReading(), onStartAutomatic: () -> Unit = {}, onAutomaticInterval: () -> Unit = {}) {
+    automatic: AutomaticReading = AutomaticReading(), onStartAutomatic: () -> Unit = {}, onAutomaticInterval: () -> Unit = {},
+    onEditions: (() -> Unit)? = null) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { first.requestFocus() }
     Column(modifier.fillMaxWidth().padding(24.dp).background(TvColors.Panel, RoundedCornerShape(14.dp))
@@ -31,6 +32,7 @@ import com.pelican.comictv.ui.*
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             if (state.pageCount > 0) TvButton("Escolher página", { onAction(ReaderAction.StartTimeline) })
+            onEditions?.let { TvButton("Edições da saga / série", it) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) })

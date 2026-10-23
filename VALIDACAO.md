@@ -1,29 +1,31 @@
-# Validação — Comic TV 0.6.0
+# Validação — Comic TV 0.7.0
 
-23/10/2026 · versionCode 8 · minSdk23 · targetSdk36.
+23/10/2026 · versionCode9 · minSdk23 · targetSdk36.
 
-## Resultado
+## Continuidade online
 
-101 testes JVM passaram, sem falhas ou erros: 69 core, 7 mihon e 25 app. Build debug, APK de instrumentação do app e lint passaram. Lint: 0 erros e 33 avisos, incluindo recomendações Android/KTX e versões de dependências. A instrumentação foi compilada, sem execução: adb não lista dispositivos e não há emulador configurado.
+OK no leitor online → Edições da saga / série. O leitor encerra e aguarda carregamentos/prévias antes de salvar e navegar; o botão de tentar novamente não reinicia operações depois desse encerramento. A fonte é consultada para uma lista atualizada fora do leitor ativo.
 
-APK assinado com a mesma chave debug, verificado v1/v2. aapt2 confirma versão, SDKs e atividade Leanback.
+A tela destaca a edição atual, oferece anterior/próxima, seleção de qualquer edição e localização da atual. A sequência da fonte pode ser invertida explicitamente, com preferência salva por título. Duplicatas conservam a primeira entrada; capítulo ausente não recebe vizinhos inventados. Limite de 10.000 itens antes da deduplicação. Navegar pela lista não grava progresso; abrir edição já lida conserva sua página.
 
-SHA-256: `0C54E8D54CE1A45FA1B10980CCFB3584E3A0C656877F58FA1E9AFF2191FB2EB5`.
+Back cancela uma abertura pendente para impedir navegação tardia durante a transição. Recriar a Activity não desativa permanentemente o ViewModel retido. Consulta do contexto mantém compatibilidade com registros de leitura anteriores, confere confiança/certificado e traduz falhas de API ausente.
 
-## FTP
+## Verificação
 
-12 testes com sockets reais cobrem autenticação, três falhas de senha, PASV/EPSV, bytes/nome preservados, raiz vazia, limite de tamanho, comandos/caminhos negados, um envio simultâneo, limite de quatro clientes, comando excessivo, bloqueio de conexão de dados de outro IP, interrupção, expiração durante envio, limpeza de temporários abandonados e erro sem exposição de dados internos.
+112 testes JVM: 75 core, 7 mihon e 30 app, sem falhas ou erros. Incluem sequência, inversão, duplicatas, lacunas, limites, falha/repetição de abertura, seleção desconhecida, navegação após cancelamento e encerramento de carregamento antes de consultar outra fonte. Os testes de sequência e ViewModel foram escritos antes das respectivas implementações. A regressão de carregamento sobrevivendo ao fechamento falhou antes da correção.
 
-O primeiro ciclo falhou pela ausência do servidor. O primeiro servidor revelou respostas de conclusão antes da limpeza; a ordem foi corrigida e os testes passaram. open/close agora compartilham a mesma trava para impedir reabertura acidental durante parada. Revisão da integração corrigiu a detecção de mudança de rede por identidade Android Network e endereço, em vez de somente IP.
+Build debug, compilação de instrumentação do app e lint aprovados (0 erros e 34 avisos). A assinatura final v1/v2 e os SDKs/atividade Leanback são conferidos na entrega. A instrumentação não foi executada: sem TV/emulador conectado. Revisões independentes corrigiram transição com trabalho ainda ativo, cancelamento ao voltar e retenção do ViewModel durante recriação.
 
-Cliente independente curl.exe enviou um CBZ por PASV em loopback. O callback conferiu SHA-256 idêntico e o ComicArchive reconheceu uma página. Isso verifica protocolo e importador JVM; não substitui comunicação com a TV ou importação Room/decodificação Android em dispositivo.
+SHA-256 do APK: F5033675801CCA2167FB206EE749C9A516C16282127AA12B139441F47A21819B.
 
-O app cancela o job de importação e invalida a geração da sessão antes de fechar o servidor. Esse guard protege callbacks já admitidos pelo servidor no instante da parada. Arquivos incompletos não são publicados pelo fluxo de importação cancelado. A revisão independente final não encontrou problemas Critical/Important pendentes na integração.
+## Repositórios
 
-## Teste físico pendente
+O cadastro já existe desde 0.5.0: Fontes → Adicionar Keiyoushi ou informar URL → Ver extensões → Instalar → confirmar no Android → Atualizar instaladas → escolher fonte. Não instala todas as extensões de um repositório automaticamente. A versão atual inclui esse fluxo.
 
-Na TV: atualizar APK sem desinstalar; Importar → Receber por FTP → Iniciar servidor FTP. Em cliente FTP na mesma rede, usar endereço, porta, usuário e senha mostrados, modo passivo e envio direto para a raiz. Testar CBZ/RAR/PDF/EPUB, retorno à biblioteca, leitura, parada durante envio, segundo plano e troca de rede. Conferir legibilidade/foco/QR no dispositivo.
+Keiyoushi e Suwayomi foram lidos pelo cliente real na verificação 0.5.0; HQ Now foi identificado no índice. Execução real de extensões, listas de sagas, D-pad, QR e passagem entre edições na TV continuam pendentes. APIs1.2–1.6 hospedadas não garantem compatibilidade universal; QuickJS indisponível.
 
-FTP convencional não criptografa dados; a tela orienta uso na rede local. Não oferece download da biblioteca, subpastas, exclusão, renomeação, append ou retomada de upload. A porta é atribuída pelo sistema e a senha muda por sessão. Portal remoto permanece pendente.
+## Teste na TV
 
-Os recursos da versão 0.5.0 continuam incluídos. A execução real de fontes Mihon/HQ Now ainda exige validação na TV; os relatórios anteriores estão no histórico Git e nas entregas de cada versão.
+Atualizar sem desinstalar. Instalar/abrir uma fonte; buscar saga/série e abrir uma edição. Avançar páginas, OK → Edições da saga / série, localizar atual e abrir a próxima. Reabrir a anterior e conferir página salva. Inverter sequência e conferir que a escolha persiste por título. Testar falha de rede, Back durante consulta e retomada pela biblioteca.
+
+Portal web foi adiado pela prioridade de leitura online. Sua preparação local está separada do repositório ativo; não houve publicação, contratação ou alteração da hospedagem do Conchat. Rede local e FTP continuam disponíveis para importações ocasionais.

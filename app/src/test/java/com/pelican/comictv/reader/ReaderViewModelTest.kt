@@ -29,6 +29,7 @@ class ReaderViewModelTest {
         var thumbnailFailure = false
         var ignoreThumbnailCancellation = false
         var pageDelay = 0L
+        var activeMaterializations = 0
         var pageFailure = false
         var count = 3
         var rtl = false
@@ -47,13 +48,32 @@ class ReaderViewModelTest {
             return (0 until count).map { PageRef(it, if (textFile != null) "epub:text:$it" else "$it.jpg") }
         }
         override suspend fun materialize(comicId: String, page: PageRef): File {
-            delay(pageDelay)
-            if (pageFailure) throw java.io.IOException("Page unavailable")
-            delay(if (page.index == 1) 100 else 1)
-            return textFile ?: File("page-${page.index}")
+            activeMaterializations++
+            try {
+                delay(pageDelay)
+                if (pageFailure) throw java.io.IOException("Page unavailable")
+                delay(if (page.index == 1) 100 else 1)
+                return textFile ?: File("page-${page.index}")
+            } finally { activeMaterializations-- }
         }
         override suspend fun saveProgress(id: String, page: Int) { delay(saveDelay); saved += page }
         override suspend fun savePreferences(id: String, fit: Int, rtl: Boolean) = Unit
+    }
+
+    @Test fun closingStopsPageWorkBeforeNavigatingToAnotherSourceOperation() = runTest(dispatcher) {
+        val repository = FakeRepository().apply { pageDelay = 10_000 }
+        val vm = ReaderViewModel(repository, "online", SavedStateHandle(), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        runCurrent()
+        assertEquals(1, repository.activeMaterializations)
+        var activeAtNavigation = -1
+        vm.close { activeAtNavigation = repository.activeMaterializations }
+        advanceUntilIdle()
+        assertEquals(0, activeAtNavigation)
+        vm.retry()
+        runCurrent()
+        val restartedAfterNavigation = repository.activeMaterializations
+        advanceUntilIdle()
+        assertEquals(0, restartedAfterNavigation)
     }
 
     @Test fun previewsLoadAtMostFivePagesAroundCursor() = runTest(dispatcher) {

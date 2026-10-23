@@ -117,7 +117,10 @@ class ReaderViewModel(
         }
     }
 
-    fun retry() { if (!initialized) initialize() else loadPage() }
+    fun retry() {
+        if (closing || exited) return
+        if (!initialized) initialize() else loadPage()
+    }
 
     fun startAutomaticReading() {
         if (closing || exited || !initialized || _state.value.pageCount == 0 || _error.value != null) return
@@ -210,12 +213,14 @@ class ReaderViewModel(
         _previews.value = emptyList()
         viewModelScope.launch {
             try {
+                // Navigation may retain the outgoing composable during its animation. Finish
+                // every source operation before another screen reloads the extension context.
+                initializationJob?.cancelAndJoin()
+                loadJob?.cancelAndJoin()
+                previewJob?.cancelAndJoin()
                 if (initialized) {
                     persistence.withLock { repository.saveProgress(comicId, _state.value.page) }
                     repository.savePreferences(comicId, _state.value.fit.ordinal, _state.value.rtl)
-                } else {
-                    initializationJob?.cancel()
-                    loadJob?.cancel()
                 }
                 exited = true
                 onSaved()

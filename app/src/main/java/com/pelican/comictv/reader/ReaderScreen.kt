@@ -30,7 +30,7 @@ import coil3.request.ImageRequest
 import com.pelican.comictv.ui.*
 import kotlin.math.min
 
-@Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit) {
+@Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val image by viewModel.image.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
@@ -120,7 +120,8 @@ import kotlin.math.min
         } else {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .5f)))
             ReaderTools(state, displayedError != null, viewModel::action, { renderError = false; viewModel.retry() }, exit,
-                Modifier.align(Alignment.BottomCenter), automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval)
+                Modifier.align(Alignment.BottomCenter), automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval,
+                onEditions = onEditions?.let { action -> { viewModel.close(action) } })
         }
     }
 }

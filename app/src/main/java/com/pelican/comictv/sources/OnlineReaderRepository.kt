@@ -15,6 +15,14 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
+data class OnlineEditions(
+    val source: SourceHandle,
+    val title: OnlineTitle,
+    val current: OnlineChapter,
+    val chapters: List<OnlineChapter>,
+    val pin: String,
+)
+
 /** Durable chapter records share the library's progress, validation and bounded image caches. */
 class OnlineReaderRepository(
     context: Context,
@@ -27,6 +35,20 @@ class OnlineReaderRepository(
     private val mutex = Mutex()
     private val sessions = LinkedHashMap<String, OnlineReadingRecord>()
     private val prefetched = mutableSetOf<String>()
+
+    /** Call after leaving the reader: loading an extension replaces its active page context. */
+    suspend fun editions(id: String): OnlineEditions = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            require(OnlineIdentity.isOnline(id)) { "Identificador online inválido." }
+            // Reading the durable record avoids refreshing pages or touching reading progress.
+            val saved = read(id)
+            trusted(saved.pin)
+            val source = loadSource(saved.source, saved.pin)
+            val details = extensionOperation { engine.details(source, saved.title) }
+            val sequence = chapterSequence(details.chapters, saved.chapter.key)
+            OnlineEditions(source, details.title, saved.chapter, sequence.chapters, saved.pin)
+        }
+    }
 
     suspend fun open(source: SourceHandle, title: OnlineTitle, chapter: OnlineChapter, pin: String): String = withContext(Dispatchers.IO) {
         mutex.withLock {

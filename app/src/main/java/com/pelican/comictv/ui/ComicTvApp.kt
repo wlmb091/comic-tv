@@ -92,7 +92,22 @@ import androidx.compose.ui.platform.LocalContext
             val reader: ReaderViewModel = viewModel(factory = viewModelFactory {
                 initializer { ReaderViewModel(if (id.startsWith("online-")) container.online else container.library, id, createSavedStateHandle()) }
             })
-            ReaderScreen(reader, onExit = { if (id.startsWith("online-")) nav.popBackStack() else nav.popBackStack("library", false) })
+            ReaderScreen(reader, onExit = { if (id.startsWith("online-")) nav.popBackStack() else nav.popBackStack("library", false) },
+                onEditions = if (id.startsWith("online-")) ({
+                    nav.navigate("online-editions/$id") { popUpTo(entry.destination.id) { inclusive = true } }
+                }) else null)
+        }
+        composable("online-editions/{id}") { entry ->
+            val id = entry.arguments?.getString("id")!!
+            val editions: OnlineEditionsViewModel = viewModel(factory = viewModelFactory {
+                initializer { OnlineEditionsViewModel(id, createSavedStateHandle(), container.online::editions,
+                    { context, chapter -> container.online.open(context.source, context.title, chapter, context.pin) },
+                    readOrder = { context -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.reversedSequence(context) } },
+                    writeOrder = { context, reversed -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.saveSequenceOrder(context, reversed) } }) }
+            })
+            OnlineEditionsScreen(editions, onRead = { next ->
+                nav.navigate("reader/$next") { popUpTo(entry.destination.id) { inclusive = true } }
+            }, onBack = { nav.popBackStack() })
         }
     }
 }

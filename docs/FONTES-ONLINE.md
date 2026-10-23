@@ -1,4 +1,4 @@
-# Fontes online — 0.5.0
+# Fontes online — 0.7.0
 
 O Comic TV aceita vários repositórios Mihon, sem exclusividade para HQ Now. Cada URL deve usar HTTPS e fornecer um descritor com certificado SHA-256. Índices protobuf/gzip atuais e JSON legados são aceitos; índices antigos que só anunciam migração são recusados.
 
@@ -19,6 +19,10 @@ A chave recebida no primeiro cadastro é preservada. Uma mudança de chave bloqu
 O runtime cobre APIs Mihon 1.2–1.6, incluindo pontes Rx e suspend. Compatibilidade de uma API não garante todas as extensões: dependências adicionais e configurações específicas podem faltar. QuickJS não está disponível. Erros de API ausente são apresentados no leitor, sem encerrar o app. WebView precisa estar funcional para desafios suportados. URLs das fontes podem usar HTTP ou HTTPS conforme o site; URLs de repositórios/APKs permanecem restritas a HTTPS.
 
 ## Armazenamento e progresso
+
+Durante a leitura online, OK → Edições da saga / série salva a posição e fecha o leitor antes de consultar a lista atualizada. Isso evita substituir o contexto de páginas da extensão com a página ainda ativa. A edição atual é identificada pela chave da fonte; anterior/próxima seguem a sequência escolhida. O botão de ordem inverte a lista e a preferência é lembrada por título. Duplicatas mantêm a primeira entrada; se a edição atual desaparecer da fonte, não são inventados vizinhos, mas a lista continua disponível para seleção. A lista tem limite de 10.000 itens antes da deduplicação. Navegar a lista não grava progresso. Abrir uma edição previamente lida conserva sua página.
+
+O cadastro de repositórios já existe: Fontes → Adicionar Keiyoushi ou informar URL → Ver extensões → Instalar → confirmar no Android → Atualizar instaladas → escolher fonte. Cadastrar o repositório não instala suas extensões automaticamente. Repositório lista APKs; extensão instalada fornece uma ou mais fontes. Essa leitura online é feita pela TV e não usa o portal de importação de arquivos.
 
 Um ID estável combina pacote, fonte, título e capítulo. Os registros privados guardam referências, certificado e páginas, com JSON limitado a 8 MiB e capítulo limitado a 5.000 páginas. Reabrir consulta a fonte para renovar URLs temporárias. Navegar capas ou capítulos não altera a página lida. Atualizar a contagem preserva progresso e preferências; se o capítulo encolher, a posição é limitada à última página.
 
