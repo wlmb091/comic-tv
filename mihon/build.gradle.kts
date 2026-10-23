@@ -8,7 +8,7 @@ android {
     compileSdk = 36
     // JVM OSGi metadata from network modules is not used by Android.
     packaging.resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
-    defaultConfig { minSdk = 23; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { minSdk = 26; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17"; freeCompilerArgs += listOf("-Xjvm-default=all-compatibility", "-Xcontext-parameters") }
     testOptions { unitTests.isReturnDefaultValues = true }

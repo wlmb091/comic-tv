@@ -28,7 +28,7 @@ Especificação, plano, referências funcionais e conceito visual aprovado estã
 
 ## Compilar
 
-Requisitos: JDK 17, SDK Android Platform 36, Build Tools 35.0.0 e conexão para resolver dependências. Gradle 8.13 é fornecido pelo wrapper; AGP 8.11.1, Kotlin 2.2.0 e demais versões estão fixados nos arquivos Gradle. `minSdk` é 23.
+Requisitos: JDK 17, SDK Android Platform 36, Build Tools 35.0.0 e conexão para resolver dependências. Gradle 8.13 é fornecido pelo wrapper; AGP 8.11.1, Kotlin 2.2.0 e demais versões estão fixados nos arquivos Gradle. `minSdk` é 26 (Android 8).
 
 Abra a pasta no Android Studio ou configure `JAVA_HOME` e `ANDROID_HOME`. Alternativamente, crie um `local.properties` com `sdk.dir=C\:/caminho/do/Android/Sdk`. Essa configuração local não deve entrar no Git.
 
@@ -95,7 +95,7 @@ Para continuar outra edição durante a leitura, pressione OK → **Edições da
 
 Compatibilidade é por extensão: APIs 1.2–1.6 são hospedadas, mas bibliotecas adicionais, preferências específicas e fontes que exigem QuickJS podem precisar de adaptação. QuickJS não está incluído. Desafios de sites dependem do WebView do Android. A leitura do índice Keiyoushi e a identificação do HQ Now foram verificadas no computador; execução do APK, catálogo real e leitura na TV ainda exigem teste no dispositivo. Detalhes em `docs/FONTES-ONLINE.md`.
 
-O Comic TV aceita Android 6/API 23 ou superior; isso não reduz o requisito de cada extensão. O APK HQ Now 1.6.0 verificado exige Android 8/API 26. Desde 0.7.1 o requisito é lido diretamente do manifesto do APK antes de oferecê-lo ao instalador, preservando as verificações de pacote, versão e certificado. “API compatível” na lista de instaladas descreve a versão da interface, sem certificar funcionamento de cada site.
+Desde 0.7.4, o Comic TV aceita Android 8/API 26 ou superior para preservar métodos padrão de interfaces usados pelas extensões. Android 6/7 deixam de ser suportados. Isso não reduz o requisito de cada extensão. O APK HQ Now 1.6.0 verificado exige Android 8/API 26. Desde 0.7.1 o requisito é lido diretamente do manifesto do APK antes de oferecê-lo ao instalador, preservando as verificações de pacote, versão e certificado. “API compatível” na lista de instaladas descreve a versão da interface, sem certificar funcionamento de cada site.
 
 ## Transferência FTP
 
@@ -110,7 +110,7 @@ Cada sessão dura até 15 minutos e termina ao parar, sair da tela, mudar de red
 
 O portal remoto ainda não está ativo. Os servidores da rede local e FTP funcionam somente durante uma sessão iniciada pelo usuário.
 
-As licenças de NanoHTTPD, ZXing, Junrar, SLF4J e Jsoup estão em `docs/licenses/` e são incluídas nos assets do APK. PdfRenderer é API do Android; desugaring Java está habilitado para manter minSdk 23.
+As licenças de NanoHTTPD, ZXing, Junrar, SLF4J e Jsoup estão em `docs/licenses/` e são incluídas nos assets do APK. PdfRenderer é API do Android; desugaring de APIs Java permanece habilitado; o aplicativo exige minSdk 26.
 
 ## Estrutura
 

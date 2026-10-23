@@ -11,10 +11,10 @@ android {
     packaging.resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
     defaultConfig {
         applicationId = "com.pelican.comictv"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.7.3"
+        versionCode = 13
+        versionName = "0.7.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
