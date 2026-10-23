@@ -26,7 +26,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
             try { block() }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { Log.e("ComicTV-Sources", "Source operation failed", e); _state.update { it.copy(message = e.message?.take(350) ?: "Não foi possível consultar a fonte.") } }
-            catch (e: LinkageError) { Log.e("ComicTV-Sources", "Extension compatibility failure", e); _state.update { it.copy(message = "Esta extensão exige uma API ainda não compatível. ${e.javaClass.simpleName}") } }
+            catch (e: LinkageError) { Log.e("ComicTV-Sources", "Extension compatibility failure", e); _state.update { it.copy(message = "Falha de compatibilidade da extensão: ${extensionLoadDiagnostic(e)}") } }
             finally { if (currentCoroutineContext().isActive) _state.update { it.copy(busy = false) } }
         }
     }

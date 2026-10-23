@@ -7,12 +7,14 @@ plugins {
 android {
     namespace = "com.pelican.comictv"
     compileSdk = 36
+    // JVM OSGi metadata from network modules is not used by Android.
+    packaging.resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
     defaultConfig {
         applicationId = "com.pelican.comictv"
         minSdk = 23
         targetSdk = 36
-        versionCode = 11
-        versionName = "0.7.2"
+        versionCode = 12
+        versionName = "0.7.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -35,7 +37,7 @@ dependencies {
     implementation(project(":core"))
     implementation(project(":mihon"))
     implementation("com.google.code.gson:gson:2.13.2")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
     implementation(platform("androidx.compose:compose-bom:2025.08.01"))
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.foundation:foundation")
