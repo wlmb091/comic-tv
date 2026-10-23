@@ -104,10 +104,10 @@ Esta seção substitui a pendência anterior de definição de Web/FTP. Os três
 
 ### Transferência B: servidor FTP na TV
 **Files planejados:** import/FtpUploadServer.kt, import/FtpTransferScreen.kt e testes de isolamento de diretório.
-- [ ] Definir autenticação e selecionar biblioteca Android mantida após verificar compatibilidade e licença. Login anônimo aparece na referência, mas ainda não é uma decisão do produto.
-- [ ] Implementar iniciar/parar, endereço/porta, QR e dados de acesso; restringir operações à área temporária de importação.
-- [ ] Promover arquivos apenas após upload concluído e validação pelo importador compartilhado.
-- [ ] Testar cliente FTP real, modo passivo, interrupção, nomes inseguros, isolamento da biblioteca e encerramento da sessão.
+- [x] Autenticação por usuário comictv e senha temporária. Servidor de recebimento específico em Kotlin/JVM substitui a previsão de biblioteca genérica; decisão e limites em FTP.md.
+- [x] Implementar iniciar/parar, endereço/porta, QR e dados de acesso; restringir operações à área temporária de importação.
+- [x] Promover arquivos apenas após upload concluído e validação pelo importador compartilhado.
+- [x] Testar cliente FTP real em loopback, modo passivo, interrupção, nomes inseguros, isolamento da biblioteca e encerramento da sessão. Teste físico na TV continua pendente.
 
 ### Transferência C: portal web com pareamento
 **Files planejados:** import/WebTransferScreen.kt, import/WebTransferClient.kt; serviço e portal em projeto separado a especificar.

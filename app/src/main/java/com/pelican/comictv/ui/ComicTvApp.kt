@@ -23,6 +23,8 @@ import com.pelican.comictv.reader.*
 import com.pelican.comictv.transfer.ImportScreen
 import com.pelican.comictv.transfer.LocalTransferViewModel
 import com.pelican.comictv.transfer.LocalTransferScreen
+import com.pelican.comictv.transfer.FtpTransferViewModel
+import com.pelican.comictv.transfer.FtpTransferScreen
 import androidx.compose.ui.platform.LocalContext
 
 @Composable fun ComicTvApp(container: AppContainer) {
@@ -46,7 +48,7 @@ import androidx.compose.ui.platform.LocalContext
             TvShell("import", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
                 ImportScreen(busy, message, onMessage = library::message,
                     onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } },
-                    onLocalTransfer = { nav.navigate("local-transfer") })
+                    onLocalTransfer = { nav.navigate("local-transfer") }, onFtpTransfer = { nav.navigate("ftp-transfer") })
             }
         }
         composable("local-transfer") {
@@ -55,6 +57,13 @@ import androidx.compose.ui.platform.LocalContext
                 initializer { LocalTransferViewModel(context, container.library) }
             })
             LocalTransferScreen(transfer) { nav.popBackStack() }
+        }
+        composable("ftp-transfer") {
+            val context = LocalContext.current.applicationContext
+            val ftp: FtpTransferViewModel = viewModel(factory = viewModelFactory {
+                initializer { FtpTransferViewModel(context, container.library) }
+            })
+            FtpTransferScreen(ftp) { nav.popBackStack() }
         }
         composable("sources") {
             val sources: SourcesViewModel = viewModel(factory = viewModelFactory {

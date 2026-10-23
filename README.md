@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.5.0
+## Versão 0.6.0
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.
@@ -16,6 +16,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Miniaturas da posição selecionada e até duas vizinhas de cada lado, geradas sob demanda em cache separado de 32 MiB.
 - Leitura automática: slides de imagens ou rolagem de texto EPUB, com 10 segundos por página/tela inicialmente e intervalos de 5,10,20,30 ou 60 segundos. Pausa com comandos manuais, ferramentas, erro ou segundo plano.
 - Transferência pela rede local (Wi-Fi/Ethernet), com URL temporária, QR code, upload pelo navegador e acompanhamento na TV.
+- Servidor FTP temporário, com usuário/senha por sessão, QR code e recebimento em modo passivo.
 - Fontes Mihon: múltiplos repositórios, índices atuais e legados, download verificado de extensões e instalação confirmada pelo Android.
 - Catálogo online com populares, recentes, busca, detalhes e capítulos/edições na sequência da fonte; leitura no mesmo leitor, com progresso na biblioteca.
 
@@ -90,13 +91,18 @@ No catálogo, escolha uma capa para abrir detalhes e capítulos. Sagas como as d
 
 Compatibilidade é por extensão: APIs 1.2–1.6 são hospedadas, mas bibliotecas adicionais, preferências específicas e fontes que exigem QuickJS podem precisar de adaptação. QuickJS não está incluído. Desafios de sites dependem do WebView do Android. A leitura do índice Keiyoushi e a identificação do HQ Now foram verificadas no computador; execução do APK, catálogo real e leitura na TV ainda exigem teste no dispositivo. Detalhes em `docs/FONTES-ONLINE.md`.
 
+## Transferência FTP
+
+Abra **Importar → Receber por FTP → Iniciar servidor FTP**. Em um cliente FTP na mesma rede, informe o endereço/porta e usuário/senha mostrados na TV; selecione FTP convencional e modo passivo. Envie CBZ/ZIP, CBR/RAR, PDF ou EPUB diretamente para a raiz. O QR contém os dados de acesso e exige um leitor/cliente que aceite URLs FTP.
+
+Cada sessão dura até 15 minutos e termina ao parar, sair da tela, mudar de rede ou ir ao segundo plano. A senha muda ao iniciar outra sessão. O FTP recebe um arquivo por vez, até 1 GiB, e só adiciona à biblioteca depois de validar. Não expõe arquivos da biblioteca. Use em sua rede local: FTP convencional não criptografa credenciais nem conteúdo. Detalhes e limites em `docs/FTP.md`.
+
 ## Próximos incrementos acordados
 
-- **FTP:** servidor temporário na TV para receber arquivos; diretório restrito e autenticação a definir.
 - **Web:** portal próprio com token temporário e QR de pareamento; depende de backend e hospedagem próprios.
 - Ferramentas adicionais, marcadores, galeria, outros formatos de arquivo e zoom por tiles.
 
-FTP e portal remoto ainda não estão ativos. O servidor da rede local funciona somente durante uma sessão iniciada pelo usuário.
+O portal remoto ainda não está ativo. Os servidores da rede local e FTP funcionam somente durante uma sessão iniciada pelo usuário.
 
 As licenças de NanoHTTPD, ZXing, Junrar, SLF4J e Jsoup estão em `docs/licenses/` e são incluídas nos assets do APK. PdfRenderer é API do Android; desugaring Java está habilitado para manter minSdk 23.
 

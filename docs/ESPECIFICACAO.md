@@ -49,7 +49,7 @@ Esta seção substitui as descrições anteriores que deixavam Web e FTP indefin
 
 Rede local: iniciar servidor HTTP temporário na TV; exibir URL real, QR equivalente, estado, clientes conectados, progresso e ação de parar. Dispositivos na mesma rede enviam arquivos por uma página de upload.
 
-FTP: iniciar servidor FTP temporário na TV; mostrar URL/porta e dados de acesso, QR e ação de parar. Receber arquivos numa área restrita de importação, sem expor a biblioteca completa. A referência permite acesso anônimo; autenticação será decidida no desenho desse subsistema.
+FTP: iniciar servidor FTP temporário na TV; mostrar URL/porta, usuário e senha temporária por sessão, QR e ação de parar. Receber arquivos numa área restrita de importação, sem expor a biblioteca completa. A versão 0.6.0 usa usuário comictv, senha temporária e modo passivo; encerra em até 15 minutos, ao sair, em segundo plano ou ao mudar de rede. Detalhes em FTP.md.
 
 Web: parear TV e portal de envio por token temporário, digitável ou incluído no QR; permitir renovar token, mostrar espera/progresso e cancelar sessão. Este é um portal de transferência, não um catálogo e não uma URL de download. Serviço próprio com backend a projetar; a imagem não permite afirmar como o aplicativo de referência transporta os arquivos.
 
