@@ -29,6 +29,9 @@ import com.pelican.comictv.ui.*
             TvButton("Ajuste: " + when (state.fit) { FitMode.Page -> "Página"; FitMode.Width -> "Largura"; FitMode.Height -> "Altura" }, { onAction(ReaderAction.ToggleFit) })
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (state.pageCount > 0) TvButton("Escolher página", { onAction(ReaderAction.StartTimeline) })
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) })
             if (hasError) TvButton("Tentar novamente", { onRetry(); onAction(ReaderAction.Back) })
             TvButton("Sair da leitura", onExit)

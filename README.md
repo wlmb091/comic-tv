@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.3.0
+## Versão 0.3.1
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.
@@ -12,6 +12,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Leitor com ajuste à página, largura ou altura, zoom de 1x a 3x e deslocamento explícito.
 - Progresso e preferências por edição em Room.
 - Tema escuro com foco âmbar, seguindo o conceito aprovado.
+- Barra para escolher página/seção pelo D-pad, com confirmação antes de carregar e salvar a nova posição.
 - Transferência pela rede local (Wi-Fi/Ethernet), com URL temporária, QR code, upload pelo navegador e acompanhamento na TV.
 
 O projeto está em desenvolvimento. Consulte `VALIDACAO.md` para resultados reais de compilação e testes; a existência do código não significa validação em uma TV.
@@ -53,6 +54,9 @@ Testes que exigem emulador ou dispositivo Android:
 | Ferramentas | Voltar retorna à leitura |
 | Leitura normal | Voltar salva e retorna à biblioteca |
 | EPUB de texto | Cima/baixo rolam; esquerda/direita trocam seções; OK abre ajuste de fonte |
+| Ferramentas | Escolher página/seção abre a barra na posição atual |
+| Barra | Esquerda/direita escolhem uma posição; cima/baixo saltam −10/+10 |
+| Barra | OK abre a posição; Voltar cancela e retorna às ferramentas |
 
 Ao mudar de página, zoom e deslocamento voltam ao estado inicial. O zoom desta versão amplia uma imagem decodificada para a tela; alta resolução por tiles faz parte de um incremento futuro.
 

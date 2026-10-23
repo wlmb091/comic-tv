@@ -1,8 +1,8 @@
 package com.pelican.comictv.reader
 
-enum class ReaderMode { Reading, Tools, Pan }
+enum class ReaderMode { Reading, Tools, Pan, Timeline }
 enum class FitMode { Page, Width, Height }
-enum class ReaderAction { Left, Right, Up, Down, Select, Back, StartPan, ToggleFit, ToggleRtl }
+enum class ReaderAction { Left, Right, Up, Down, Select, Back, StartPan, ToggleFit, ToggleRtl, StartTimeline }
 
 data class ReaderState(
     val page: Int = 0,
@@ -13,8 +13,28 @@ data class ReaderState(
     val mode: ReaderMode = ReaderMode.Reading,
     val fit: FitMode = FitMode.Page,
     val rtl: Boolean = false,
+    val timelinePage: Int? = null,
 ) {
     fun reduce(action: ReaderAction): ReaderState {
+        if (mode == ReaderMode.Timeline) {
+            val cursor = (timelinePage ?: page).coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+            return when (action) {
+                ReaderAction.Back -> copy(mode = ReaderMode.Tools, timelinePage = null)
+                ReaderAction.Select -> if (cursor == page) copy(mode = ReaderMode.Reading, timelinePage = null)
+                    else copy(page = cursor, mode = ReaderMode.Reading, timelinePage = null, zoom = 1f, panX = 0f, panY = 0f)
+                ReaderAction.Left, ReaderAction.Right, ReaderAction.Up, ReaderAction.Down -> {
+                    val step = when (action) {
+                        ReaderAction.Up -> -10
+                        ReaderAction.Down -> 10
+                        else -> (if (action == ReaderAction.Right) 1 else -1) * if (rtl) -1 else 1
+                    }
+                    copy(timelinePage = (cursor + step).coerceIn(0, (pageCount - 1).coerceAtLeast(0)))
+                }
+                else -> this
+            }
+        }
+        if (action == ReaderAction.StartTimeline) return copy(mode = ReaderMode.Timeline,
+            timelinePage = page.coerceIn(0, (pageCount - 1).coerceAtLeast(0)))
         if (action == ReaderAction.Back) return copy(mode = if (mode == ReaderMode.Pan) ReaderMode.Tools else ReaderMode.Reading)
         if (action == ReaderAction.Select) return copy(mode = ReaderMode.Tools)
         if (action == ReaderAction.StartPan) return copy(mode = ReaderMode.Pan)

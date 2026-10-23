@@ -51,6 +51,27 @@ class ReaderViewModelTest {
         } finally { file.delete() }
     }
 
+    @Test fun timelineDoesNotWriteOrLoadUntilConfirmed() = runTest(dispatcher) {
+        val repository = FakeRepository()
+        val handle = SavedStateHandle()
+        val vm = ReaderViewModel(repository, "timeline", handle, ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        repository.saved.clear()
+        val previousImage = vm.image.value
+        vm.action(ReaderAction.StartTimeline)
+        vm.action(ReaderAction.Right)
+        advanceUntilIdle()
+        assertEquals(1, vm.state.value.page)
+        assertEquals(previousImage, vm.image.value)
+        assertTrue(repository.saved.isEmpty())
+        vm.action(ReaderAction.Select)
+        advanceUntilIdle()
+        assertEquals(2, vm.state.value.page)
+        assertEquals("page-2", vm.image.value!!.file.name)
+        assertEquals(listOf(2), repository.saved)
+        assertEquals(2, handle.get<Int>("page"))
+    }
+
     @Test fun stalePageCannotReplaceLatestPageAndProgressIsSaved() = runTest(dispatcher) {
         val repository = FakeRepository()
         val handle = SavedStateHandle()

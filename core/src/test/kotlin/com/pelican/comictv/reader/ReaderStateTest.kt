@@ -4,6 +4,36 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReaderStateTest {
+    @Test fun `timeline selection is separate from reading and cancel preserves view`() {
+        val original = ReaderState(page = 4, pageCount = 30, zoom = 2f, panX = .3f, panY = .5f)
+        val timeline = original.reduce(ReaderAction.StartTimeline).reduce(ReaderAction.Right).reduce(ReaderAction.Down)
+        assertEquals(4, timeline.page)
+        assertEquals(15, timeline.timelinePage)
+        val cancelled = timeline.reduce(ReaderAction.Back)
+        assertEquals(original.copy(mode = ReaderMode.Tools), cancelled)
+    }
+    @Test fun `timeline confirmation resets viewport and respects reading bounds`() {
+        val chosen = ReaderState(page = 4, pageCount = 30, zoom = 2f, panX = .3f)
+            .reduce(ReaderAction.StartTimeline).reduce(ReaderAction.Down).reduce(ReaderAction.Select)
+        assertEquals(14, chosen.page)
+        assertEquals(ReaderMode.Reading, chosen.mode)
+        assertEquals(1f, chosen.zoom)
+        assertEquals(0f, chosen.panX)
+        assertNull(chosen.timelinePage)
+    }
+    @Test fun `timeline clamps jumps and handles empty single and RTL books`() {
+        for (count in listOf(0, 1, 3)) {
+            var s = ReaderState(pageCount = count).reduce(ReaderAction.StartTimeline)
+            repeat(10) { s = s.reduce(ReaderAction.Down) }
+            assertEquals((count - 1).coerceAtLeast(0), s.timelinePage)
+            repeat(10) { s = s.reduce(ReaderAction.Up) }
+            assertEquals(0, s.timelinePage)
+            assertEquals(0, s.reduce(ReaderAction.Select).page)
+        }
+        val rtl = ReaderState(page = 2, pageCount = 10, rtl = true).reduce(ReaderAction.StartTimeline)
+        assertEquals(1, rtl.reduce(ReaderAction.Right).timelinePage)
+        assertEquals(3, rtl.reduce(ReaderAction.Left).timelinePage)
+    }
     @Test fun `page navigation is clamped and supports RTL`() {
         assertEquals(0, ReaderState(pageCount = 3).reduce(ReaderAction.Left).page)
         assertEquals(2, ReaderState(page = 2, pageCount = 3).reduce(ReaderAction.Right).page)

@@ -1,44 +1,34 @@
-# Validação — Comic TV 0.3.0
+# Validação — Comic TV 0.3.1
 
-Data: 23/10/2026. versionCode 4. Mantida a assinatura debug usada nas entregas anteriores.
+23/10/2026. versionCode 5. Incremento da barra de páginas/seções. O usuário confirmou a versão anterior funcionando; esta entrega acrescenta o seletor pelo D-pad.
 
-APK `Comic-TV-0.3.0-debug.apk`: assinatura v1/v2 verificada; minSdk 23, targetSdk 36. SHA-256: `5B1221645F076A02501969D86F2FBAA70746B86FE27778CCE18F24DA957DEB05`. JavaScript do upload passou em `node --check`.
+APK assinado com a mesma chave debug; assinaturas v1/v2 verificadas. minSdk 23, targetSdk 36. SHA-256: `423C265785FDB76586CDB34FFD2191A62CE9CEE0A6417B6EFEBEEA4DDE99131B`.
 
-## Mudanças
+## Comportamento
 
-- ZIP/CBZ e RAR/CBR identificados pela assinatura, independentemente da extensão. O CBZ 02 do usuário contém RAR4; não precisa mais de conversão.
-- RAR4/RAR5 por Junrar 8.1.2, acesso aleatório ao arquivo em disco, sem descobrir volumes vizinhos. Preflight limita número e tamanho dos cabeçalhos antes da alocação do decoder. Limites de entrada, tamanho e dicionário; saída temporária limitada, com cleanup e verificação de CRC pelo decoder. Senha, multipartes e links são recusados.
-- PDF pelo PdfRenderer Android, uma página por vez, com lado maior limitado a 2048 pixels. Arquivo original preservado.
-- EPUB identificado pelo container, leitura em ordem de spine. Imagens raster no leitor existente; texto básico em tela nativa com fonte 18–40 sp, rolagem pelo D-pad e posição relativa salva por seção. Esquerda/direita mudam seções, OK abre fonte/opções. Scripts não são executados; URLs externas e DRM/encryption são recusados.
-- Seletor e upload aceitam CBZ, ZIP, CBR, RAR, PDF e EPUB. Mantida a ausência de filtro nativo accept para não bloquear CBZ no iPhone.
-- Java desugaring habilitado para minSdk 23. Licenças Junrar, SLF4J e Jsoup incluídas nos assets e documentação.
+No leitor de imagens: OK → Escolher página. No texto EPUB: OK → Escolher seção. A barra abre com um cursor na posição lida, sem alterar a página atual.
 
-## Evidências executadas
+Esquerda/direita movem uma posição, respeitando RTL e a direção visual da barra; cima/baixo saltam −10/+10 posições. OK confirma e volta à leitura. Só então o ViewModel carrega e salva a posição escolhida. Voltar cancela e retorna às ferramentas, preservando página, zoom e deslocamento. Confirmar a mesma página preserva a vista atual; escolher outra reinicia o enquadramento, como a navegação normal.
 
-Build final: `core:test`, `app:testDebugUnitTest`, `app:assembleDebug`, `app:assembleDebugAndroidTest`, `app:lintDebug`: BUILD SUCCESSFUL.
+A interface usa o tema escuro/âmbar aprovado e expõe posição/contagem por semântica de acessibilidade. Até 80 marcas são desenhadas, com indicador exato da posição mesmo em livros maiores. Não há extração ou download de páginas enquanto o cursor se move. EPUB de texto usa a contagem de seções; não representa paginação impressa.
 
-46 testes JVM, zero falhas. RAR e upload de novos tipos foram observados falhando antes da implementação. EPUB inicialmente falhou na ordem de spine/texto e na rejeição de URLs inseguras; esses casos passaram após implementação. O teste de texto no ViewModel falhou quando tentava decodificar texto como bitmap, e passou com a nova representação.
+## Verificação executada
 
-Cobertura dos testes novos: RAR4 e RAR5 sólido, ordem natural, extração reversa, extensão incorreta, caminhos inseguros, duplicatas, senha, corrupção de dados, limites e cancelamento/cleanup. EPUB com texto e imagens intercalados, ordem não alfabética do spine, texto longo/acentos/emoji, scripts ignorados, URLs externas, saída do pacote, encryption e limite de markup. HTTP aceita os novos sufixos e mantém os testes existentes de sessão, streaming e isolamento.
+- `core:test`, `app:testDebugUnitTest`, `app:assembleDebug`, `app:assembleDebugAndroidTest`, `app:lintDebug`: BUILD SUCCESSFUL.
+- 50 testes JVM, zero falhas (46 anteriores + 4 novos).
+- Reducer: cursor separado, cancelar preserva vista, confirmar muda destino e reinicia enquadramento, limites, salto de dez, RTL, livros vazios e uma página.
+- ViewModel: mover cursor não altera imagem/progresso; confirmar carrega o destino, salva no estado e persiste pelo repositório.
+- Android Lint: zero erros e 27 avisos, mesma contagem da versão anterior.
+- Revisão independente: sem problemas Important/Critical encontrados. Revistos reducer, entradas do controle, foco entre ferramentas/barra/leitura e integração com o leitor de texto.
 
-Os dois arquivos Thanos reais foram indexados e todas as páginas extraídas pelo novo núcleo com heap JVM de 192 MiB: 52 páginas do 01 (ZIP), 52 do 02 (RAR4). Os SHA-256 das 104 páginas conferem com extração independente: .NET ZipFile para 01; WinRAR/UnRAR para 02. Zero divergências. Conteúdo do usuário não foi incluído no Git; fixtures são sintéticas.
+`adb devices` continua vazio. Testes instrumentados compilaram, mas não foram executados. A navegação e o foco reais do novo seletor ainda precisam do reteste na TV. A confirmação do usuário sobre 0.3.0 não é uma validação física da barra nova.
 
-Android Lint: zero erros, 27 avisos. Os seis avisos adicionais desta entrega são sugestões de conveniência KTX (Bitmap, Canvas, SharedPreferences); os demais são os avisos anteriores de dependências, configuração e recursos.
+## Reteste
 
-Revisão independente identificou e corrigiu cache integral de RAR em memória, limite de cabeçalhos tardio, diferença de KeyDown/KeyUp entre texto e imagens e ocultação de erros de persistência no leitor de texto. Reavaliação das correções sem problemas Important/Critical remanescentes.
+1. Instalar Comic-TV-0.3.1-debug.apk sobre a versão anterior.
+2. Abrir uma HQ no meio da leitura, ampliar e abrir ferramentas → Escolher página.
+3. Mover o cursor, usar saltos de dez e cancelar com Voltar: página, zoom e progresso devem permanecer.
+4. Abrir novamente e confirmar outro destino com OK. Sair e retomar: deve abrir no destino confirmado.
+5. Testar a primeira/última posição, direção RTL e um EPUB de texto em Escolher seção.
 
-## Limites e testes pendentes
-
-Sem TV ou emulador conectado (`adb devices` vazio). Testes instrumentados compilaram, incluindo PDF sintético com duas páginas; NÃO foram executados. PdfRenderer, fonte/rolagem EPUB e foco precisam ser validados na TV. Nenhum PDF/EPUB real do usuário foi fornecido. A execução JVM não comprova comportamento Android em todos os aparelhos.
-
-EPUB é um subconjunto offline: texto básico e JPEG/PNG/WebP, sem fidelidade de CSS, fontes embutidas, áudio/vídeo ou SVG independente. SVG com imagem raster referenciada é interpretado como imagem. A paginação do texto é por seções de até 12.000 caracteres; não corresponde a páginas impressas. Conteúdo protegido não é desbloqueado. PDFs são rasterizados; zoom maior não adiciona detalhes além da resolução de renderização.
-
-Barra de páginas, fontes Mihon, HQ Now e sagas ainda não foram implementados. Estudos de Hikari e requisitos permanecem em ANALISE-HIKARI.md. Esta entrega conclui os formatos solicitados, com as limitações acima.
-
-## Reteste na TV
-
-1. Instalar Comic-TV-0.3.0-debug.apk sobre a versão anterior.
-2. Iniciar transferência pela rede local. Selecionar os dois CBZs originais do Thanos, sem renomear ou recompactar, e confirmar 52 páginas em cada edição.
-3. Testar também RAR/CBR e um PDF sem senha. Abrir páginas inicial/final, zoom, retorno e retomada.
-4. Enviar EPUB ilustrado e EPUB de texto sem DRM. Verificar sequência, fonte via OK, rolagem ↑/↓, seções ←/→, saída e retomada.
-5. Registrar mensagem exata caso um documento seja recusado e informar seu formato real.
+ZIP/CBZ, RAR/CBR, PDF e EPUB mantêm o suporte e os limites documentados na validação 0.3.0. Fontes Mihon, HQ Now e a sequência de capas das sagas continuam sendo os próximos incrementos; esta barra é o navegador de páginas do leitor.

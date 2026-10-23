@@ -93,7 +93,9 @@ import kotlin.math.min
                 Text("Pressione OK para abrir as ferramentas e tentar novamente.", color = TvColors.Muted, fontSize = 16.sp)
             }
         }
-        if (state.mode != ReaderMode.Tools) {
+        if (state.mode == ReaderMode.Timeline) {
+            ReaderTimeline(state, Modifier.align(Alignment.BottomCenter))
+        } else if (state.mode != ReaderMode.Tools) {
             Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(40.dp).background(Color.Black).padding(horizontal = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (state.pageCount > 0) "Página ${state.page + 1} de ${state.pageCount}" else "Leitor", fontSize = 14.sp)

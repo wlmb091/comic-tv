@@ -46,7 +46,7 @@ import kotlin.math.roundToInt
     }
     val tools = state.mode == ReaderMode.Tools
     val exit = { savePosition(); viewModel.close(onExit) }
-    BackHandler { if (tools) viewModel.action(ReaderAction.Back) else exit() }
+    BackHandler { if (state.mode != ReaderMode.Reading) viewModel.action(ReaderAction.Back) else exit() }
     LaunchedEffect(tools) { if (!tools) focus.requestFocus() }
     Box(Modifier.fillMaxSize().background(TvColors.Background)
         .onPreviewKeyEvent { event ->
@@ -58,6 +58,10 @@ import kotlin.math.roundToInt
                     else -> null
                 }
                 when {
+                    state.mode == ReaderMode.Timeline && (event.key == Key.DirectionUp || event.key == Key.DirectionDown) -> {
+                        if (event.type == KeyEventType.KeyDown) viewModel.action(if (event.key == Key.DirectionUp) ReaderAction.Up else ReaderAction.Down)
+                        true
+                    }
                     event.key == Key.DirectionUp || event.key == Key.DirectionDown -> {
                         if (event.type == KeyEventType.KeyDown) scope.launch {
                             val delta = maxOf(scroll.viewportSize * .65f, 100f) * if (event.key == Key.DirectionDown) 1 else -1
@@ -104,8 +108,10 @@ import kotlin.math.roundToInt
                     TvButton("Fonte +", { fontSize = (fontSize + 2).coerceAtMost(40); preferences.edit().putInt("font-size", fontSize).apply() })
                     TvButton("Sair da leitura", exit)
                 }
+                if (state.pageCount > 0) TvButton("Escolher seção", { viewModel.action(ReaderAction.StartTimeline) })
                 Text("O texto se ajusta à tela. Use ↑ ↓ para rolar e ← → para trocar de seção.", color = TvColors.Muted, fontSize = 16.sp)
             }
         }
+        if (state.mode == ReaderMode.Timeline) ReaderTimeline(state, Modifier.align(Alignment.BottomCenter), section = true)
     }
 }
