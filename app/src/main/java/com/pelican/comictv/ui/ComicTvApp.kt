@@ -19,6 +19,9 @@ import com.pelican.comictv.details.DetailsScreen
 import com.pelican.comictv.library.*
 import com.pelican.comictv.reader.*
 import com.pelican.comictv.transfer.ImportScreen
+import com.pelican.comictv.transfer.LocalTransferViewModel
+import com.pelican.comictv.transfer.LocalTransferScreen
+import androidx.compose.ui.platform.LocalContext
 
 @Composable fun ComicTvApp(container: AppContainer) {
     val nav = rememberNavController()
@@ -40,8 +43,16 @@ import com.pelican.comictv.transfer.ImportScreen
         composable("import") {
             TvShell("import", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
                 ImportScreen(busy, message, onMessage = library::message,
-                    onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } })
+                    onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } },
+                    onLocalTransfer = { nav.navigate("local-transfer") })
             }
+        }
+        composable("local-transfer") {
+            val context = LocalContext.current.applicationContext
+            val transfer: LocalTransferViewModel = viewModel(factory = viewModelFactory {
+                initializer { LocalTransferViewModel(context, container.library) }
+            })
+            LocalTransferScreen(transfer) { nav.popBackStack() }
         }
         composable("sources") {
             TvShell("sources", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
@@ -56,7 +67,7 @@ import com.pelican.comictv.transfer.ImportScreen
         composable("settings") {
             TvShell("settings", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    ScreenTitle("Seu controle, sua leitura", "Comic TV · versão inicial 0.1.0")
+                    ScreenTitle("Seu controle, sua leitura", "Comic TV · versão 0.2.0")
                     Text("← →  Página anterior / próxima\n↑ ↓  Aumentar / reduzir zoom\nOK  Abrir ferramentas\nMover página  Deslocar com as quatro setas\nVoltar  Sair do modo ativo e retornar", fontSize = 20.sp, lineHeight = 34.sp)
                     TvButton("Voltar à biblioteca", { nav.popBackStack("library", false) })
                 }

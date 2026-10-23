@@ -125,3 +125,6 @@ Esta seção substitui a pendência anterior de definição de Web/FTP. Os três
 Em 22/10/2026, foram implementados projeto Android, núcleo Kotlin, importação local, biblioteca, detalhes, leitor, zoom/deslocamento e persistência. Build debug e build dos testes instrumentados passaram. Os 20 testes JVM passaram, e Android Lint terminou com zero erros e 19 avisos documentados. A revisão independente teve seus problemas relevantes corrigidos e reavaliados.
 
 A validação em TV/emulador e os testes instrumentados ainda estão pendentes. Transferências HTTP/FTP/Web e motor de extensões Mihon são incrementos futuros, sem implementação ativa nesta entrega. Consulte comic-tv/VALIDACAO.md para evidências e limitações.
+
+## Entrega 0.2.0 — 23/10/2026
+Transferência A implementada: servidor HTTP temporário, URL/token, QR, upload pelo navegador, progresso, limitação a um envio, expiração e encerramento por ciclo de vida. O importador local é compartilhado com a rede. Build debug, APK de testes instrumentados e lint passaram; 31 testes JVM aprovados. Sem TV/emulador conectado para validação física. Veja VALIDACAO.md no projeto para evidências e limites. FTP, portal remoto e Mihon continuam pendentes.

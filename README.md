@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Primeiro incremento
+## Versão 0.2.0
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP pelo seletor de arquivos do Android, incluindo USB quando oferecido pelo dispositivo.
@@ -10,6 +10,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Leitor com ajuste à página, largura ou altura, zoom de 1x a 3x e deslocamento explícito.
 - Progresso e preferências por edição em Room.
 - Tema escuro com foco âmbar, seguindo o conceito aprovado.
+- Transferência pela rede local (Wi-Fi/Ethernet), com URL temporária, QR code, upload pelo navegador e acompanhamento na TV.
 
 O projeto está em desenvolvimento. Consulte `VALIDACAO.md` para resultados reais de compilação e testes; a existência do código não significa validação em uma TV.
 
@@ -58,17 +59,20 @@ O arquivo original é copiado para o armazenamento privado, sem depender permane
 
 Limites: 1 GiB por arquivo, 5.000 entradas ZIP, 32 MiB por página extraída, 2 GiB de tamanho declarado de imagens, 100 megapixels por imagem e 256 MiB de cache de páginas. ZIP criptografado, corrompido ou sem imagens suportadas produz erro. Apenas a primeira página é decodificada durante a importação; erros em páginas posteriores são apresentados no leitor.
 
-A seleção de arquivos depende da presença de um seletor compatível na TV. Ausência de seletor não significa suporte a transferência por rede nesta versão.
+A seleção de arquivos locais depende da presença de um seletor compatível na TV. Como alternativa, abra **Importar → Enviar pela rede local → Iniciar transferência**. Escaneie o QR com o celular ou digite o endereço completo em um navegador na mesma rede e selecione arquivos CBZ/ZIP. Não é necessário instalar aplicativo no celular.
+
+A sessão de rede dura até 15 minutos, aceita um envio por vez e termina ao parar, sair da tela, mudar de rede ou colocar o aplicativo em segundo plano. A TV precisa de espaço para o upload temporário e sua cópia validada. Redes de convidados com isolamento de clientes podem impedir o acesso. O endereço possui um token temporário e não permite consultar ou baixar a biblioteca. Detalhes em `docs/REDE-LOCAL.md`.
 
 ## Próximos incrementos acordados
 
-- **Rede local:** servidor HTTP temporário na TV, Wi-Fi/Ethernet, upload pelo navegador, URL e QR, status e botão parar.
 - **FTP:** servidor temporário na TV para receber arquivos; diretório restrito e autenticação a definir.
 - **Web:** portal próprio com token temporário e QR de pareamento; depende de backend e hospedagem próprios.
 - **Mihon:** vários repositórios, instalação e atualização de extensões e seleção de fontes. HQ Now não terá exclusividade. O motor requer revisão de dependências/licenças e testes por extensão.
 - Ferramentas adicionais, marcadores, galeria, outros formatos de arquivo e zoom por tiles.
 
-As telas de fontes e dos futuros transportes explicam o estado atual. Nenhuma extensão, servidor de transferência ou portal web está ativo neste incremento.
+As telas de fontes e dos futuros transportes explicam o estado atual. FTP, portal remoto e extensões Mihon ainda não estão ativos. O servidor da rede local funciona somente durante uma sessão iniciada pelo usuário.
+
+As licenças de NanoHTTPD e ZXing estão em `docs/licenses/` e são incluídas nos assets do APK.
 
 ## Estrutura
 

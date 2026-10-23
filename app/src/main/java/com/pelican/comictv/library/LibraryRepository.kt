@@ -12,9 +12,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.util.UUID
 
-class LibraryRepository(private val context: Context, private val dao: ComicDao) : ReaderRepository {
+class LibraryRepository(private val context: Context, private val dao: ComicDao,
+    private val coverGenerator: CoverGenerator = BitmapCoverGenerator()) : ReaderRepository {
     private val archive = ZipComicArchive()
     private val store = LocalComicStore(File(context.filesDir, "originals"), archive)
     private val pageDirectory = File(context.cacheDir, "pages").apply { mkdirs() }
@@ -38,29 +40,39 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao)
     }
 
     suspend fun importComic(uri: Uri): ComicEntity = withContext(Dispatchers.IO) {
+        val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        } ?: "Quadrinho"
+        importComic(name) { context.contentResolver.openInputStream(uri)
+            ?: throw IOException("Não foi possível abrir o arquivo selecionado.") }
+    }
+
+    suspend fun importComic(file: File, name: String): ComicEntity = importComic(name) { file.inputStream() }
+
+    private suspend fun importComic(name: String, openInput: () -> InputStream): ComicEntity = withContext(Dispatchers.IO) {
         mutex.withLock {
             initialize()
             val id = UUID.randomUUID().toString()
-            val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) cursor.getString(0) else null
-            } ?: "Quadrinho"
             val title = name.substringBeforeLast('.', name).take(200).ifBlank { "Quadrinho" }
             try {
                 val pages = runInterruptible {
-                    context.contentResolver.openInputStream(uri)?.use { store.import(id, it) }
-                        ?: throw IOException("Não foi possível abrir o arquivo selecionado.")
+                    openInput().use { store.import(id, it) }
                 }
                 // Validate the first page before publishing the import.
                 cache.materialize("$id-0", setOfNotNull(protectedPage),
                     write = { archive.extract(store.original(id), pages.first(), it) },
-                    validate = { createCover(it, cover(id)) })
+                    validate = { coverGenerator.generate(it, cover(id)) })
                 val comic = ComicEntity(id, title, pages.size)
+                currentCoroutineContext().ensureActive()
                 withContext(NonCancellable) { dao.insert(comic) }
                 comic
             } catch (e: Exception) {
                 // If insert committed during cancellation, preserve its original.
                 val committed = withContext(NonCancellable) { dao.get(id) != null }
-                if (!committed) { store.original(id).delete(); cover(id).delete() }
+                if (!committed) {
+                    store.original(id).delete(); cover(id).delete()
+                    File(pageDirectory, "$id-0").delete()
+                }
                 throw e
             }
         }
@@ -94,14 +106,4 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao)
         return options
     }
 
-    private fun createCover(input: File, output: File) {
-        val options = validateDimensions(input)
-        options.inJustDecodeBounds = false
-        var sample = 1
-        while (options.outWidth / sample > 480 || options.outHeight / sample > 720) sample *= 2
-        options.inSampleSize = sample
-        val bitmap = BitmapFactory.decodeFile(input.path, options) ?: throw IOException("Não foi possível gerar a capa.")
-        try { output.outputStream().use { if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it)) throw IOException("Falha ao salvar a capa.") } }
-        finally { bitmap.recycle() }
-    }
 }

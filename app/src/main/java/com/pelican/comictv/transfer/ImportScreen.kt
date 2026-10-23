@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
 
-@Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit) {
+@Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit, onLocalTransfer: () -> Unit) {
     val first = remember { FocusRequester() }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(onImport) }
     LaunchedEffect(Unit) { first.requestFocus() }
@@ -31,10 +31,10 @@ import com.pelican.comictv.ui.*
             }, Modifier.focusRequester(first), primary = true)
         }
         if (message != null) Text(message, color = TvColors.Amber, fontSize = 17.sp)
+        TvButton("Enviar pela rede local · Wi-Fi / Ethernet", onLocalTransfer, primary = true)
         Text("TRANSFERÊNCIAS · PRÓXIMOS INCREMENTOS", color = TvColors.Muted, fontSize = 13.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
           listOf(
-            "Rede local" to "Envie pelo navegador do celular ou computador, com endereço e QR code na TV. Wi-Fi ou Ethernet.",
             "FTP" to "Receba arquivos por um servidor FTP temporário na TV.",
             "Pela web" to "Pareie com um portal de envio usando um código temporário ou QR code.",
         ).forEach { (title, description) ->

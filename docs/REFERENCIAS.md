@@ -38,3 +38,6 @@ As três novas imagens esclarecem as referências anteriores e substituem as hip
 - Web: envio por portal web com código/token de pareamento temporário, QR code, renovação de token e estado de espera/transferência. Não é baixar uma HQ por URL. A foto mostra o portal de outro aplicativo; usar serviço próprio, sem depender desse domínio. A topologia interna não é demonstrada pela foto: backend de pareamento e transporte remoto precisam ser projetados e validados.
 - Os três modos integram a área Importar e alimentam a mesma biblioteca e validação de arquivos. Preservar o visual escuro/âmbar aprovado, sem copiar o design azul das referências.
 - Inclusão solicitada no escopo do produto. Etapas e dependências constam da atualização do plano; recursos ainda não implementados.
+
+## Implementação registrada — 23/10/2026
+Rede local HTTP com endereço temporário e QR implementada na versão 0.2.0; interface segue o tema próprio aprovado. Testes HTTP reais em loopback passaram, mas envio/QR em TV física ainda precisam de validação. FTP, portal remoto e extensões permanecem no plano.

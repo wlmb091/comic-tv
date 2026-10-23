@@ -1,61 +1,51 @@
-# Validação — Comic TV 0.1.0
+# Validação — Comic TV 0.2.0
 
-Data: 22 de outubro de 2026. Primeiro incremento local.
+Data: 23 de outubro de 2026. Incremento de transferência pela rede local.
 
-## Resultado confirmado
+## Resultados confirmados
 
-- Build debug do aplicativo: aprovado.
-- Build do APK de testes instrumentados: aprovado; testes não executados em dispositivo.
-- Testes JVM: 20 executados, zero falhas e zero erros.
-- Android Lint: zero erros e 19 avisos.
-- Assinatura do APK: verificada com apksigner, esquemas v1 e v2.
-- Manifesto compilado: pacote `com.pelican.comictv`, versão `0.1.0`, minSdk 23, targetSdk 36 e launcher Leanback.
-- Revisão estática independente: três problemas relevantes identificados e corrigidos; reavaliação sem problemas relevantes remanescentes nas correções.
+- `:core:test :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`: BUILD SUCCESSFUL.
+- 31 testes JVM, zero falhas e zero erros: 15 testes anteriores do núcleo, dez testes HTTP, cinco do ViewModel do leitor e um de cancelamento da importação.
+- Android Lint: zero erros e 21 avisos de manutenção; não foi criada uma baseline para esconder resultados.
+- APK debug 0.2.0, versionCode 2, minSdk 23, targetSdk 36.
+- Assinaturas v1 e v2 verificadas com `apksigner`.
+- Sintaxe do JavaScript embutido na página de envio verificada com `node --check`.
+- Revisão independente e reavaliação das correções sem problemas relevantes remanescentes identificados.
+- Nova montagem do APK após inclusão das licenças nos assets: BUILD SUCCESSFUL.
 
-## Comando verificado
+O build usou o JDK/SDK e os scripts locais descritos no relatório histórico `VALIDACAO-0.1.0.md`. Os repositórios Gradle do produto continuam sendo Google/Maven Central; o proxy local de desenvolvimento não integra o aplicativo.
 
-```powershell
-.\gradlew.bat :core:test :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug --no-daemon -Pkotlin.compiler.execution.strategy=in-process
-```
+## O que os testes HTTP exercitam
 
-Neste ambiente, o executável Gradle 8.13 foi usado com os mesmos alvos. O SDK, JDK e caches ficaram na pasta de trabalho, fora dos fontes. Um proxy HTTP restrito a loopback encaminhou downloads para os repositórios oficiais devido a problemas de conectividade das ferramentas; essa configuração não foi incorporada aos repositórios Gradle do produto. Uma propriedade local indicou uma chave debug gerada para o projeto, contornando bloqueio do arquivo de lock da chave padrão no Windows. Em uma instalação normal, o projeto usa a chave debug padrão do Android.
+São conexões reais HTTP e sockets em loopback no computador, usando o servidor incluído no aplicativo. Cobrem página protegida por token, upload em streaming de 65.537 bytes com conteúdo exato, tamanho excessivo, recusa na validação, interrupção, nova tentativa, expiração, parada, proibição de reabrir sessão encerrada, nomes inseguros, Host/origem incorretos, limpeza de uploads abandonados e preservação de outros arquivos. Duas conexões verificam que o segundo upload recebe 409 enquanto o primeiro conclui. Um teste encerra o servidor com um upload ainda incompleto e confere sua remoção.
 
-## Testes JVM
+O teste adicional do repositório usa arquivos ZIP reais e um adaptador de capa controlado para cancelar a importação durante a geração da capa. Confirma que nenhum registro nem original é promovido após o cancelamento. Foi observado falhando antes da correção. A checagem de cancelamento acontece imediatamente antes do commit não cancelável no Room.
 
-| Conjunto | Quantidade | Resultado |
-|---|---:|---|
-| Índice ZIP, caminhos, limites, cópia e cache | 8 | Aprovado |
-| Importação transacional e reconciliação | 3 | Aprovado |
-| Páginas, RTL, zoom e deslocamento | 4 | Aprovado |
-| Carregamento assíncrono, saída e retomada | 5 | Aprovado |
+## Funcionamento implementado
 
-Os testes cobrem, entre outros casos: ordem 1/2/10, nomes numéricos longos, ZIP inválido ou sem imagens, limite de entradas, limite de bytes inclusive sem tamanho informado, remoção de gravação parcial, limpeza de imagem rejeitada, expulsão de cache não protegido, importação interrompida, IDs preservados e descarte de originais órfãos.
+Importar → Enviar pela rede local → Iniciar transferência. A TV resolve o IPv4 da conexão ativa Wi-Fi/Ethernet e abre o servidor naquela interface, com porta disponível e token aleatório. Mostra endereço completo, QR, estado e progresso. A página recebida pelo navegador envia vários arquivos sequencialmente. A validação e a persistência são as mesmas da importação local.
 
-As regressões da revisão comprovam que sair antes de terminar a inicialização não grava a página zero sobre o progresso anterior, que repetidos pedidos de saída só navegam uma vez e que uma falha de indexação pode ser tentada novamente. O teste de troca rápida confirma que uma requisição antiga não substitui a página mais recente.
+A sessão termina ao parar, sair da tela, colocar o aplicativo em segundo plano, mudar de endereço de rede ou expirar após 15 minutos. Novas sessões removem sobras `.upload` de sessões anteriores. Não há serviço de rede permanente nem listagem/download da biblioteca.
 
-## Avisos de manutenção
+## Validação pendente em dispositivo
 
-Os 19 avisos de lint são de versões de dependências com atualizações disponíveis, orientação fixa de tela, regras modernas de extração/backup e variações de densidade de recursos. Não foram ocultados por baseline nem por desativação das verificações. As versões foram conservadas para manter o conjunto compilado nesta entrega. A verificação de assinatura também emite avisos sobre metadados JAR fora da cobertura individual de v1; a assinatura v2 do APK foi verificada com sucesso.
+O adb iniciou nesta sessão, mas não havia dispositivos conectados nem emulador configurado. Os testes Android de UI/Room compilaram, sem execução em dispositivo. Ainda não foram confirmados em TV real: resolução de endereço por ConnectivityManager, leitura física do QR, envio de celular pela LAN, layout a distância, foco/restauração, ciclo de vida real e desempenho com arquivos grandes. Os testes HTTP no computador não substituem essas verificações.
 
-## Verificações ainda pendentes
+Somente IPv4 em Wi-Fi/Ethernet está contemplado neste incremento. Redes de convidados, isolamento de clientes e restrições do roteador podem impedir acesso. O armazenamento precisa comportar o temporário e a cópia validada; o servidor verifica espaço antes de receber. A contagem de dispositivos deriva de requisições recentes do navegador e é atualizada com o tráfego da sessão.
 
-Não houve execução do APK em emulador ou TV física. O adb não conseguiu iniciar neste ambiente. Assim, não foram confirmados visualmente o layout em 1080p/4K, foco inicial e restauração, tecla mantida, compatibilidade do seletor de arquivos, recriação real de processo, uso de memória ou desempenho em uma TV de pouca memória.
+FTP, portal web remoto e extensões Mihon continuam pendentes. Marcadores, galeria e outros formatos também permanecem nos incrementos planejados.
 
-`LibraryFlowTest` e `LibraryDatabaseTest` compilaram, mas continuam pendentes de execução em dispositivo. A persistência Room e o fluxo visual completo de importação/leitura precisam dessa execução; os testes JVM não a substituem.
+## Roteiro de teste na TV
 
-## Roteiro para TV
+1. Instalar Comic-TV-0.2.0-debug.apk sobre a versão anterior e conferir a biblioteca preservada.
+2. Abrir Importar → Enviar pela rede local e iniciar a sessão.
+3. Escanear o QR no celular conectado à mesma rede e enviar um CBZ/ZIP real.
+4. Confirmar o estado de sucesso no navegador/TV e abrir a edição pela biblioteca.
+5. Enviar vários arquivos, cancelar um envio, parar e abrir uma nova sessão; o endereço antigo deve parar de funcionar.
+6. Repetir por Ethernet, com queda de rede, segundo plano e pouco espaço disponível.
 
-1. Instalar o APK debug e abri-lo pelo launcher da TV.
-2. Verificar a biblioteca vazia e navegar até Importar com o controle.
-3. Selecionar um CBZ/ZIP real pelo seletor disponível no aparelho.
-4. Abrir os detalhes e iniciar a leitura; verificar páginas, zoom, ajuste, RTL e modo Mover página.
-5. Retornar à biblioteca, abrir novamente e conferir a página salva.
-6. Repetir com várias edições, tecla mantida, arquivo inválido e retorno após fechar o aplicativo.
+## Arquivo entregue
 
-## Limites da entrega
+Comic-TV-0.2.0-debug.apk
 
-O APK contém o fluxo local e as telas explicativas dos próximos incrementos. Rede local/QR, servidor FTP, portal web/token e instalação/execução de extensões Mihon ainda não estão implementados. A validação de HQ Now e outras fontes será feita no incremento do motor de extensões.
-
-Arquivo entregue: `Comic-TV-0.1.0-debug.apk`.
-
-SHA-256: `F19E5338503F2844B7D3D1E281CCD6CAC75CC68D29C09EFD04CB32AC46C2A6CD`.
+SHA-256: `1C885001444D9DE8472179A807AE62B6E16245D2FAAB7864A7CD24532818114B`.
