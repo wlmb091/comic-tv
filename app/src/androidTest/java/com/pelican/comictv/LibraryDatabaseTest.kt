@@ -8,6 +8,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LibraryDatabaseTest {
+    @Test fun refreshedOnlinePageCountPreservesProgressAndPreferences() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext,
+            LibraryDatabase::class.java).build()
+        try {
+            val dao = db.comics()
+            dao.insert(ComicEntity("online-record", "Capítulo", 20, currentPage = 12, lastRead = 123L, fit = 2, rtl = true))
+            dao.updatePageCount("online-record", 30)
+            val expanded = dao.get("online-record")!!
+            assertEquals(12, expanded.currentPage)
+            assertEquals(123L, expanded.lastRead)
+            assertEquals(2, expanded.fit)
+            assertTrue(expanded.rtl)
+            dao.updatePageCount("online-record", 5)
+            assertEquals(4, dao.get("online-record")!!.currentPage)
+            assertEquals(123L, dao.get("online-record")!!.lastRead)
+        } finally { db.close() }
+    }
     @Test fun progressSurvivesReloadAndIsClamped() = runBlocking {
         val db = Room.inMemoryDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext,
             LibraryDatabase::class.java).build()

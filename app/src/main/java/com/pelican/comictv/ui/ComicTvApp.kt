@@ -15,6 +15,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.*
 import androidx.tv.material3.Text
 import com.pelican.comictv.AppContainer
+import com.pelican.comictv.BuildConfig
+import com.pelican.comictv.sources.*
 import com.pelican.comictv.details.DetailsScreen
 import com.pelican.comictv.library.*
 import com.pelican.comictv.reader.*
@@ -55,19 +57,18 @@ import androidx.compose.ui.platform.LocalContext
             LocalTransferScreen(transfer) { nav.popBackStack() }
         }
         composable("sources") {
+            val sources: SourcesViewModel = viewModel(factory = viewModelFactory {
+                initializer { SourcesViewModel(container.sourcePreferences, container.mihon, container.extensionInstaller, container.online) }
+            })
+            val install = rememberExtensionInstallFlow(sources)
             TvShell("sources", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
-                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                    ScreenTitle("Fontes e extensões", "Seu leitor, com espaço para novas fontes.")
-                    Text("A integração Mihon será adicionada em um próximo incremento.", fontSize = 20.sp)
-                    Text("Você poderá cadastrar vários repositórios, instalar extensões e escolher suas fontes.", color = TvColors.Muted, fontSize = 18.sp)
-                    TvButton("Voltar à biblioteca", { nav.popBackStack("library", false) })
-                }
+                SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = install)
             }
         }
         composable("settings") {
             TvShell("settings", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
                 Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    ScreenTitle("Seu controle, sua leitura", "Comic TV · versão 0.2.1")
+                    ScreenTitle("Seu controle, sua leitura", "Comic TV · versão ${BuildConfig.VERSION_NAME}")
                     Text("← →  Página anterior / próxima\n↑ ↓  Aumentar / reduzir zoom\nOK  Abrir ferramentas\nMover página  Deslocar com as quatro setas\nVoltar  Sair do modo ativo e retornar", fontSize = 20.sp, lineHeight = 34.sp)
                     TvButton("Voltar à biblioteca", { nav.popBackStack("library", false) })
                 }
@@ -80,9 +81,9 @@ import androidx.compose.ui.platform.LocalContext
         composable("reader/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             val reader: ReaderViewModel = viewModel(factory = viewModelFactory {
-                initializer { ReaderViewModel(container.library, id, createSavedStateHandle()) }
+                initializer { ReaderViewModel(if (id.startsWith("online-")) container.online else container.library, id, createSavedStateHandle()) }
             })
-            ReaderScreen(reader, onExit = { nav.popBackStack("library", false) })
+            ReaderScreen(reader, onExit = { if (id.startsWith("online-")) nav.popBackStack() else nav.popBackStack("library", false) })
         }
     }
 }

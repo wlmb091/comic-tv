@@ -33,6 +33,55 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     override suspend fun getComic(id: String) = dao.get(id) ?: throw IOException("Esta edição não está mais disponível.")
     fun cover(id: String) = File(covers, "$id.jpg")
 
+    internal suspend fun writeOnlineCover(id: String, source: File) = withContext(Dispatchers.IO) {
+        val target = cover(id)
+        if (!target.isFile) {
+            val temporary = File(covers, "$id.jpg.part")
+            try {
+                coverGenerator.generate(source, temporary)
+                currentCoroutineContext().ensureActive()
+                if (!temporary.renameTo(target)) throw IOException("Não foi possível salvar a capa.")
+            } finally { temporary.delete() }
+        }
+    }
+
+    /** Remote and local pages share quotas, serialization and the visible-page protection. */
+    internal suspend fun externalImage(id: String, index: Int, thumbnail: Boolean,
+        fetch: suspend (File) -> Unit): File = withContext(Dispatchers.IO) {
+        require(id.matches(Regex("online-[a-f0-9]{64}")) && index in 0 until 5000)
+        mutex.withLock {
+            initialize()
+            val directory = if (thumbnail) thumbnailDirectory else pageDirectory
+            val selectedCache = if (thumbnail) thumbnailCache else cache
+            val name = "$id-$index"
+            val source = File(directory, "$name.remote.part")
+            val target = File(directory, name)
+            try {
+                if (!target.isFile) fetch(source)
+                currentCoroutineContext().ensureActive()
+                val result = runInterruptible {
+                    selectedCache.materialize(name, if (thumbnail) emptySet() else setOfNotNull(protectedPage),
+                        write = { destination ->
+                            validateDimensions(source)
+                            if (thumbnail) {
+                                val temporary = File(directory, "$name.part")
+                                try {
+                                    thumbnailGenerator.generate(source, temporary)
+                                    if (Thread.currentThread().isInterrupted) throw IOException("Prévia cancelada.")
+                                    if (!temporary.renameTo(destination)) throw IOException("Não foi possível salvar a miniatura.")
+                                } finally { temporary.delete() }
+                            } else if (!source.renameTo(destination)) throw IOException("Não foi possível salvar a página.")
+                        }, validate = { validateDimensions(it) })
+                }
+                if (!thumbnail) {
+                    protectedPage = result.name
+                    cache.trim(setOf(result.name))
+                }
+                result
+            } finally { source.delete(); File(source.path + ".part").delete() }
+        }
+    }
+
     private suspend fun initialize() {
         if (!ready) {
             store.reconcile(dao.ids().toSet())

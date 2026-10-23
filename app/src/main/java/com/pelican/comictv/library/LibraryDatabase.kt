@@ -21,6 +21,8 @@ interface ComicDao {
     @Query("SELECT * FROM comics WHERE id = :id") suspend fun get(id: String): ComicEntity?
     @Query("SELECT id FROM comics") suspend fun ids(): List<String>
     @Insert suspend fun insert(comic: ComicEntity)
+    @Query("UPDATE comics SET pageCount = :count, currentPage = min(currentPage, max(:count - 1, 0)) WHERE id = :id")
+    suspend fun updatePageCount(id: String, count: Int)
     @Query("UPDATE comics SET currentPage = min(max(:page, 0), max(pageCount - 1, 0)), lastRead = :time WHERE id = :id")
     suspend fun saveProgress(id: String, page: Int, time: Long)
     @Query("UPDATE comics SET fit = :fit, rtl = :rtl WHERE id = :id")

@@ -27,7 +27,7 @@ import kotlinx.coroutines.CancellationException
     Row(Modifier.fillMaxSize().background(TvColors.Background).padding(48.dp), horizontalArrangement = Arrangement.spacedBy(44.dp)) {
         AsyncImage(repository.cover(id), null, Modifier.fillMaxHeight().aspectRatio(2f / 3f), contentScale = ContentScale.Fit)
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-            Text("SUA BIBLIOTECA  /  EDIÇÃO LOCAL", fontSize = 13.sp, color = TvColors.Amber)
+            Text(if (id.startsWith("online-")) "SUA BIBLIOTECA  /  EDIÇÃO ONLINE" else "SUA BIBLIOTECA  /  EDIÇÃO LOCAL", fontSize = 13.sp, color = TvColors.Amber)
             Spacer(Modifier.height(20.dp))
             Text(comic?.title ?: "Carregando edição…", fontSize = 34.sp, maxLines = 3)
             Spacer(Modifier.height(18.dp))

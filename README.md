@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.4.0
+## Versão 0.5.0
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.
@@ -16,6 +16,8 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Miniaturas da posição selecionada e até duas vizinhas de cada lado, geradas sob demanda em cache separado de 32 MiB.
 - Leitura automática: slides de imagens ou rolagem de texto EPUB, com 10 segundos por página/tela inicialmente e intervalos de 5,10,20,30 ou 60 segundos. Pausa com comandos manuais, ferramentas, erro ou segundo plano.
 - Transferência pela rede local (Wi-Fi/Ethernet), com URL temporária, QR code, upload pelo navegador e acompanhamento na TV.
+- Fontes Mihon: múltiplos repositórios, índices atuais e legados, download verificado de extensões e instalação confirmada pelo Android.
+- Catálogo online com populares, recentes, busca, detalhes e capítulos/edições na sequência da fonte; leitura no mesmo leitor, com progresso na biblioteca.
 
 O projeto está em desenvolvimento. Consulte `VALIDACAO.md` para resultados reais de compilação e testes; a existência do código não significa validação em uma TV.
 
@@ -28,7 +30,7 @@ Requisitos: JDK 17, SDK Android Platform 36, Build Tools 35.0.0 e conexão para 
 Abra a pasta no Android Studio ou configure `JAVA_HOME` e `ANDROID_HOME`. Alternativamente, crie um `local.properties` com `sdk.dir=C\:/caminho/do/Android/Sdk`. Essa configuração local não deve entrar no Git.
 
 ```powershell
-.\gradlew.bat :core:test :app:testDebugUnitTest :app:assembleDebug
+.\gradlew.bat :core:test :mihon:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 ```
 
 O APK debug é produzido em `app/build/outputs/apk/debug/app-debug.apk`. Para instalar em um dispositivo já conectado:
@@ -80,17 +82,24 @@ A sessão de rede dura até 15 minutos, aceita um envio por vez e termina ao par
 
 No celular, selecione o CBZ original diretamente, sem compactá-lo novamente. Um ZIP de quadrinho deve conter as imagens das páginas. Um ZIP com outros CBZ/ZIP recebe uma mensagem explicativa; coleções dentro de outro ZIP ainda não são importadas automaticamente. Desde 0.2.1 o seletor web não aplica um filtro de tipo do sistema, para evitar bloquear CBZs no iPhone; arquivos continuam sendo validados no envio e na TV.
 
+## Fontes online
+
+Abra **Fontes → Adicionar Keiyoushi** ou informe a URL HTTPS de outro repositório. Abra as extensões, filtre por nome/idioma e escolha **Instalar**. O Android poderá solicitar autorização para o Comic TV instalar pacotes; confirme a instalação na tela do sistema. Ao retornar, atualize as instaladas e abra a fonte desejada. Os APKs são conferidos por pacote, versão e certificado SHA-256 do repositório antes de serem oferecidos ao instalador.
+
+No catálogo, escolha uma capa para abrir detalhes e capítulos. Sagas como as do HQ Now são apresentadas conforme o título e a sequência de edições que a extensão retornar. Ao sair da leitura online, você volta à lista anterior. O capítulo aberto aparece na biblioteca para continuar depois; as páginas são carregadas sob demanda e compartilham o cache de 256 MiB, com prévias em 32 MiB separados. A retomada consulta a fonte novamente; esta versão não é um gerenciador de downloads completos para leitura offline.
+
+Compatibilidade é por extensão: APIs 1.2–1.6 são hospedadas, mas bibliotecas adicionais, preferências específicas e fontes que exigem QuickJS podem precisar de adaptação. QuickJS não está incluído. Desafios de sites dependem do WebView do Android. A leitura do índice Keiyoushi e a identificação do HQ Now foram verificadas no computador; execução do APK, catálogo real e leitura na TV ainda exigem teste no dispositivo. Detalhes em `docs/FONTES-ONLINE.md`.
+
 ## Próximos incrementos acordados
 
 - **FTP:** servidor temporário na TV para receber arquivos; diretório restrito e autenticação a definir.
 - **Web:** portal próprio com token temporário e QR de pareamento; depende de backend e hospedagem próprios.
-- **Mihon:** vários repositórios, instalação e atualização de extensões e seleção de fontes. HQ Now não terá exclusividade. O motor requer revisão de dependências/licenças e testes por extensão.
 - Ferramentas adicionais, marcadores, galeria, outros formatos de arquivo e zoom por tiles.
 
-As telas de fontes e dos futuros transportes explicam o estado atual. FTP, portal remoto e extensões Mihon ainda não estão ativos. O servidor da rede local funciona somente durante uma sessão iniciada pelo usuário.
+FTP e portal remoto ainda não estão ativos. O servidor da rede local funciona somente durante uma sessão iniciada pelo usuário.
 
 As licenças de NanoHTTPD, ZXing, Junrar, SLF4J e Jsoup estão em `docs/licenses/` e são incluídas nos assets do APK. PdfRenderer é API do Android; desugaring Java está habilitado para manter minSdk 23.
 
 ## Estrutura
 
-`core/` contém detecção de formato, ZIP/RAR/EPUB, importação para disco, cache e estado do leitor, com testes JVM sem dependência do Android. `app/` contém PdfRenderer, leitor de texto, Room, ViewModels, seletor e interface Compose para TV.
+`core/` contém arquivos, cache, estado do leitor e índices de repositórios, com testes JVM. `mihon/` hospeda a API Android de extensões, preservando licenças Apache-2.0 e atribuições em seus assets. `app/` contém leitores, Room, instalação nativa, fontes e interface Compose para TV.

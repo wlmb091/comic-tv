@@ -4,4 +4,4 @@ dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
 rootProject.name = "ComicTV"
-include(":app", ":core")
+include(":app", ":core", ":mihon")

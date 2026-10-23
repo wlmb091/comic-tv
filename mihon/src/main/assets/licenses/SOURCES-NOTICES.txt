@@ -1,0 +1,16 @@
+Comic TV 0.5.0 - Sources runtime dependencies
+
+OtakuWorld nightly_2026_10_16 and vendored Mihon: Apache-2.0.
+See MIHON-VENDORED.md and the full Apache license texts in this directory.
+
+Injekt 1.16.1: MIT, Jayson Minard and Collokia. Full license: Injekt-LICENSE.txt.
+Gson 2.13.2: Apache-2.0, Google. https://github.com/google/gson
+OkHttp / DNS over HTTPS 4.12.0 and Okio: Apache-2.0, Square. https://github.com/square/okhttp
+RxJava 1.3.8: Apache-2.0, RxJava contributors. https://github.com/ReactiveX/RxJava
+Kotlin serialization 1.9.0 / coroutines 1.10.2: Apache-2.0, JetBrains. https://github.com/Kotlin
+Coil 3.3.0: Apache-2.0, Coil contributors. https://github.com/coil-kt/coil
+Logcat 0.4: Apache-2.0, Square. https://github.com/square/logcat
+AndroidX Core / Preference / WebKit: Apache-2.0, Android Open Source Project.
+Jsoup license is bundled separately with the app's existing licenses.
+
+No extension APK or third-party comic content is bundled with Comic TV.
