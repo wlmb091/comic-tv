@@ -22,6 +22,9 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val pageDirectory = File(context.cacheDir, "pages").apply { mkdirs() }
     private val covers = File(context.filesDir, "covers").apply { mkdirs() }
     private val cache = PageCache(pageDirectory)
+    private val thumbnailDirectory = File(context.cacheDir, "thumbnails").apply { mkdirs() }
+    private val thumbnailCache = PageCache(thumbnailDirectory, 32L * 1024 * 1024)
+    private val thumbnailGenerator = BitmapCoverGenerator(240, 360)
     private val mutex = Mutex()
     private var protectedPage: String? = null
     private var ready = false
@@ -34,6 +37,8 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
         if (!ready) {
             store.reconcile(dao.ids().toSet())
             pageDirectory.listFiles()?.filter { it.name.endsWith(".part") }?.forEach { it.delete() }
+            thumbnailDirectory.listFiles()?.filter { it.name.endsWith(".part") || it.name.endsWith(".source") }?.forEach { it.delete() }
+            thumbnailCache.trim()
             cache.trim(setOfNotNull(protectedPage))
             ready = true
         }
@@ -92,6 +97,28 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
             protectedPage = target.name
             cache.trim(setOf(target.name))
             target
+        }
+    }
+
+    override suspend fun thumbnail(comicId: String, page: PageRef): File = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            initialize()
+            val original = store.original(comicId)
+            runInterruptible {
+                thumbnailCache.materialize("$comicId-${page.index}", emptySet(), write = { target ->
+                    val source = File(thumbnailDirectory, "$comicId-${page.index}.source")
+                    val temporary = File(target.parentFile, target.name + ".part")
+                    try {
+                        archive.extract(original, page, source)
+                        if (Thread.currentThread().isInterrupted) throw IOException("Prévia cancelada.")
+                        if (page.key.startsWith("epub:text:")) generateTextCover(source.readText(Charsets.UTF_8).take(200), temporary, 240, 360)
+                        else thumbnailGenerator.generate(source, temporary)
+                        if (Thread.currentThread().isInterrupted) throw IOException("Prévia cancelada.")
+                        if (!temporary.renameTo(target)) throw IOException("Não foi possível salvar a miniatura.")
+                    } finally { source.delete(); File(source.path + ".part").delete(); temporary.delete() }
+                }, validate = { validateDimensions(it) })
+            }
+            // Never change protectedPage: thumbnails do not become the reading page.
         }
     }
 

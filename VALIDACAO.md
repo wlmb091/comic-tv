@@ -1,34 +1,39 @@
-# Validação — Comic TV 0.3.1
+# Validação — Comic TV 0.4.0
 
-23/10/2026. versionCode 5. Incremento da barra de páginas/seções. O usuário confirmou a versão anterior funcionando; esta entrega acrescenta o seletor pelo D-pad.
+23/10/2026. versionCode 6. Miniaturas na barra e leitura automática, conforme solicitado pelo usuário. Intervalo inicial de 10 segundos confirmado por ele.
 
-APK assinado com a mesma chave debug; assinaturas v1/v2 verificadas. minSdk 23, targetSdk 36. SHA-256: `423C265785FDB76586CDB34FFD2191A62CE9CEE0A6417B6EFEBEEA4DDE99131B`.
+APK assinado com a mesma chave debug; v1/v2 verificadas. minSdk 23, targetSdk 36. SHA-256: `87B253DCF86728CF220C15F7296DFE0A093FA00C12543D9A591B554B7B1A92D8`.
 
-## Comportamento
+## Miniaturas
 
-No leitor de imagens: OK → Escolher página. No texto EPUB: OK → Escolher seção. A barra abre com um cursor na posição lida, sem alterar a página atual.
+A barra mostra a posição selecionada destacada e até duas posições anteriores e posteriores. Direção RTL preservada. O ViewModel espera 180 ms de estabilização, prioriza a selecionada e cancela/descarta resultados antigos. Falha de miniatura mostra “Sem prévia”, sem alterar o erro ou o progresso da leitura.
 
-Esquerda/direita movem uma posição, respeitando RTL e a direção visual da barra; cima/baixo saltam −10/+10 posições. OK confirma e volta à leitura. Só então o ViewModel carrega e salva a posição escolhida. Voltar cancela e retorna às ferramentas, preservando página, zoom e deslocamento. Confirmar a mesma página preserva a vista atual; escolher outra reinicia o enquadramento, como a navegação normal.
+Cache JPEG separado de 32 MiB, com miniaturas de até 240×360 e proporção preservada para imagens; EPUB de texto recebe cartão com trecho. Uma página original é extraída por vez para temporário, convertido e removido, mantendo os limites dos leitores. Esse caminho não altera protectedPage nem substitui a página principal. Não gera o livro inteiro antecipadamente; RAR sólido pode exigir replay interno de entradas anteriores.
 
-A interface usa o tema escuro/âmbar aprovado e expõe posição/contagem por semântica de acessibilidade. Até 80 marcas são desenhadas, com indicador exato da posição mesmo em livros maiores. Não há extração ou download de páginas enquanto o cursor se move. EPUB de texto usa a contagem de seções; não representa paginação impressa.
+## Leitura automática
 
-## Verificação executada
+Nas ferramentas há Iniciar leitura automática e Intervalo. Opções: 5,10,20,30,60 segundos, iniciando em 10. Imagens: o timer aguarda o sucesso de exibição pelo Coil. Falha de carregamento ou decodificação pausa e mostra erro; callbacks de outro arquivo são ignorados.
 
-- `core:test`, `app:testDebugUnitTest`, `app:assembleDebug`, `app:assembleDebugAndroidTest`, `app:lintDebug`: BUILD SUCCESSFUL.
-- 50 testes JVM, zero falhas (46 anteriores + 4 novos).
-- Reducer: cursor separado, cancelar preserva vista, confirmar muda destino e reinicia enquadramento, limites, salto de dez, RTL, livros vazios e uma página.
-- ViewModel: mover cursor não altera imagem/progresso; confirmar carrega o destino, salva no estado e persiste pelo repositório.
-- Android Lint: zero erros e 27 avisos, mesma contagem da versão anterior.
-- Revisão independente: sem problemas Important/Critical encontrados. Revistos reducer, entradas do controle, foco entre ferramentas/barra/leitura e integração com o leitor de texto.
+Texto EPUB: rolagem suave até o fim da seção, usando o intervalo por altura visível. A última porção permanece brevemente antes da próxima seção. Se o texto cabe na tela, aguarda um intervalo completo. A seção seguinte é aberta pelo mesmo fluxo de progresso do leitor; callbacks antigos não saltam seções. A gravação da posição de rolagem é amostrada em 500 ms e feita ao sair da seção.
 
-`adb devices` continua vazio. Testes instrumentados compilaram, mas não foram executados. A navegação e o foco reais do novo seletor ainda precisam do reteste na TV. A confirmação do usuário sobre 0.3.0 não é uma validação física da barra nova.
+Setas, ferramentas/barra, Voltar, saída, erro e perda de primeiro plano pausam a automação. Ela não reinicia sozinha ao retornar. No fim da última imagem ou após concluir o último texto, para. Trocas automáticas seguem a ordem do livro também em RTL.
 
-## Reteste
+## Evidências
 
-1. Instalar Comic-TV-0.3.1-debug.apk sobre a versão anterior.
-2. Abrir uma HQ no meio da leitura, ampliar e abrir ferramentas → Escolher página.
-3. Mover o cursor, usar saltos de dez e cancelar com Voltar: página, zoom e progresso devem permanecer.
-4. Abrir novamente e confirmar outro destino com OK. Sair e retomar: deve abrir no destino confirmado.
-5. Testar a primeira/última posição, direção RTL e um EPUB de texto em Escolher seção.
+`core:test`, `app:testDebugUnitTest`, `app:assembleDebug`, `app:assembleDebugAndroidTest`, `app:lintDebug`: BUILD SUCCESSFUL.
 
-ZIP/CBZ, RAR/CBR, PDF e EPUB mantêm o suporte e os limites documentados na validação 0.3.0. Fontes Mihon, HQ Now e a sequência de capas das sagas continuam sendo os próximos incrementos; esta barra é o navegador de páginas do leitor.
+60 testes JVM, zero falhas: 50 anteriores e 10 novos. Casos novos: debounce e limites de prévias, prioridade da selecionada, máximo de cinco, nenhum progresso/carga principal, cancelamento tardio e erro isolado; intervalo inicial e ajustável, RTL, espera por carregamento e por exibição, pausa manual/erro/fim, texto aguardando rolagem, callback antigo e falha de imagem sem salto.
+
+Android Lint: zero erros, 27 avisos, mesma contagem anterior. Revisão independente encontrou a necessidade de esperar a renderização efetiva antes do timer e comunicar erros do Coil ao ViewModel. Correção e teste adicionados; reavaliação sem problemas Important/Critical.
+
+Sem dispositivo em `adb devices`. APK de testes instrumentados compilado, sem execução. Decodificação nativa das miniaturas, animação de rolagem, foco e comportamento real em segundo plano ainda precisam do reteste na TV. Os testes JVM verificam os estados e a coordenação; não comprovam a renderização Android.
+
+## Reteste na TV
+
+1. Instalar 0.4.0 sobre a versão anterior e abrir OK → Escolher página/seção. Mover e aguardar brevemente as miniaturas. Verificar primeira/última posição, RTL e cancelamento sem alterar progresso.
+2. OK → Iniciar leitura automática: esperar dez segundos após a imagem aparecer. Usar uma seta ou OK para pausar.
+3. Nas ferramentas, alternar Intervalo e reiniciar. Confirmar que uma página com erro não é pulada.
+4. Em EPUB de texto, verificar rolagem suave, próxima seção e parada na última. Interromper com D-pad e conferir retomada.
+5. Sair para a tela inicial da TV e voltar: automático deve continuar pausado.
+
+Fontes online, HQ Now e sagas continuam sendo incrementos seguintes. Nenhuma mudança no importador de formatos nesta versão.

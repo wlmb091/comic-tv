@@ -13,7 +13,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
-data class PageImage(val file: File, val width: Int, val height: Int, val text: String? = null)
+data class PageImage(val file: File, val width: Int, val height: Int, val text: String? = null, val displayed: Boolean = false)
+data class TimelinePreview(val page: Int, val file: File? = null, val loading: Boolean = true, val failed: Boolean = false)
+data class AutomaticReading(val enabled: Boolean = false, val secondsPerScreen: Int = 10)
+private data class AutomaticFrame(val options: AutomaticReading, val page: Int, val mode: ReaderMode,
+    val loading: Boolean, val failed: Boolean, val text: Boolean, val ready: Boolean)
 
 class ReaderViewModel(
     private val repository: ReaderRepository,
@@ -34,6 +38,12 @@ class ReaderViewModel(
     val loading = _loading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+    private val _previews = MutableStateFlow<List<TimelinePreview>>(emptyList())
+    val previews = _previews.asStateFlow()
+    private var previewJob: Job? = null
+    private var previewGeneration = 0
+    private val _automatic = MutableStateFlow(AutomaticReading())
+    val automatic = _automatic.asStateFlow()
     private var pages = emptyList<PageRef>()
     private var loadJob: Job? = null
     private var initializationJob: Job? = null
@@ -44,6 +54,18 @@ class ReaderViewModel(
     private val persistence = Mutex()
 
     init {
+        viewModelScope.launch {
+            combine(_automatic, _state, _loading, _error, _image) { options, state, loading, error, image ->
+                AutomaticFrame(options, state.page, state.mode, loading, error != null, image?.text != null,
+                    image != null && (image.text != null || image.displayed))
+            }.distinctUntilChanged().collectLatest { frame ->
+                if (!frame.options.enabled) return@collectLatest
+                if (frame.failed) { pauseAutomaticReading(); return@collectLatest }
+                if (frame.mode != ReaderMode.Reading || frame.loading || !frame.ready || frame.text) return@collectLatest
+                delay(frame.options.secondsPerScreen * 1_000L)
+                advanceAutomatically(frame.page)
+            }
+        }
         viewModelScope.launch {
             for (page in writes) {
                 try { persistence.withLock { if (!closing && !exited) repository.saveProgress(comicId, page) } }
@@ -73,10 +95,16 @@ class ReaderViewModel(
     }
 
     fun action(action: ReaderAction) {
+        pauseAutomaticReading()
+        applyAction(action)
+    }
+
+    private fun applyAction(action: ReaderAction) {
         if (closing || exited) return
         val old = _state.value
         val next = old.reduce(action)
         _state.value = next
+        if (next.mode != ReaderMode.Timeline || next.timelinePage != old.timelinePage || next.mode != old.mode) updatePreviews()
         if (next.page != old.page) {
             saved["page"] = next.page
             writes.trySend(next.page)
@@ -90,6 +118,68 @@ class ReaderViewModel(
     }
 
     fun retry() { if (!initialized) initialize() else loadPage() }
+
+    fun startAutomaticReading() {
+        if (closing || exited || !initialized || _state.value.pageCount == 0 || _error.value != null) return
+        _state.value = _state.value.copy(mode = ReaderMode.Reading, timelinePage = null)
+        updatePreviews()
+        _automatic.value = _automatic.value.copy(enabled = true)
+    }
+
+    fun pauseAutomaticReading() { _automatic.value = _automatic.value.copy(enabled = false) }
+
+    fun imageDisplayed(file: File) {
+        val image = _image.value ?: return
+        if (image.file == file && image.text == null && !image.displayed) _image.value = image.copy(displayed = true)
+    }
+
+    fun imageDisplayFailed(file: File) {
+        val image = _image.value ?: return
+        if (image.file != file || image.text != null) return
+        pauseAutomaticReading()
+        _error.value = "Não foi possível decodificar esta página. Use as ferramentas para tentar novamente."
+    }
+
+    fun cycleAutomaticInterval() {
+        pauseAutomaticReading()
+        val choices = listOf(5, 10, 20, 30, 60)
+        _automatic.value = AutomaticReading(secondsPerScreen = choices[(choices.indexOf(_automatic.value.secondsPerScreen) + 1) % choices.size])
+    }
+
+    fun automaticSectionFinished(expectedPage: Int) {
+        if (_image.value?.text == null) return
+        advanceAutomatically(expectedPage)
+    }
+
+    private fun advanceAutomatically(expectedPage: Int) {
+        val state = _state.value
+        if (!_automatic.value.enabled || closing || exited || state.mode != ReaderMode.Reading || state.page != expectedPage ||
+            _loading.value || _error.value != null || _image.value == null) return
+        if (state.page >= state.pageCount - 1) { pauseAutomaticReading(); return }
+        applyAction(if (state.rtl) ReaderAction.Left else ReaderAction.Right)
+        val next = _state.value.page
+        if (next == state.pageCount - 1 && pages.getOrNull(next)?.key?.startsWith("epub:text:") != true) pauseAutomaticReading()
+    }
+
+    private fun updatePreviews() {
+        previewJob?.cancel()
+        val generation = ++previewGeneration
+        val cursor = _state.value.timelinePage
+        if (_state.value.mode != ReaderMode.Timeline || cursor == null) { _previews.value = emptyList(); return }
+        val indices = (cursor - 2..cursor + 2).filter { it in pages.indices }
+        _previews.value = indices.map { TimelinePreview(it) }
+        previewJob = viewModelScope.launch {
+            delay(180)
+            for (index in indices.sortedBy { kotlin.math.abs(it - cursor) }) {
+                val result = try { TimelinePreview(index, repository.thumbnail(comicId, pages[index]), loading = false) }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { TimelinePreview(index, loading = false, failed = true) }
+                ensureActive()
+                if (generation != previewGeneration || _state.value.mode != ReaderMode.Timeline || _state.value.timelinePage != cursor) return@launch
+                _previews.value = _previews.value.map { if (it.page == index) result else it }
+            }
+        }
+    }
 
     private fun loadPage() {
         loadJob?.cancel()
@@ -114,6 +204,10 @@ class ReaderViewModel(
     fun close(onSaved: () -> Unit) {
         if (closing || exited) return
         closing = true
+        pauseAutomaticReading()
+        previewJob?.cancel()
+        previewGeneration++
+        _previews.value = emptyList()
         viewModelScope.launch {
             try {
                 if (initialized) {

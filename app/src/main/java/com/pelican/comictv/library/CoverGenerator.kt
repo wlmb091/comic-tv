@@ -14,10 +14,11 @@ import android.text.TextPaint
 
 fun interface CoverGenerator { fun generate(input: File, output: File) }
 
-internal fun generateTextCover(title: String, output: File) {
-    val bitmap = Bitmap.createBitmap(360, 540, Bitmap.Config.ARGB_8888)
+internal fun generateTextCover(title: String, output: File, width: Int = 360, height: Int = 540) {
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     try {
         val canvas = Canvas(bitmap)
+        canvas.scale(width / 360f, height / 540f)
         canvas.drawColor(Color.rgb(25, 28, 34))
         canvas.drawRect(28f, 40f, 84f, 46f, Paint().apply { color = Color.rgb(255, 191, 88) })
         val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 30f }
@@ -29,7 +30,7 @@ internal fun generateTextCover(title: String, output: File) {
     } finally { bitmap.recycle() }
 }
 
-class BitmapCoverGenerator : CoverGenerator {
+class BitmapCoverGenerator(private val maxWidth: Int = 480, private val maxHeight: Int = 720) : CoverGenerator {
     override fun generate(input: File, output: File) {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(input.path, options)
@@ -37,7 +38,7 @@ class BitmapCoverGenerator : CoverGenerator {
         if (options.outWidth.toLong() * options.outHeight > 100_000_000L) throw ComicImportException("A imagem excede o limite de resolução.")
         options.inJustDecodeBounds = false
         var sample = 1
-        while (options.outWidth / sample > 480 || options.outHeight / sample > 720) sample *= 2
+        while (options.outWidth / sample > maxWidth || options.outHeight / sample > maxHeight) sample *= 2
         options.inSampleSize = sample
         val bitmap = BitmapFactory.decodeFile(input.path, options) ?: throw ComicImportException("Não foi possível decodificar a imagem da primeira página.")
         try { output.outputStream().use { if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it)) throw IOException("Falha ao salvar a capa.") } }

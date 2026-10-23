@@ -14,7 +14,8 @@ import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
 
 @Composable fun ReaderTools(state: ReaderState, hasError: Boolean, onAction: (ReaderAction) -> Unit,
-    onRetry: () -> Unit, onExit: () -> Unit, modifier: Modifier = Modifier) {
+    onRetry: () -> Unit, onExit: () -> Unit, modifier: Modifier = Modifier,
+    automatic: AutomaticReading = AutomaticReading(), onStartAutomatic: () -> Unit = {}, onAutomaticInterval: () -> Unit = {}) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { first.requestFocus() }
     Column(modifier.fillMaxWidth().padding(24.dp).background(TvColors.Panel, RoundedCornerShape(14.dp))
@@ -37,5 +38,6 @@ import com.pelican.comictv.ui.*
             TvButton("Sair da leitura", onExit)
         }
         Text("Use ↑ ↓ durante a leitura para ajustar o zoom. Em Mover página, as quatro setas deslocam a imagem.", fontSize = 15.sp, color = TvColors.Muted)
+        AutomaticReadingControls(automatic, onStartAutomatic, onAutomaticInterval)
     }
 }

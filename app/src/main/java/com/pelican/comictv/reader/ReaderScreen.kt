@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -32,6 +35,16 @@ import kotlin.math.min
     val image by viewModel.image.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val previews by viewModel.previews.collectAsStateWithLifecycle()
+    val automatic by viewModel.automatic.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) viewModel.pauseAutomaticReading()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.pauseAutomaticReading() }
+    }
     image?.takeIf { it.text != null }?.let { page ->
         EpubTextScreen(viewModel, state, page, error, onExit)
         return
@@ -83,7 +96,9 @@ import kotlin.math.min
             AsyncImage(request, "Página ${state.page + 1}", Modifier.fillMaxSize().padding(bottom = 40.dp).graphicsLayer {
                 scaleX = scale; scaleY = scale
                 translationX = -state.panX * maxX; translationY = -state.panY * maxY
-            }, contentScale = ContentScale.Fit, onError = { renderError = true })
+            }, contentScale = ContentScale.Fit,
+                onSuccess = { viewModel.imageDisplayed(page.file) },
+                onError = { renderError = true; viewModel.imageDisplayFailed(page.file) })
         }
         if (loading) Text("Carregando página…", Modifier.align(Alignment.Center), fontSize = 20.sp)
         displayedError?.let { text ->
@@ -94,18 +109,18 @@ import kotlin.math.min
             }
         }
         if (state.mode == ReaderMode.Timeline) {
-            ReaderTimeline(state, Modifier.align(Alignment.BottomCenter))
+            ReaderTimeline(state, Modifier.align(Alignment.BottomCenter), previews = previews)
         } else if (state.mode != ReaderMode.Tools) {
             Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(40.dp).background(Color.Black).padding(horizontal = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (state.pageCount > 0) "Página ${state.page + 1} de ${state.pageCount}" else "Leitor", fontSize = 14.sp)
                 Text(if (state.mode == ReaderMode.Pan) "↑ ↓ ← →  Mover  ·  Voltar  Ferramentas" else "← →  Páginas  ·  ↑ ↓  Zoom  ·  OK  Ferramentas", fontSize = 14.sp, color = TvColors.Muted)
-                Text("${(state.zoom * 100).toInt()}%", fontSize = 14.sp, color = TvColors.Amber)
+                Text(if (automatic.enabled) "Automático · ${automatic.secondsPerScreen}s" else "${(state.zoom * 100).toInt()}%", fontSize = 14.sp, color = TvColors.Amber)
             }
         } else {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .5f)))
             ReaderTools(state, displayedError != null, viewModel::action, { renderError = false; viewModel.retry() }, exit,
-                Modifier.align(Alignment.BottomCenter))
+                Modifier.align(Alignment.BottomCenter), automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval)
         }
     }
 }

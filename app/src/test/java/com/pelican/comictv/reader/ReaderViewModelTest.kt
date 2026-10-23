@@ -24,20 +24,201 @@ class ReaderViewModelTest {
         var saveDelay = 0L
         var failIndex = false
         var textFile: File? = null
+        val thumbnailCalls = mutableListOf<Int>()
+        var thumbnailDelay = 0L
+        var thumbnailFailure = false
+        var ignoreThumbnailCancellation = false
+        var pageDelay = 0L
+        var pageFailure = false
+        var count = 3
+        var rtl = false
+        override suspend fun thumbnail(comicId: String, page: PageRef): File {
+            thumbnailCalls += page.index
+            if (ignoreThumbnailCancellation) withContext(NonCancellable) { delay(thumbnailDelay) } else delay(thumbnailDelay)
+            if (thumbnailFailure) throw java.io.IOException("Preview unavailable")
+            return File("thumbnail-${page.index}")
+        }
         override suspend fun getComic(id: String): ComicEntity {
             delay(initDelay)
-            return ComicEntity(id, "Teste", 3, currentPage = 1)
+            return ComicEntity(id, "Teste", count, currentPage = 1, rtl = rtl)
         }
         override suspend fun pages(comicId: String): List<PageRef> {
             if (failIndex) { failIndex = false; throw java.io.IOException("Index unavailable") }
-            return (0..2).map { PageRef(it, if (textFile != null) "epub:text:$it" else "$it.jpg") }
+            return (0 until count).map { PageRef(it, if (textFile != null) "epub:text:$it" else "$it.jpg") }
         }
         override suspend fun materialize(comicId: String, page: PageRef): File {
+            delay(pageDelay)
+            if (pageFailure) throw java.io.IOException("Page unavailable")
             delay(if (page.index == 1) 100 else 1)
             return textFile ?: File("page-${page.index}")
         }
         override suspend fun saveProgress(id: String, page: Int) { delay(saveDelay); saved += page }
         override suspend fun savePreferences(id: String, fit: Int, rtl: Boolean) = Unit
+    }
+
+    @Test fun previewsLoadAtMostFivePagesAroundCursor() = runTest(dispatcher) {
+        val repository = FakeRepository().apply { count = 100 }
+        val vm = ReaderViewModel(repository, "preview", SavedStateHandle(mapOf("page" to 50)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.action(ReaderAction.StartTimeline)
+        advanceUntilIdle()
+        assertEquals(listOf(48, 49, 50, 51, 52), vm.previews.value.map { it.page })
+        assertEquals(5, repository.thumbnailCalls.size)
+        assertEquals(50, repository.thumbnailCalls.first())
+    }
+
+    @Test fun automaticIntervalIsAdjustableAndRTLStillAdvancesReadingOrder() = runTest(dispatcher) {
+        val vm = ReaderViewModel(FakeRepository().apply { rtl = true }, "auto", SavedStateHandle(mapOf("page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.imageDisplayed(vm.image.value!!.file)
+        vm.cycleAutomaticInterval()
+        assertEquals(20, vm.automatic.value.secondsPerScreen)
+        vm.startAutomaticReading()
+        advanceTimeBy(19_999); runCurrent()
+        assertEquals(0, vm.state.value.page)
+        advanceTimeBy(1); runCurrent()
+        assertEquals(1, vm.state.value.page)
+        vm.pauseAutomaticReading()
+    }
+
+    @Test fun automaticReadingDoesNotSkipAnImageThatFailsToLoad() = runTest(dispatcher) {
+        val repository = FakeRepository()
+        val vm = ReaderViewModel(repository, "auto", SavedStateHandle(mapOf("page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.imageDisplayed(vm.image.value!!.file)
+        repository.pageFailure = true
+        vm.startAutomaticReading()
+        advanceUntilIdle()
+        assertEquals(1, vm.state.value.page)
+        assertNotNull(vm.error.value)
+        assertFalse(vm.automatic.value.enabled)
+    }
+
+    @Test fun automaticReadingWaitsTenSecondsAndStopsAtEnd() = runTest(dispatcher) {
+        val repository = FakeRepository()
+        val vm = ReaderViewModel(repository, "auto", SavedStateHandle(mapOf("page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.imageDisplayed(vm.image.value!!.file)
+        vm.startAutomaticReading()
+        advanceTimeBy(9_999); runCurrent()
+        assertEquals(0, vm.state.value.page)
+        advanceTimeBy(1); runCurrent()
+        assertEquals(1, vm.state.value.page)
+        advanceTimeBy(100); runCurrent()
+        vm.imageDisplayed(vm.image.value!!.file)
+        advanceUntilIdle()
+        assertEquals(2, vm.state.value.page)
+        assertFalse(vm.automatic.value.enabled)
+    }
+
+    @Test fun automaticReadingWaitsForDisplayAndIgnoresStaleRenderCallbacks() = runTest(dispatcher) {
+        val vm = ReaderViewModel(FakeRepository(), "render", SavedStateHandle(mapOf("page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        val first = vm.image.value!!.file
+        vm.startAutomaticReading()
+        advanceTimeBy(20_000); runCurrent()
+        assertEquals(0, vm.state.value.page)
+        vm.imageDisplayed(File("stale"))
+        advanceTimeBy(20_000); runCurrent()
+        assertEquals(0, vm.state.value.page)
+        vm.imageDisplayed(first)
+        advanceTimeBy(10_000); runCurrent()
+        advanceTimeBy(100); runCurrent()
+        assertEquals(1, vm.state.value.page)
+        vm.imageDisplayFailed(first)
+        assertNull(vm.error.value)
+        assertTrue(vm.automatic.value.enabled)
+        vm.imageDisplayFailed(vm.image.value!!.file)
+        advanceUntilIdle()
+        assertEquals(1, vm.state.value.page)
+        assertFalse(vm.automatic.value.enabled)
+        assertNotNull(vm.error.value)
+    }
+
+    @Test fun automaticReadingPausesForManualToolsAndBackground() = runTest(dispatcher) {
+        val vm = ReaderViewModel(FakeRepository(), "auto", SavedStateHandle(mapOf("page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.startAutomaticReading()
+        vm.action(ReaderAction.Select)
+        advanceUntilIdle()
+        assertEquals(ReaderMode.Tools, vm.state.value.mode)
+        assertEquals(0, vm.state.value.page)
+        assertFalse(vm.automatic.value.enabled)
+        vm.startAutomaticReading()
+        vm.pauseAutomaticReading()
+        advanceUntilIdle()
+        assertEquals(0, vm.state.value.page)
+    }
+
+    @Test fun automaticReadingWaitsForPageLoadAndPausesOnError() = runTest(dispatcher) {
+        val repository = FakeRepository().apply { pageDelay = 20_000 }
+        val vm = ReaderViewModel(repository, "auto", SavedStateHandle(mapOf("page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        runCurrent()
+        vm.startAutomaticReading()
+        advanceTimeBy(15_000); runCurrent()
+        assertEquals(0, vm.state.value.page)
+        repository.pageFailure = true
+        advanceUntilIdle()
+        assertEquals(0, vm.state.value.page)
+        assertNotNull(vm.error.value)
+        assertFalse(vm.automatic.value.enabled)
+    }
+
+    @Test fun automaticTextWaitsForScrollCompletionInsteadOfPageTimer() = runTest(dispatcher) {
+        val file = File.createTempFile("auto-epub", ".txt").apply { writeText("Um capítulo.") }
+        try {
+            val vm = ReaderViewModel(FakeRepository().apply { textFile = file }, "auto-text", SavedStateHandle(mapOf("page" to 0)),
+                ioDispatcher = dispatcher, pageDimensions = { error("Text must not decode") })
+            advanceUntilIdle()
+            vm.startAutomaticReading()
+            advanceTimeBy(60_000); runCurrent()
+            assertEquals(0, vm.state.value.page)
+            vm.automaticSectionFinished(0)
+            advanceTimeBy(200); runCurrent()
+            assertEquals(1, vm.state.value.page)
+            vm.automaticSectionFinished(0) // A stale callback must not skip the next section.
+            assertEquals(1, vm.state.value.page)
+            vm.pauseAutomaticReading()
+        } finally { file.delete() }
+    }
+
+    @Test fun previewsAreDebouncedBoundedAndDoNotChangeReading() = runTest(dispatcher) {
+        val repository = FakeRepository()
+        val vm = ReaderViewModel(repository, "preview", SavedStateHandle(), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        repository.saved.clear()
+        val image = vm.image.value
+        vm.action(ReaderAction.StartTimeline)
+        advanceTimeBy(100)
+        vm.action(ReaderAction.Right)
+        advanceTimeBy(179)
+        assertTrue(repository.thumbnailCalls.isEmpty())
+        advanceUntilIdle()
+        assertEquals(2, repository.thumbnailCalls.first())
+        assertTrue(repository.thumbnailCalls.all { it in 0..2 })
+        assertEquals(3, vm.previews.value.size)
+        assertTrue(vm.previews.value.all { it.file != null && !it.loading })
+        assertEquals(image, vm.image.value)
+        assertEquals(1, vm.state.value.page)
+        assertTrue(repository.saved.isEmpty())
+    }
+
+    @Test fun closingTimelineDiscardsLatePreviewsAndPreviewErrorsAreIsolated() = runTest(dispatcher) {
+        val repository = FakeRepository().apply { thumbnailDelay = 1_000; ignoreThumbnailCancellation = true; thumbnailFailure = true }
+        val vm = ReaderViewModel(repository, "preview", SavedStateHandle(), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.action(ReaderAction.StartTimeline)
+        advanceTimeBy(200)
+        vm.action(ReaderAction.Back)
+        advanceUntilIdle()
+        assertTrue(vm.previews.value.isEmpty())
+        assertNull(vm.error.value)
+        repository.thumbnailDelay = 0
+        vm.action(ReaderAction.StartTimeline)
+        advanceUntilIdle()
+        assertTrue(vm.previews.value.all { it.failed && !it.loading })
+        assertNull(vm.error.value)
+        assertEquals(1, vm.state.value.page)
     }
 
     @Test fun epubTextDoesNotGoThroughImageDecoder() = runTest(dispatcher) {
