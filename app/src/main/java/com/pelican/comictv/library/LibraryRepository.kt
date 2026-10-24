@@ -16,7 +16,8 @@ import java.io.InputStream
 import java.util.UUID
 
 class LibraryRepository(private val context: Context, private val dao: ComicDao,
-    private val coverGenerator: CoverGenerator = BitmapCoverGenerator()) : ReaderRepository {
+    private val coverGenerator: CoverGenerator = BitmapCoverGenerator(),
+    private val collectionDao: CollectionDao? = null) : ReaderRepository {
     private val archive = ComicArchive(pdfReader = PdfComicArchive())
     private val store = LocalComicStore(File(context.filesDir, "originals"), archive)
     private val pageDirectory = File(context.cacheDir, "pages").apply { mkdirs() }
@@ -31,6 +32,24 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
 
     suspend fun setHistoryHidden(id: String, hidden: Boolean) = dao.setHistoryHidden(id, hidden)
     fun observeComics() = dao.observe()
+    fun observeCollections() = collectionDao?.observe() ?: kotlinx.coroutines.flow.flowOf(emptyList<CollectionEntity>())
+    fun observeMemberships() = collectionDao?.observeMemberships() ?: kotlinx.coroutines.flow.flowOf(emptyList<CollectionMembership>())
+    suspend fun setFavorite(id: String, favorite: Boolean) = dao.setFavorite(id, favorite)
+    suspend fun collectionsFor(id: String) = requireNotNull(collectionDao).forComic(id).toSet()
+    suspend fun createCollection(value: String): String {
+        val (name, key) = validatedCollectionName(value)
+        val id = UUID.randomUUID().toString()
+        try { requireNotNull(collectionDao).insert(CollectionEntity(id, name, key)) }
+        catch (_: android.database.sqlite.SQLiteConstraintException) { throw IllegalArgumentException("Já existe uma coleção com esse nome.") }
+        return id
+    }
+    suspend fun renameCollection(id: String, value: String) {
+        val (name, key) = validatedCollectionName(value)
+        try { check(requireNotNull(collectionDao).rename(id, name, key) > 0) { "Esta coleção não está mais disponível." } }
+        catch (_: android.database.sqlite.SQLiteConstraintException) { throw IllegalArgumentException("Já existe uma coleção com esse nome.") }
+    }
+    suspend fun deleteCollection(id: String) = requireNotNull(collectionDao).delete(id)
+    suspend fun setCollections(id: String, collections: Set<String>) = requireNotNull(collectionDao).replaceMemberships(id, collections)
     override suspend fun getComic(id: String) = dao.get(id) ?: throw IOException("Esta edição não está mais disponível.")
     fun cover(id: String) = File(covers, "$id.jpg")
 
