@@ -87,7 +87,7 @@ import kotlinx.coroutines.launch
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ComicSignature(Modifier.width(180.dp).height(38.dp))
+                    ComicWordmark(Modifier.width(180.dp).heightIn(min = 38.dp))
                     Spacer(Modifier.weight(1f))
                     LibraryTab("Biblioteca · " + comics.size, !history, { history = false }, Modifier.focusRequester(headerFocus))
                     LibraryTab("Histórico · " + recent.size, history, { history = true })
@@ -180,7 +180,7 @@ private fun readingStatus(comic: ComicEntity): String =
         scale = ButtonDefaults.scale(focusedScale = 1f),
         colors = ButtonDefaults.colors(containerColor = Color.Transparent,
             contentColor = if (active) TvColors.Amber else TvColors.Muted,
-            focusedContainerColor = TvColors.Amber, focusedContentColor = TvColors.Ink)) {
+            focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
         Text(label, fontSize = 14.sp)
     }
 }

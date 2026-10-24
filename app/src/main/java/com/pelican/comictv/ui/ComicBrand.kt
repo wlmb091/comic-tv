@@ -11,6 +11,14 @@ import com.pelican.comictv.image.blurBackdropPixels
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
@@ -54,8 +62,19 @@ import java.io.File
             Bitmap.createBitmap(blurBackdropPixels(pixels, 96, 54), 96, 54, Bitmap.Config.ARGB_8888)
         }
     }
-    Box(modifier.background(Color.Black)) {
+    Box(modifier.background(TvColors.Background)) {
         bitmap?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .88f)))
+        Box(Modifier.fillMaxSize().background(TvColors.Background.copy(alpha = .94f)))
+    }
+}
+
+@Composable internal fun ComicWordmark(modifier: Modifier = Modifier) {
+    Box(modifier, contentAlignment = Alignment.CenterStart) {
+        Text(buildAnnotatedString {
+            withStyle(SpanStyle(color = Color.White)) { append("COMIC ") }
+            withStyle(SpanStyle(color = TvColors.Amber)) { append("TV") }
+        }, fontFamily = FontFamily(Font(R.font.montserrat_extra_bold, FontWeight.ExtraBold)),
+            fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, lineHeight = 28.sp,
+            letterSpacing = (-.6).sp, maxLines = 1)
     }
 }

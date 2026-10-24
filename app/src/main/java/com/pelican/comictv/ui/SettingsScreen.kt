@@ -1,6 +1,10 @@
 package com.pelican.comictv.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,11 +44,14 @@ import kotlinx.coroutines.launch
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             error?.let { message -> item { Text(message, color = TvColors.Amber) } }
             if (accessibility) {
-                item { Text("Cores da interface", fontSize = 23.sp) }
-                item { Text("O preset muda os destaques, botões e foco. As páginas dos quadrinhos mantêm suas cores.", color = TvColors.Muted) }
+                item { Text("Temas da interface", fontSize = 23.sp) }
+                item { Text("O tema muda fundos, barras, cartões, botões e foco. A logo e as páginas mantêm suas cores.", color = TvColors.Muted) }
                 ColorPreset.entries.forEach { preset -> item {
-                    TvButton((if (options.preset == preset) "✓ " else "") + preset.label,
-                        { save(options.copy(preset = preset)) }, primary = options.preset == preset)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ThemeSwatches(preset)
+                        TvButton((if (options.preset == preset) "✓ " else "") + preset.label,
+                            { save(options.copy(preset = preset)) }, primary = options.preset == preset)
+                    }
                 } }
                 item { Text("Fundo dos detalhes", fontSize = 23.sp) }
                 item { TvButton(if (options.coverBackground) "Fundo: capa desfocada" else "Fundo: identidade Comic TV",
@@ -77,5 +84,16 @@ Voltar  Sair do modo ativo e retornar""",
             }
             item { TvButton("Voltar à biblioteca", onBack) }
         }
+    }
+}
+
+@Composable private fun ThemeSwatches(preset: ColorPreset) {
+    Row(Modifier.width(208.dp).height(28.dp)
+        .background(Color(preset.background), RoundedCornerShape(6.dp))
+        .border(1.dp, Color(preset.accent).copy(alpha = .6f), RoundedCornerShape(6.dp))
+        .padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.width(18.dp).fillMaxHeight().background(Color(preset.panel)))
+        Box(Modifier.weight(1f).fillMaxHeight().background(Color(preset.panel)))
+        Box(Modifier.width(40.dp).fillMaxHeight().background(Color(preset.action), RoundedCornerShape(3.dp)))
     }
 }

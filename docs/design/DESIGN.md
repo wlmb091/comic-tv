@@ -27,3 +27,11 @@ A assinatura com texto também serve de fundo padrão da página principal e alt
 ## Refinamento após teste na TV — 0.9.1
 
 A tela principal usa sempre a identidade Comic TV desfocada e mais escura. A opção de capa desfocada aplica-se somente aos detalhes da edição selecionada. Destaque recebe margem interna de 18 dp e separação de 14 dp do cabeçalho para afastar textos e botões das bordas.
+
+## Temas aprovados — 0.9.2
+
+Comic TV (dourado), Tema Flix (preto/vermelho), Tema Prime (marinho/ciano), Tema Max (índigo/violeta), Tema Cinema (preto/branco). As cores abrangem fundos, painéis, barras, botões, progresso e foco. Logo e ilustrações mantêm cores originais. Verde, azul e violeta antigos preservados para não invalidar preferências salvas.
+
+As ações do destaque inicial (Continuar/Começar leitura e Importar) ficam neutras sem foco; a cor preenchida indica foco ou interação, evitando aparência de seleção permanente.
+
+Cabeçalho da biblioteca: somente texto COMIC TV, usando Montserrat ExtraBold incorporada como aproximação da referência aprovada. COMIC branco e TV na cor do tema ativo; sem símbolo nem fundo retangular. Símbolo lateral e artes de fundo preservados. Fonte: https://github.com/JulietaUla/Montserrat; licença SIL OFL incluída no APK e em docs/licenses.

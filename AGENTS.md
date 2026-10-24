@@ -6,3 +6,6 @@
 - Cores da interface continuam customizáveis por presets; preservar alto contraste, tamanho de texto e navegação por D-pad.
 - Não considerar títulos/capas fictícios da imagem como dados reais da biblioteca.
 - Refinamento aprovado em 24/10/2026: tela principal usa somente identidade Comic TV desfocada e escura; capa desfocada fica restrita aos detalhes da edição.
+
+- Temas aprovados: Comic TV (padrão), Tema Flix, Tema Prime, Tema Max e Tema Cinema; alterar superfícies completas e preservar logo/capas originais. Presets anteriores continuam disponíveis.
+- Cabeçalho da biblioteca somente COMIC TV em Montserrat ExtraBold: COMIC branco e TV na cor do tema; sem símbolo nem retângulo de fundo.

@@ -176,7 +176,7 @@ import androidx.compose.ui.platform.LocalContext
             Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.CenterStart) {
                 if (expanded) ComicSignature(Modifier.fillMaxWidth().height(44.dp))
                 else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
-                    Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
+                    Modifier.size(38.dp).align(Alignment.Center), tint = Color(0xFFFFBD59))
             }
             routes.forEachIndexed { index, (route, title) ->
                 val active = route == selected
@@ -189,7 +189,7 @@ import androidx.compose.ui.platform.LocalContext
                     colors = androidx.tv.material3.ButtonDefaults.colors(
                         containerColor = if (route == selected) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
                         contentColor = if (route == selected) TvColors.Amber else Color.White,
-                        focusedContainerColor = TvColors.Amber, focusedContentColor = TvColors.Ink)) {
+                        focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
                     Row(Modifier.fillMaxWidth().fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.width(48.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
                             androidx.tv.material3.Icon(painterResource(icons[index]), contentDescription = title, modifier = Modifier.size(26.dp))

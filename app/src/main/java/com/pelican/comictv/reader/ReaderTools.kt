@@ -78,9 +78,9 @@ private enum class RailIcon { Play, Pages, Gallery, Book, Previous, Next, Chapte
         Button(onClick, modifier.size(48.dp).onFocusChanged { focused = it.isFocused }.semantics { contentDescription = label },
             contentPadding = PaddingValues(12.dp),
             colors = ButtonDefaults.colors(containerColor = TvColors.Panel, contentColor = Color.White,
-                focusedContainerColor = TvColors.Amber, focusedContentColor = TvColors.Ink),
+                focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
             scale = ButtonDefaults.scale(focusedScale = 1.08f)) {
-            RailGlyph(icon, if (focused) TvColors.Ink else Color.White)
+            RailGlyph(icon, if (focused) TvColors.OnAction else Color.White)
         }
     }
 }

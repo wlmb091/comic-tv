@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.9.1
+## Versão 0.9.2
 
 - Design final registrado em docs/design/DESIGN.md e nas instruções AGENTS.md, com imagem aprovada preservada no projeto.
 - Identidade oficial: assinatura fornecida pelo usuário, símbolo vetorial para ícone e lateral e banner com a arte COMIC TV.
@@ -140,3 +140,7 @@ As licenças de NanoHTTPD, ZXing, Junrar, SLF4J e Jsoup estão em `docs/licenses
 ## Estrutura
 
 `core/` contém arquivos, cache, estado do leitor e índices de repositórios, com testes JVM. `mihon/` hospeda a API Android de extensões, preservando licenças Apache-2.0 e atribuições em seus assets. `app/` contém leitores, Room, instalação nativa, fontes e interface Compose para TV.
+
+Temas em Configurações → Acessibilidade e aparência: Comic TV, Tema Flix, Tema Prime, Tema Max e Tema Cinema. Mudam superfícies, barras, botões, progresso e foco; a logo e as capas conservam as cores originais. Presets antigos continuam disponíveis.
+
+Cabeçalho da biblioteca em Montserrat ExtraBold: COMIC branco e TV na cor do tema. Ações do destaque inicial ficam neutras sem foco.

@@ -39,12 +39,12 @@ import com.pelican.comictv.ui.*
                 Text(if (comic.lastRead > 0) "Página " + (comic.currentPage + 1) + " de " + comic.pageCount
                     else comic.pageCount.toString() + " páginas para explorar", color = TvColors.Muted, fontSize = 15.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, primary = true)
+                    TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) })
                     TvButton("Ver detalhes", { onOpen(comic.id) })
                 }
             } else {
                 Text("Adicione suas edições ou explore as fontes online.", color = TvColors.Muted, fontSize = 16.sp)
-                TvButton("Importar quadrinhos", onImport, primary = true)
+                TvButton("Importar quadrinhos", onImport)
             }
         }
     }
