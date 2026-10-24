@@ -135,6 +135,7 @@ import kotlinx.coroutines.CancellationException
                 comic?.let { item ->
                     TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
                         { afterDiscoveryStopped(onRead) }, Modifier.focusRequester(first), primary = true)
+                    OrganizationActions(item, repository)
                     if (item.lastRead > 0) {
                         TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
                             if (!item.hiddenFromHistory) confirmRemoval = true

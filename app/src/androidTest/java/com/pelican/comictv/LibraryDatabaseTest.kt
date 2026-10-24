@@ -40,7 +40,7 @@ class LibraryDatabaseTest {
                 old.version = 1
             }
             val db = Room.databaseBuilder(context, LibraryDatabase::class.java, name)
-                .addMigrations(LibraryDatabase.MIGRATION_1_2).build()
+                .addMigrations(LibraryDatabase.MIGRATION_1_2, LibraryDatabase.MIGRATION_2_3).build()
             try {
                 val comic = db.comics().get("old")!!
                 assertEquals(14, comic.currentPage)
@@ -48,6 +48,7 @@ class LibraryDatabaseTest {
                 assertEquals(2, comic.fit)
                 assertTrue(comic.rtl)
                 assertFalse(comic.hiddenFromHistory)
+                assertFalse(comic.favorite)
             } finally { db.close() }
         } finally { context.deleteDatabase(name) }
     }
@@ -77,6 +78,24 @@ class LibraryDatabaseTest {
             db.comics().saveProgress("stable", 99, 1)
             assertEquals(2, db.comics().get("stable")!!.currentPage)
             assertEquals("stable", db.comics().get("stable")!!.id)
+        } finally { db.close() }
+    }
+    @Test fun collectionsAreTransactionalAndDeletingOnePreservesComicAndFavorite() = runBlocking {
+        val db = Room.inMemoryDatabaseBuilder(InstrumentationRegistry.getInstrumentation().targetContext,
+            LibraryDatabase::class.java).build()
+        try {
+            db.comics().insert(ComicEntity("keep", "Título", 25, currentPage = 12, favorite = true))
+            val collections = db.collections()
+            collections.insert(CollectionEntity("a", "Ação", "acao"))
+            collections.insert(CollectionEntity("b", "Outros", "outros"))
+            collections.replaceMemberships("keep", setOf("a", "b"))
+            try { collections.replaceMemberships("keep", setOf("missing")); fail("Missing FK must reject membership") }
+            catch (_: android.database.sqlite.SQLiteConstraintException) { }
+            assertEquals(setOf("a", "b"), collections.forComic("keep").toSet())
+            collections.delete("a")
+            assertEquals(listOf("b"), collections.forComic("keep"))
+            assertTrue(db.comics().get("keep")!!.favorite)
+            assertEquals(12, db.comics().get("keep")!!.currentPage)
         } finally { db.close() }
     }
 }

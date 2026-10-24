@@ -16,6 +16,7 @@ import androidx.compose.ui.focus.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
@@ -29,6 +30,8 @@ import kotlinx.coroutines.launch
     onFocus: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
     onRead: (String) -> Unit = onOpen,
     requestInitialFocus: Boolean = false, onInitialFocus: () -> Unit = {},
+    query: String = "", filter: String = "all", collections: List<CollectionEntity> = emptyList(),
+    memberships: List<CollectionMembership> = emptyList(), onQuery: (String) -> Unit = {}, onFilter: (String) -> Unit = {},
 ) {
     val grid = rememberLazyGridState()
     val restore = remember { FocusRequester() }
@@ -42,6 +45,16 @@ import kotlinx.coroutines.launch
     var optionsFor by remember { mutableStateOf<ComicEntity?>(null) }
     val menuScope = rememberCoroutineScope()
     val headerFocus = remember { FocusRequester() }
+    val searchFocus = remember { FocusRequester() }
+    var searching by remember { mutableStateOf(false) }
+    var managing by remember { mutableStateOf(false) }
+    var restoreControl by remember { mutableIntStateOf(0) }
+    val searchEntries = remember(comics) { comics.map { LibrarySearchEntry(it.id, it.title, it.favorite) } }
+    val memberIndex = remember(memberships) { memberships.groupBy { it.collectionId }.mapValues { (_, rows) -> rows.map { it.comicId }.toSet() } }
+    val matching = remember(searchEntries, query, filter, memberIndex) { filterLibrary(searchEntries, query, filter, memberIndex).toSet() }
+    if (searching) LibrarySearchDialog(query, onQuery) { searching = false; restoreControl++ }
+    if (managing) ManageCollections(repository) { managing = false; restoreControl++ }
+    LaunchedEffect(restoreControl) { if (restoreControl > 0) { grid.scrollToItem(0); withFrameNanos { }; searchFocus.requestFocus() } }
     LaunchedEffect(requestInitialFocus) {
         if (requestInitialFocus) {
             grid.scrollToItem(0)
@@ -59,14 +72,21 @@ import kotlinx.coroutines.launch
                 headerFocus.requestFocus()
             } })
     }
-    val visible = if (history) recent else comics
+    val visible = (if (history) recent else comics).filter { it.id in matching }
     // Capture the entry target once: database emissions must not take focus from navigation.
     val entryId = remember { focusedId }
     var restored by remember { mutableStateOf(false) }
-    LaunchedEffect(comics, history) {
+    LaunchedEffect(comics, history, query, filter, memberships) {
         if (restored || entryId == null) return@LaunchedEffect
+        if (comics.isEmpty()) return@LaunchedEffect
         val index = visible.indexOfFirst { it.id == entryId }
-        if (index < 0) return@LaunchedEffect
+        if (index < 0) {
+            grid.scrollToItem(0)
+            withFrameNanos { }
+            headerFocus.requestFocus()
+            restored = true
+            return@LaunchedEffect
+        }
         target = entryId
         positioned = null
         val headerItems = if (!history && recent.isNotEmpty()) 4 else 2
@@ -89,9 +109,11 @@ import kotlinx.coroutines.launch
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ComicWordmark(Modifier.width(180.dp).heightIn(min = 38.dp))
                     Spacer(Modifier.weight(1f))
+                    LibraryTab("Buscar", searching || query.isNotBlank(), { searching = true }, Modifier.focusRequester(searchFocus))
                     LibraryTab("Biblioteca · " + comics.size, !history, { history = false }, Modifier.focusRequester(headerFocus))
                     LibraryTab("Histórico · " + recent.size, history, { history = true })
                 }
+                LibraryFilters(collections, filter, onFilter) { managing = true }
                 if (!history) LibraryHero(featured, repository,
                     onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport)
             }
@@ -126,18 +148,25 @@ import kotlinx.coroutines.launch
             }
         }
         item(key = "collection-heading", span = { GridItemSpan(maxLineSpan) }) {
-            Text(if (history) "Todas as leituras · mais recentes primeiro" else "Sua coleção", fontSize = 19.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val label = when { filter == "favorites" -> "Favoritos"; filter.startsWith("collection:") -> collections.firstOrNull { "collection:" + it.id == filter }?.name ?: "Coleção"; else -> if (history) "Histórico" else "Sua coleção" }
+                Text(label + " · " + visible.size + (if (query.isNotBlank()) " · Busca: “${query.trim()}”" else ""), fontSize = 19.sp)
+                if (query.isNotBlank()) TvButton("Limpar busca", { onQuery("") })
+            }
         }
         if (visible.isEmpty()) {
             item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(if (history) "Nenhuma leitura no histórico" else "Sua coleção começa aqui", fontSize = 24.sp)
+                    val filtered = query.isNotBlank() || filter != "all"
+                    Text(if (filtered) "Nenhum quadrinho encontrado" else if (history) "Nenhuma leitura no histórico" else "Sua coleção começa aqui", fontSize = 24.sp)
                     Text(
-                        if (history) "Abra uma edição para encontrá-la aqui, inclusive depois de terminar."
+                        if (filtered) "Tente outro título ou selecione Todas para mudar o filtro."
+                        else if (history) "Abra uma edição para encontrá-la aqui, inclusive depois de terminar."
                         else "Importe CBZ, ZIP, CBR, RAR, PDF ou EPUB para começar.",
                         color = TvColors.Muted, fontSize = 17.sp,
                     )
                     if (history) TvButton("Ver biblioteca", { history = false })
+                    if (filtered) TvButton("Mostrar todas", { onQuery(""); onFilter("all") })
 
                 }
             }
@@ -154,6 +183,8 @@ import kotlinx.coroutines.launch
             ) {
                 Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Panel)) {
                     AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    if (comic.favorite) Text("★", Modifier.align(Alignment.TopEnd).background(Color.Black.copy(alpha = .8f)).padding(6.dp)
+                        .semantics { contentDescription = "Favorito" }, color = TvColors.Amber, fontSize = 19.sp)
                     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.94f), Color.Black)))
                         .padding(start = 8.dp, end = 8.dp, top = 18.dp, bottom = 8.dp),

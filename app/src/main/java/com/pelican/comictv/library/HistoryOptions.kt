@@ -76,6 +76,7 @@ import kotlinx.coroutines.launch
             Text(comic.title, fontSize = 23.sp, maxLines = 3)
             TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", onRead, Modifier.focusRequester(first), primary = true)
             TvButton("Abrir detalhes", onOpen)
+            OrganizationActions(comic, repository)
             if (comic.lastRead > 0) TvButton(if (hidden) "Restaurar no histórico" else "Remover do histórico", {
                 if (!hidden) confirmRemoval = true
                 else if (!saving) scope.launch {

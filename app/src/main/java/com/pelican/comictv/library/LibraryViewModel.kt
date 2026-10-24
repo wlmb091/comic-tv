@@ -8,6 +8,10 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
 class LibraryViewModel(private val repository: LibraryRepository, private val saved: SavedStateHandle) : ViewModel() {
+    val browse = LibraryBrowseState(saved)
+    val collections = repository.observeCollections().onEach { browse.reconcile(it.map { row -> row.id }.toSet()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val memberships = repository.observeMemberships().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val comics = repository.observeComics().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _busy = MutableStateFlow(false)
     val busy = _busy.asStateFlow()

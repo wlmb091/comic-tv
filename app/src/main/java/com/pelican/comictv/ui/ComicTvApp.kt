@@ -58,6 +58,10 @@ import androidx.compose.ui.platform.LocalContext
     val comics by library.comics.collectAsStateWithLifecycle()
     val busy by library.busy.collectAsStateWithLifecycle()
     val message by library.message.collectAsStateWithLifecycle()
+    val collections by library.collections.collectAsStateWithLifecycle()
+    val memberships by library.memberships.collectAsStateWithLifecycle()
+    val libraryQuery by library.browse.query.collectAsStateWithLifecycle()
+    val libraryFilter by library.browse.filter.collectAsStateWithLifecycle()
 
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
@@ -66,7 +70,9 @@ import androidx.compose.ui.platform.LocalContext
                 LibraryScreen(comics, container.library, library.focusedId,
                     onFocus = { library.focusedId = it }, onOpen = { nav.navigate("details/$it") },
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
-                    requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false })
+                    requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
+                    query = libraryQuery, filter = libraryFilter, collections = collections, memberships = memberships,
+                    onQuery = library.browse::setQuery, onFilter = library.browse::setFilter)
             }
         }
         composable("import") {

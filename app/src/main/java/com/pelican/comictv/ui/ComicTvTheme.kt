@@ -41,9 +41,11 @@ object TvColors {
 @Composable fun TvButton(
     text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
     primary: Boolean = false,
+    enabled: Boolean = true,
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.heightIn(min = 48.dp),
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
         colors = ButtonDefaults.colors(
