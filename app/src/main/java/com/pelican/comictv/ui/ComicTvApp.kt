@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
     val nav = rememberNavController()
     var startupFocusPending by rememberSaveable { mutableStateOf(true) }
     var sidebarFocusTarget by rememberSaveable { mutableStateOf<String?>(null) }
+    var libraryCover by remember { mutableStateOf<File?>(null) }
     var editionPreview by remember { mutableStateOf<File?>(null) }
     val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
     val library: LibraryViewModel = viewModel(factory = viewModelFactory {
@@ -61,11 +62,12 @@ import androidx.compose.ui.platform.LocalContext
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
             TvShell("library", onNavigate = { startupFocusPending = false; sidebarFocusTarget = it; nav.navigate(it) { launchSingleTop = true } },
-                contentFocusPending = startupFocusPending, focusSectionOnEntry = sidebarFocusTarget == "library", onSectionFocused = { sidebarFocusTarget = null }) {
+                backgroundCover = libraryCover, contentFocusPending = startupFocusPending, focusSectionOnEntry = sidebarFocusTarget == "library", onSectionFocused = { sidebarFocusTarget = null }) {
                 LibraryScreen(comics, container.library, library.focusedId,
                     onFocus = { library.focusedId = it }, onOpen = { nav.navigate("details/$it") },
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
-                    requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false })
+                    requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
+                    onFeatured = { libraryCover = it })
             }
         }
         composable("import") {
@@ -154,7 +156,7 @@ import androidx.compose.ui.platform.LocalContext
 }
 
 @Composable internal fun TvShell(selected: String, onNavigate: (String) -> Unit,
-    focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false, content: @Composable () -> Unit) {
+    focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false, backgroundCover: File? = null, content: @Composable () -> Unit) {
     val sectionFocus = remember { FocusRequester() }
     LaunchedEffect(focusSectionOnEntry) {
         if (focusSectionOnEntry) { sectionFocus.requestFocus(); onSectionFocused() }
@@ -163,17 +165,20 @@ import androidx.compose.ui.platform.LocalContext
     val icons = listOf(R.drawable.nav_library, R.drawable.nav_recent, R.drawable.nav_sources, R.drawable.nav_extensions, R.drawable.nav_import, R.drawable.nav_settings)
     var focusWithin by remember { mutableStateOf(false) }
     val expanded = focusWithin
-    Box(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 20.dp, vertical = 16.dp)) {
+    Box(Modifier.fillMaxSize().background(TvColors.Background)) {
+        if (selected == "library") BrandedBackground(backgroundCover, Modifier.matchParentSize())
+    Box(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
         // The content keeps its full width while the drawer floats above its left edge.
         Box(Modifier.fillMaxSize().padding(start = 80.dp)) { content() }
-        Column(Modifier.width(if (expanded) 228.dp else 64.dp).fillMaxHeight()
+        Column(Modifier.width(if (expanded) 228.dp else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
             .background(TvColors.Panel, RoundedCornerShape(18.dp))
             .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(18.dp))
             .onFocusChanged { focusWithin = it.hasFocus }.focusGroup().padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.CenterStart) {
-                Text(if (expanded) "COMIC TV" else "TV", Modifier.padding(start = if (expanded) 8.dp else 9.dp),
-                    color = TvColors.Amber, fontSize = if (expanded) 22.sp else 24.sp, maxLines = 1)
+                if (expanded) ComicSignature(Modifier.fillMaxWidth().height(44.dp))
+                else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
+                    Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
             }
             routes.forEachIndexed { index, (route, title) ->
                 val active = route == selected
@@ -196,5 +201,6 @@ import androidx.compose.ui.platform.LocalContext
                 }
             }
         }
+    }
     }
 }

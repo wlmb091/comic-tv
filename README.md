@@ -2,8 +2,12 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.8.3
+## Versão 0.9.0
 
+- Design final registrado em docs/design/DESIGN.md e nas instruções AGENTS.md, com imagem aprovada preservada no projeto.
+- Identidade oficial: assinatura fornecida pelo usuário, símbolo vetorial para ícone e lateral e banner com a arte COMIC TV.
+- Biblioteca nativa com destaque da edição focada/última leitura, ações de continuar/detalhes, leituras recentes compactas e coleção em capas verticais.
+- Fundo oficial Comic TV quando a capa desfocada está desligada; opção de capa segue disponível na biblioteca e nos detalhes, com alto contraste preto.
 - Biblioteca local com capas e lista de leituras recentes.
 - Detalhes com título, informações e ações juntos à esquerda, capa ampliada no centro e resumo independente à direita, com a mesma altura da capa. O bloco de título não é selecionável.
 - Segure OK por 1 segundo sobre capas ou leituras recentes para abrir continuar/leitura, detalhes e remoção/restauração do histórico.
@@ -25,7 +29,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Progresso e preferências por edição em Room.
 - Tema escuro com foco âmbar, seguindo o conceito aprovado.
 - Ao iniciar, o foco fica no conteúdo da biblioteca e a lateral permanece recolhida.
-- Fundo opcional nos detalhes: cópia da capa preenchendo a tela, desfocada e escurecida. Ative em Configurações → Acessibilidade e aparência → Fundo dos detalhes. Em alto contraste, permanece preto.
+- Fundo opcional na biblioteca e nos detalhes: cópia da capa preenchendo a tela, desfocada e escurecida. Ative em Configurações → Acessibilidade e aparência → Fundo da biblioteca e detalhes. Em alto contraste, permanece preto.
 - Barra lateral flutuante: recolhida em ícones e expandida com nomes somente quando um ícone recebe foco; o catálogo mantém sua largura.
 - Biblioteca com cabeçalhos roláveis e histórico completo de todas as leituras registradas, sem limite de dois itens.
 - Catálogo e Novidades têm acessos próprios na lateral e usam a mesma fonte selecionada. Novidades vem da fonte (adicionados/atualizados), separado do histórico pessoal.

@@ -5,7 +5,7 @@
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <application android:name=".ComicTvApplication" android:label="@string/app_name" android:theme="@style/Theme.ComicTV"
-        android:icon="@drawable/ic_launcher" android:banner="@drawable/tv_banner"
+        android:icon="@drawable/ic_launcher" android:banner="@drawable/brand_wordmark"
         android:allowBackup="false" android:supportsRtl="true" android:usesCleartextTraffic="true">
         <provider android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.extensions" android:exported="false" android:grantUriPermissions="true">

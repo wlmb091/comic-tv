@@ -11,12 +11,12 @@ class LibraryFlowTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     @Test fun coldStartKeepsSidebarCompactUntilAnIconReceivesFocus() {
         compose.onNodeWithText("Biblioteca ·", substring = true).assertIsFocused()
-        compose.onNodeWithText("COMIC TV").assertDoesNotExist()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
         compose.onNodeWithText("Biblioteca ·", substring = true).performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithTag("nav-library").assertIsFocused()
-        compose.onNodeWithText("COMIC TV").assertIsDisplayed()
+        compose.onNodeWithTag("sidebar-expanded").assertIsDisplayed()
         compose.onNodeWithTag("nav-library").performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNodeWithText("COMIC TV").assertDoesNotExist()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
     }
 
     @Test fun emptyLibraryExplainsImport() {

@@ -29,12 +29,17 @@ import kotlinx.coroutines.launch
     onFocus: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
     onRead: (String) -> Unit = onOpen,
     requestInitialFocus: Boolean = false, onInitialFocus: () -> Unit = {},
+    onFeatured: (java.io.File?) -> Unit = {},
 ) {
     val grid = rememberLazyGridState()
     val restore = remember { FocusRequester() }
     var history by rememberSaveable { mutableStateOf(false) }
     var target by remember { mutableStateOf<String?>(null) }
     var positioned by remember { mutableStateOf<String?>(null) }
+    var featuredId by remember { mutableStateOf(focusedId) }
+    fun focusComic(id: String) { featuredId = id; onFocus(id) }
+    val featured = featuredComic(comics, featuredId)
+    LaunchedEffect(featured?.id) { onFeatured(featured?.let { repository.cover(it.id) }) }
     val recent = comics.filter { it.lastRead > 0 && !it.hiddenFromHistory }.sortedByDescending { it.lastRead }
     var optionsFor by remember { mutableStateOf<ComicEntity?>(null) }
     val menuScope = rememberCoroutineScope()
@@ -48,7 +53,7 @@ import kotlinx.coroutines.launch
         }
     }
     optionsFor?.let { selected ->
-        HistoryOptions(selected, repository, onRead = { optionsFor = null; onFocus(selected.id); onRead(selected.id) }, onOpen = { optionsFor = null; onFocus(selected.id); onOpen(selected.id) },
+        HistoryOptions(selected, repository, onRead = { optionsFor = null; focusComic(selected.id); onRead(selected.id) }, onOpen = { optionsFor = null; focusComic(selected.id); onOpen(selected.id) },
             onDismiss = { menuScope.launch {
                 grid.scrollToItem(0)
                 optionsFor = null
@@ -81,17 +86,21 @@ import kotlinx.coroutines.launch
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Sua biblioteca", fontSize = 26.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvButton("Biblioteca · ${comics.size}", { history = false }, Modifier.focusRequester(headerFocus), primary = !history)
-                    TvButton("Histórico · ${recent.size}", { history = true }, primary = history)
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ComicSignature(Modifier.width(180.dp).height(38.dp))
+                    Spacer(Modifier.weight(1f))
+                    LibraryTab("Biblioteca · " + comics.size, !history, { history = false }, Modifier.focusRequester(headerFocus))
+                    LibraryTab("Histórico · " + recent.size, history, { history = true })
                 }
+                if (!history) LibraryHero(featured, repository,
+                    onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport)
             }
         }
         if (!history && recent.isNotEmpty()) {
             item(key = "recent-heading", span = { GridItemSpan(maxLineSpan) }) {
-                Text("Continuar lendo · ${recent.size} no histórico →", fontSize = 19.sp)
+                Text("Continuar lendo", fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
             item(key = "recent-row", span = { GridItemSpan(maxLineSpan) }) {
                 LazyRow(
@@ -100,13 +109,13 @@ import kotlinx.coroutines.launch
                 ) {
                     items(recent, key = { it.id }) { comic ->
                         Card(
-                            onClick = { onFocus(comic.id); onOpen(comic.id) },
-                            modifier = libraryCardKeys({ onFocus(comic.id); onOpen(comic.id) }, { optionsFor = comic }).width(280.dp).onFocusChanged { if (it.isFocused) onFocus(comic.id) },
+                            onClick = { focusComic(comic.id); onOpen(comic.id) },
+                            modifier = libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsFor = comic }).width(280.dp).onFocusChanged { if (it.isFocused) focusComic(comic.id) },
                             border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
                             colors = CardDefaults.colors(containerColor = TvColors.Panel),
                         ) {
-                            Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                AsyncImage(repository.cover(comic.id), null, Modifier.width(40.dp).height(60.dp), contentScale = ContentScale.Fit)
+                            Row(Modifier.padding(6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                AsyncImage(repository.cover(comic.id), null, Modifier.width(38.dp).height(56.dp), contentScale = ContentScale.Fit)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(comic.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 16.sp)
                                     Text(readingStatus(comic), color = TvColors.Muted, fontSize = 13.sp)
@@ -131,7 +140,7 @@ import kotlinx.coroutines.launch
                         color = TvColors.Muted, fontSize = 17.sp,
                     )
                     if (history) TvButton("Ver biblioteca", { history = false })
-                    else TvButton("Importar quadrinhos", onImport, primary = true)
+
                 }
             }
         }
@@ -139,8 +148,8 @@ import kotlinx.coroutines.launch
             val restoreModifier = if (target == comic.id) Modifier.focusRequester(restore)
                 .onGloballyPositioned { positioned = comic.id } else Modifier
             Card(
-                onClick = { onFocus(comic.id); onOpen(comic.id) },
-                modifier = restoreModifier.then(libraryCardKeys({ onFocus(comic.id); onOpen(comic.id) }, { optionsFor = comic })).onFocusChanged { if (it.isFocused) onFocus(comic.id) },
+                onClick = { focusComic(comic.id); onOpen(comic.id) },
+                modifier = restoreModifier.then(libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsFor = comic })).onFocusChanged { if (it.isFocused) focusComic(comic.id) },
                 scale = CardDefaults.scale(focusedScale = 1.03f),
                 border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
                 colors = CardDefaults.colors(containerColor = TvColors.Panel),
@@ -167,3 +176,13 @@ private fun readingFraction(comic: ComicEntity): Float =
 private fun readingStatus(comic: ComicEntity): String =
     if (comic.pageCount > 0 && comic.currentPage >= comic.pageCount - 1) "Concluído"
     else "Página ${comic.currentPage + 1} de ${comic.pageCount}"
+
+@Composable private fun LibraryTab(label: String, active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(onClick, modifier.heightIn(min = 36.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        scale = ButtonDefaults.scale(focusedScale = 1f),
+        colors = ButtonDefaults.colors(containerColor = Color.Transparent,
+            contentColor = if (active) TvColors.Amber else TvColors.Muted,
+            focusedContainerColor = TvColors.Amber, focusedContentColor = TvColors.Ink)) {
+        Text(label, fontSize = 14.sp)
+    }
+}

@@ -67,7 +67,7 @@ import kotlinx.coroutines.CancellationException
         onDismiss = { confirmRemoval = false },
         onConfirm = { repository.setHistoryHidden(id, true); comic = repository.getComic(id) })
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
-        if (TvColors.options.coverBackground && !TvColors.options.highContrast) CoverBackdrop(repository.cover(id), Modifier.matchParentSize())
+        BrandedBackground(repository.cover(id), Modifier.matchParentSize())
     BoxWithConstraints(Modifier.fillMaxSize().padding(24.dp)) {
         // The cover sets the shared height; both side panels remain independently scrollable.
         val coverWidth = minOf(maxHeight * (2f / 3f), maxWidth * .36f)
