@@ -60,6 +60,42 @@ class ReaderViewModelTest {
         override suspend fun savePreferences(id: String, fit: Int, rtl: Boolean) = Unit
     }
 
+    @Test fun galleryLoadsNeighborsWithoutChangingProgressAndStopsWhenDisabled() = runTest(dispatcher) {
+        val repository = FakeRepository()
+        val saved = SavedStateHandle()
+        val vm = ReaderViewModel(repository, "gallery", saved, ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.toggleGallery()
+        advanceUntilIdle()
+        assertTrue(vm.gallery.value)
+        assertEquals(true, saved.get<Boolean>("gallery"))
+        assertEquals(listOf(0, 2), vm.previews.value.map { it.page })
+        assertEquals(1, vm.state.value.page)
+        assertEquals(listOf(1), repository.saved)
+        vm.action(ReaderAction.Right)
+        advanceUntilIdle()
+        assertEquals(listOf(1), vm.previews.value.map { it.page })
+        assertEquals(2, repository.saved.last())
+        vm.toggleGallery()
+        advanceUntilIdle()
+        assertFalse(vm.gallery.value)
+        assertTrue(vm.previews.value.isEmpty())
+    }
+
+    @Test fun restoredGalleryKeepsOnlyValidNeighborsAtFirstPage() = runTest(dispatcher) {
+        val vm = ReaderViewModel(FakeRepository(), "gallery", SavedStateHandle(mapOf("gallery" to true, "page" to 0)),
+            ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        assertTrue(vm.gallery.value)
+        assertEquals(listOf(1), vm.previews.value.map { it.page })
+        vm.action(ReaderAction.StartTimeline)
+        advanceUntilIdle()
+        assertEquals(listOf(0, 1, 2), vm.previews.value.map { it.page })
+        vm.action(ReaderAction.Back)
+        advanceUntilIdle()
+        assertEquals(listOf(1), vm.previews.value.map { it.page })
+    }
+
     @Test fun closingStopsPageWorkBeforeNavigatingToAnotherSourceOperation() = runTest(dispatcher) {
         val repository = FakeRepository().apply { pageDelay = 10_000 }
         val vm = ReaderViewModel(repository, "online", SavedStateHandle(), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })

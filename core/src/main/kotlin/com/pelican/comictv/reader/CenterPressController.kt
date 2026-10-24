@@ -1,6 +1,6 @@
 package com.pelican.comictv.reader
 
-/** Center gestures: tap < 1s; hold >= 2s. Releases between those thresholds do nothing. */
+/** Center gestures: tap < 1s; hold >= 1s. */
 class CenterPressController {
     private var startedAt: Long? = null
     private var held = false
@@ -15,7 +15,7 @@ class CenterPressController {
 
     fun hold(now: Long): ReaderAction? {
         val start = startedAt ?: return null
-        if (held || now - start < 2000) return null
+        if (held || now - start < 1000) return null
         held = true
         return ReaderAction.OpenTools
     }
@@ -28,7 +28,7 @@ class CenterPressController {
                 ReaderMode.Timeline -> ReaderAction.Select
                 ReaderMode.Tools -> null
             }
-        } else if (!held && now - start >= 2000) ReaderAction.OpenTools else null
+        } else if (!held && now - start >= 1000) ReaderAction.OpenTools else null
         cancel()
         return action
     }

@@ -38,6 +38,8 @@ class ReaderViewModel(
     val loading = _loading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
     val error = _error.asStateFlow()
+    private val _gallery = MutableStateFlow(saved.get<Boolean>("gallery") ?: false)
+    val gallery = _gallery.asStateFlow()
     private val _previews = MutableStateFlow<List<TimelinePreview>>(emptyList())
     val previews = _previews.asStateFlow()
     private var previewJob: Job? = null
@@ -88,6 +90,7 @@ class ReaderViewModel(
                     fit = FitMode.entries.getOrElse(comic.fit) { FitMode.Page }, rtl = comic.rtl)
                 initialized = true
                 loadPage()
+                updatePreviews()
                 writes.trySend(_state.value.page)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { _error.value = e.message ?: "Não foi possível abrir esta edição."; _loading.value = false }
@@ -104,7 +107,7 @@ class ReaderViewModel(
         val old = _state.value
         val next = old.reduce(action)
         _state.value = next
-        if (next.mode != ReaderMode.Timeline || next.timelinePage != old.timelinePage || next.mode != old.mode) updatePreviews()
+        if (next.page != old.page || next.timelinePage != old.timelinePage || next.mode != old.mode) updatePreviews()
         if (next.page != old.page) {
             saved["page"] = next.page
             writes.trySend(next.page)
@@ -115,6 +118,15 @@ class ReaderViewModel(
             catch (e: CancellationException) { throw e }
             catch (_: Exception) { _error.value = "Não foi possível salvar as opções desta edição." }
         }
+    }
+
+    fun toggleGallery() {
+        if (closing || exited) return
+        pauseAutomaticReading()
+        _gallery.value = !_gallery.value
+        saved["gallery"] = _gallery.value
+        _state.value = _state.value.copy(mode = ReaderMode.Reading, fit = FitMode.Page, zoom = 1f, panX = 0f, panY = 0f)
+        updatePreviews()
     }
 
     fun retry() {
@@ -167,18 +179,20 @@ class ReaderViewModel(
     private fun updatePreviews() {
         previewJob?.cancel()
         val generation = ++previewGeneration
-        val cursor = _state.value.timelinePage
-        if (_state.value.mode != ReaderMode.Timeline || cursor == null) { _previews.value = emptyList(); return }
-        val indices = (cursor - 2..cursor + 2).filter { it in pages.indices }
+        val timeline = _state.value.mode == ReaderMode.Timeline
+        val cursor = if (timeline) _state.value.timelinePage else if (_gallery.value) _state.value.page else null
+        if (cursor == null) { _previews.value = emptyList(); return }
+        val indices = if (timeline) (cursor - 2..cursor + 2).filter { it in pages.indices }
+            else listOf(cursor - 1, cursor + 1).filter { it in pages.indices && !pages[it].key.startsWith("epub:text:") }
         _previews.value = indices.map { TimelinePreview(it) }
         previewJob = viewModelScope.launch {
             delay(180)
             for (index in indices.sortedBy { kotlin.math.abs(it - cursor) }) {
-                val result = try { TimelinePreview(index, repository.thumbnail(comicId, pages[index]), loading = false) }
+                val result = try { TimelinePreview(index, if (timeline) repository.thumbnail(comicId, pages[index]) else repository.materialize(comicId, pages[index]), loading = false) }
                     catch (e: CancellationException) { throw e }
                     catch (_: Exception) { TimelinePreview(index, loading = false, failed = true) }
                 ensureActive()
-                if (generation != previewGeneration || _state.value.mode != ReaderMode.Timeline || _state.value.timelinePage != cursor) return@launch
+                if (generation != previewGeneration) return@launch
                 _previews.value = _previews.value.map { if (it.page == index) result else it }
             }
         }

@@ -27,7 +27,8 @@ import com.pelican.comictv.ui.*
 @Composable fun ReaderTools(state: ReaderState, hasError: Boolean, onAction: (ReaderAction) -> Unit,
     onRetry: () -> Unit, onExit: () -> Unit, modifier: Modifier = Modifier,
     automatic: AutomaticReading = AutomaticReading(), onStartAutomatic: () -> Unit = {}, onAutomaticInterval: () -> Unit = {},
-    onEditions: (() -> Unit)? = null, onPreviousChapter: (() -> Unit)? = null, onNextChapter: (() -> Unit)? = null) {
+    onEditions: (() -> Unit)? = null, onPreviousChapter: (() -> Unit)? = null, onNextChapter: (() -> Unit)? = null,
+    gallery: Boolean = false, onToggleGallery: () -> Unit = {}) {
     val first = remember { FocusRequester() }
     var settings by remember { mutableStateOf(false) }
     LaunchedEffect(settings) { if (!settings) first.requestFocus() }
@@ -47,7 +48,7 @@ import com.pelican.comictv.ui.*
                 TvButton("Iniciar leitura automática", onStartAutomatic)
                 TvButton("Intervalo: ${automatic.secondsPerScreen}s", onAutomaticInterval)
                 Text("Setas e OK pausam a leitura automática. Não continua em segundo plano.", color = TvColors.Muted, fontSize = 16.sp)
-                Text("↑ ↓ ajustam o zoom. Em Mover página, as quatro setas deslocam a imagem. OK alterna Mover e Zoom; segure OK por 2s para abrir o menu.", color = TvColors.Muted, fontSize = 16.sp)
+                Text("↑ ↓ ajustam o zoom. Em Mover página, as quatro setas deslocam a imagem. OK alterna Mover e Zoom; segure OK por 1s para abrir o menu.", color = TvColors.Muted, fontSize = 16.sp)
             }
         } else {
             Column(Modifier.align(Alignment.CenterEnd).fillMaxHeight().verticalScroll(rememberScrollState())
@@ -58,7 +59,7 @@ import com.pelican.comictv.ui.*
                 onPreviousChapter?.let { RailButton("Capítulo anterior", RailIcon.Previous, it) }
                 onNextChapter?.let { RailButton("Próximo capítulo", RailIcon.Next, it) }
                 onEditions?.let { RailButton("Capítulos / edições", RailIcon.Chapters, it) }
-                RailButton("Mover / zoom", RailIcon.Pan, { onAction(ReaderAction.StartPan) })
+                RailButton(if (gallery) "Galeria: ligada" else "Galeria: desligada", RailIcon.Gallery, onToggleGallery)
                 RailButton("Ajuste: " + when (state.fit) { FitMode.Page -> "Página"; FitMode.Width -> "Largura"; FitMode.Height -> "Altura" }, RailIcon.Fit, { onAction(ReaderAction.ToggleFit) })
                 RailButton("Mais opções", RailIcon.More, { settings = true })
                 if (hasError) RailButton("Tentar novamente", RailIcon.Retry, { onRetry(); onAction(ReaderAction.Back) })
@@ -68,7 +69,7 @@ import com.pelican.comictv.ui.*
     }
 }
 
-private enum class RailIcon { Play, Pages, Previous, Next, Chapters, Pan, Fit, More, Retry, Exit }
+private enum class RailIcon { Play, Pages, Gallery, Previous, Next, Chapters, Pan, Fit, More, Retry, Exit }
 
 @Composable private fun RailButton(label: String, icon: RailIcon, onClick: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
@@ -93,6 +94,7 @@ private enum class RailIcon { Play, Pages, Previous, Next, Chapters, Pan, Fit, M
         }
         when (icon) {
             RailIcon.Play -> path(8f,4f,19f,12f,8f,20f,8f,4f)
+            RailIcon.Gallery -> { path(8f,2f,16f,2f,16f,22f,8f,22f,8f,2f); path(1f,7f,5f,7f,5f,17f,1f,17f,1f,7f); path(19f,7f,23f,7f,23f,17f,19f,17f,19f,7f) }
             RailIcon.Pages -> { path(7f,3f,20f,3f,20f,18f,7f,18f,7f,3f); path(3f,7f,3f,22f,16f,22f) }
             RailIcon.Previous -> { line(4f,4f,4f,20f); path(18f,5f,9f,12f,18f,19f) }
             RailIcon.Next -> { line(20f,4f,20f,20f); path(6f,5f,15f,12f,6f,19f) }

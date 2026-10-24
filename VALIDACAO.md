@@ -1,27 +1,25 @@
-# Validação — Comic TV 0.7.8
+# Validação — Comic TV 0.7.9
 
-23/10/2026 · versionCode 17 · Android 8/API 26 ou superior.
+23/10/2026 · versionCode 18 · Android 8/API 26 ou superior.
 
 ## Alterações
 
-- Detalhes da biblioteca com título e capítulo separados, progresso, metadados e resumo real armazenado pela fonte. Ausência de resumo é informada sem inventar texto. Carregamento local, sem abrir novamente a extensão.
-- Ações de continuar e voltar ficam sempre compostas; painel de informações recebe foco e rola pelo D-pad. Detalhes da fonte separam informações e lista de capítulos em duas colunas.
-- Ferramentas do leitor em ícones na lateral direita, com rótulo ao focar: continuar, páginas, capítulo anterior/próximo, lista de capítulos, mover/zoom, ajuste, opções e sair. Falhas oferecem nova tentativa.
-- Miniaturas em faixa compacta de 220 dp, reservando espaço para a página acima. Indicador de página/zoom temporário substitui a ajuda inferior permanente.
-- Capítulos abrem em painel esquerdo e mantêm uma prévia estática da página atual; capa serve como alternativa quando a prévia não está disponível. Voltar retoma o progresso salvo.
-- Atalhos anterior/próximo respeitam a sequência da fonte e a preferência de inversão. Limites e capítulo ausente mostram uma mensagem sem escolher outro arbitrariamente.
-- Fechamento do leitor cancela e aguarda suas operações antes de consultar outra edição. Gestos de OK e leitor EPUB de texto preservados.
+- Galeria opcional nas ferramentas, substituindo o ícone de mover/zoom: página atual central maior e páginas anterior/próxima menores nas laterais, ajustadas inteiras por padrão.
+- Páginas laterais carregam sob demanda sem modificar progresso; primeira/última página têm o espaço vizinho ausente. RTL inverte os vizinhos visuais.
+- Prévia que falha não impede ler a página central. Abertura da linha do tempo continua usando miniaturas; ao fechar, voltam os vizinhos da Galeria.
+- Zoom e deslocamento pelo controle continuam disponíveis para a página central. Ativar/desativar Galeria retorna ao ajuste de página e zera zoom/deslocamento.
+- Estado da Galeria preservado no SavedStateHandle da leitura. EPUB de texto mantém seu leitor próprio.
+- Clique curto no OK (<1 segundo) alterna mover/zoom; segurar por 1 segundo abre as ferramentas uma única vez, sem ativar botão ao soltar.
 
 ## Verificação
 
-- 151 testes JVM passaram, sem falhas ou erros: 87 core, 10 mihon, 54 app.
-- Seis testes adicionados cobrem metadados/resumo e navegação entre capítulos, incluindo inversão, limites e capítulo ausente.
+- 153 testes JVM passaram, sem erros/falhas: 87 core, 10 mihon, 56 app.
+- Dois testes novos verificam vizinhos, limites, progresso, desativação, restauração e transição da linha do tempo; testes do clique central atualizados para o limiar de 1 segundo.
 - assembleDebug, assembleDebugAndroidTest e lintDebug passaram.
-- Assinatura APK verificada por apksigner; aapt2 confirma 0.7.8/code17/minSdk26.
-- Verificador de ABI do DEX passou para o método padrão executável de GeneratedSerializer.
-- Revisão identificou riscos de foco em botão fora da composição e rolagem do resumo; ambos corrigidos antes da compilação final.
-- SHA256: 9A5BD64B9DFB0E637DC805AD7904A7E1E695228B05D6939BEF11957C925E082E.
+- Assinatura APK validada com apksigner; aapt2 confirma 0.7.9/code18/minSdk26.
+- Verificador de ABI DEX passou para o método padrão executável de GeneratedSerializer.
+- SHA256: 98D7ABD869A1C1CC95FA7A5A3098B33383ACE85118EA30D1ADAC22F2558E78FE.
 
-## Limites e conferência na TV
+## Limites
 
-Sem aparelho ou emulador conectado nesta etapa. Conferir foco dos ícones, leitura de resumo longo, faixa de miniaturas e retomada após selecionar capítulos. A prévia no painel de capítulos é estática. Resumos antigos ausentes não são buscados automaticamente. As referências guiaram a organização; esta versão não adiciona marcadores, compartilhamento nem efeitos FlipPager/CurlPager.
+Sem aparelho ou emulador conectado. Conferir disposição visual, foco, Galeria em fontes online/PDF/arquivos e leitura automática na TV. Galeria pode baixar duas páginas vizinhas adicionais; elas não contam como lidas. O teste de build do APK de instrumentação não equivale à execução em dispositivo.

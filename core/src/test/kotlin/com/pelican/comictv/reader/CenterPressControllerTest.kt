@@ -8,14 +8,14 @@ class CenterPressControllerTest {
         for (duration in listOf(0L, 999L, 1000L, 1999L)) {
             val press = CenterPressController()
             assertTrue(press.down(10))
-            assertEquals(if (duration < 1000) ReaderAction.TogglePan else null, press.up(10 + duration, ReaderMode.Reading))
+            assertEquals(if (duration < 1000) ReaderAction.TogglePan else ReaderAction.OpenTools, press.up(10 + duration, ReaderMode.Reading))
         }
     }
-    @Test fun `hold fires once at two seconds and release never selects a tool`() {
+    @Test fun `hold fires once at one second and release never selects a tool`() {
         val press = CenterPressController()
         press.down(10)
-        assertNull(press.hold(2009))
-        assertEquals(ReaderAction.OpenTools, press.hold(2010))
+        assertNull(press.hold(1009))
+        assertEquals(ReaderAction.OpenTools, press.hold(1010))
         assertNull(press.hold(3000))
         assertFalse(press.down(3000))
         assertTrue(press.isPressed)
@@ -35,7 +35,7 @@ class CenterPressControllerTest {
         val press = CenterPressController()
         press.down(0)
         assertFalse(press.down(900))
-        assertNull(press.up(1100, ReaderMode.Reading))
+        assertEquals(ReaderAction.OpenTools, press.up(1100, ReaderMode.Reading))
         press.down(2000)
         press.cancel()
         assertNull(press.hold(4000))

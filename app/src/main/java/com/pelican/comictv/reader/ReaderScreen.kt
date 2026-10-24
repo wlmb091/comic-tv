@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val previews by viewModel.previews.collectAsStateWithLifecycle()
+    val gallery by viewModel.gallery.collectAsStateWithLifecycle()
     val automatic by viewModel.automatic.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, viewModel) {
@@ -89,7 +90,7 @@ import kotlinx.coroutines.launch
                 if (event.type == KeyEventType.KeyDown) {
                     if (event.nativeKeyEvent.repeatCount == 0 && centerPress.down(SystemClock.uptimeMillis())) {
                         holdJob = gestureScope.launch {
-                            delay(2000)
+                            delay(1000)
                             centerPress.hold(SystemClock.uptimeMillis())?.let(viewModel::action)
                         }
                     }
@@ -114,7 +115,9 @@ import kotlinx.coroutines.launch
                 }
             }
         }.onFocusChanged { if (!it.hasFocus) cancelCenter() }.focusRequester(focus).focusable()) {
-        image?.let { page ->
+        if (gallery) ReaderGallery(state, image, previews, Modifier.fillMaxSize().padding(bottom = timelineHeight),
+            onDisplayed = viewModel::imageDisplayed, onFailed = viewModel::imageDisplayFailed)
+        if (!gallery) image?.let { page ->
             val fittedScale = if (size.width > 0) min(size.width.toFloat() / page.width, pageAreaHeight.toFloat() / page.height) else 1f
             val fittedWidth = page.width * fittedScale
             val fittedHeight = page.height * fittedScale
@@ -147,7 +150,7 @@ import kotlinx.coroutines.launch
             Column(Modifier.align(Alignment.Center).widthIn(max = 540.dp).background(TvColors.Panel, RoundedCornerShape(12.dp)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Text(text, fontSize = 20.sp)
-                Text("Segure OK por 2s para abrir as ferramentas e tentar novamente.", color = TvColors.Muted, fontSize = 16.sp)
+                Text("Segure OK por 1s para abrir as ferramentas e tentar novamente.", color = TvColors.Muted, fontSize = 16.sp)
             }
         }
         if (state.mode == ReaderMode.Timeline) {
@@ -158,7 +161,8 @@ import kotlinx.coroutines.launch
                 Modifier.align(Alignment.CenterEnd), automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval,
                 onEditions = onEditions?.let { action -> { viewModel.close(action) } },
                 onPreviousChapter = onChapterStep?.let { action -> { viewModel.close { action(-1) } } },
-                onNextChapter = onChapterStep?.let { action -> { viewModel.close { action(1) } } })
+                onNextChapter = onChapterStep?.let { action -> { viewModel.close { action(1) } } },
+                gallery = gallery, onToggleGallery = viewModel::toggleGallery)
         }
     }
 }
