@@ -68,8 +68,8 @@ import java.io.File
     }
 }
 
-@Composable internal fun ComicWordmark(modifier: Modifier = Modifier) {
-    Box(modifier, contentAlignment = Alignment.CenterStart) {
+@Composable internal fun ComicWordmark(modifier: Modifier = Modifier, centered: Boolean = false) {
+    Box(modifier, contentAlignment = if (centered) Alignment.Center else Alignment.CenterStart) {
         Text(buildAnnotatedString {
             withStyle(SpanStyle(color = Color.White)) { append("COMIC ") }
             withStyle(SpanStyle(color = TvColors.Amber)) { append("TV") }

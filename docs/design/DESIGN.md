@@ -39,3 +39,5 @@ Cabeçalho da biblioteca: somente texto COMIC TV, usando Montserrat ExtraBold in
 0.9.3: o topo da barra lateral expandida usa o mesmo cabeçalho textual Montserrat ExtraBold da biblioteca, sem imagem retangular; COMIC branco e TV na cor do tema.
 
 Relacionados ficam abaixo da ficha, com capas e motivo explícito. Incluir biblioteca e amostra do catálogo da fonte; não inferir créditos pela sinopse. A API atual fornece principalmente escritor/desenhista; editora, personagens e direção dependem de metadados explícitos. Arquivos locais sem créditos mostram indisponibilidade. O símbolo recolhido acompanha o tema.
+
+0.9.4: Relacionados ficam ocultos, com consultas desativadas, por solicitação do usuário. Preservar código para revisão futura. A implementação existente compara metadados sem IA. Centralizar o wordmark no menu lateral expandido; manter alinhamento do cabeçalho da biblioteca.

@@ -11,3 +11,5 @@
 - Cabeçalho da biblioteca somente COMIC TV em Montserrat ExtraBold: COMIC branco e TV na cor do tema; sem símbolo nem retângulo de fundo.
 - Barra lateral expandida usa o mesmo ComicWordmark textual da biblioteca: COMIC branco e TV na cor do tema.
 - Símbolo da barra lateral recolhida acompanha a cor do tema ativo.
+- Relacionados ocultos e sem consultas por decisão do usuário; preservar implementação para futura retomada. A função atual compara metadados sem IA.
+- COMIC TV centralizado no topo da barra lateral expandida.

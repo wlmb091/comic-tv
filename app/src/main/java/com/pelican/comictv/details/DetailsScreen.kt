@@ -38,6 +38,7 @@ import kotlinx.coroutines.CancellationException
     loadOnlineInfo: suspend (String) -> OnlineEditionInfo? = { null },
     loadRelated: suspend (String) -> RelatedResult = { RelatedResult(emptyList(), "Relacionados indisponíveis.") },
     onRelated: (RelatedComic) -> Unit = {},
+    showRelated: Boolean = false,
 ) {
     var comic by remember(id) { mutableStateOf<ComicEntity?>(null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
@@ -51,7 +52,7 @@ import kotlinx.coroutines.CancellationException
     var relatedBusy by remember(id) { mutableStateOf(false) }
     var relatedJob by remember(id) { mutableStateOf<Job?>(null) }
     fun discoverRelated() {
-        if (relatedBusy || related != null) return
+        if (!showRelated || relatedBusy || related != null) return
         relatedBusy = true
         relatedJob = scrollScope.launch {
             try { related = loadRelated(id) }
@@ -151,7 +152,7 @@ import kotlinx.coroutines.CancellationException
                 }
                 TvButton("Voltar à biblioteca", onBack,
                     if (comic == null) Modifier.focusRequester(first) else Modifier)
-                TvButton("Relacionados ↓", { scrollScope.launch {
+                if (showRelated) TvButton("Relacionados ↓", { scrollScope.launch {
                     pageScroll.animateScrollToItem(1)
                     relatedFocus.requestFocus()
                 } })
@@ -184,6 +185,7 @@ import kotlinx.coroutines.CancellationException
             }
         }
         }
+        if (showRelated) {
         item(key = "related-heading") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Relacionados", fontSize = 26.sp)
@@ -197,6 +199,7 @@ import kotlinx.coroutines.CancellationException
             RelatedComicsRow(related?.comics.orEmpty(), repository) { selected ->
                 afterDiscoveryStopped { onRelated(selected) }
             }
+        }
         }
         }
     }

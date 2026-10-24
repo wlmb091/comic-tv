@@ -183,7 +183,7 @@ import androidx.compose.ui.platform.LocalContext
             .onFocusChanged { focusWithin = it.hasFocus }.focusGroup().padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.CenterStart) {
-                if (expanded) ComicWordmark(Modifier.fillMaxWidth().height(44.dp))
+                if (expanded) ComicWordmark(Modifier.fillMaxWidth().height(44.dp), centered = true)
                 else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
                     Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
             }
