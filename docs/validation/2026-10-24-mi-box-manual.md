@@ -1,6 +1,6 @@
 # Validação manual na Box do usuário — 24/10/2026
 
-Aplicativo testado: Comic TV 0.12.0. Aparelho identificado na tela Sobre como MiTV-AFKR0, Android TV 11. Resultados abaixo foram relatados pelo usuário nesta conversa, não observados por instrumentação/ADB.
+Aplicativos testados: Comic TV 0.12.0 e confirmação de restauração na 0.12.1. Aparelho identificado na tela Sobre como MiTV-AFKR0, Android TV 11. Resultados abaixo foram relatados pelo usuário nesta conversa, não observados por instrumentação/ADB.
 
 ## Condição do aparelho
 
@@ -22,6 +22,10 @@ O USB é usado como armazenamento expandido. Mantê-lo conectado e preservar a c
 
 O resultado da restauração ficava num item da LazyColumn de configurações, sujeito a ficar fora da área visível quando a sessão QR estava em foco. A atualização torna sucesso/erro um diálogo explícito, com botão Entendi focado. Sucesso só é exibido após retorno do repositório; erro não informa conclusão falsa. O texto inline continua disponível após fechar o diálogo.
 
-Testes Compose do diálogo foram preparados e compilados; não executados no aparelho. O próximo teste manual é repetir a restauração do mesmo arquivo na 0.12.1 e conferir a confirmação visível.
+Testes Compose do diálogo foram preparados e compilados; não executados no aparelho. Após a orientação para repetir a restauração na 0.12.1 e conferir a confirmação visível, o usuário respondeu “tudo certo, pode prosseguir com o proximo passo”. Etapa aceita conforme relato; sem observação direta ou captura das contagens.
 
-Ainda pendentes: foco em todos os temas/texto ampliado, coleções/favoritos em filtros ativos, pausa/retomada de download após reinício, remoção com progresso preservado, seleção SAF e simulação isolada de falhas/interrupção de restauração. Não executar falhas destrutivas nos dados reais nem declarar toda a rodada nativa concluída com base nestes relatos.
+## Rodadas seguintes relatadas pelo usuário
+
+Após o roteiro de favoritar, criar coleção Teste, adicionar edição, fechar/reabrir e remover favorito/coleção preservando edição/progresso, o usuário respondeu “tudo certo”. Após o roteiro de pausa ao sair, reabertura, retomada e remoção do download preservando edição/progresso, respondeu “tudo funcionando”. Fluxos aceitos conforme relato, sem observação direta ou instrumentação.
+
+Ainda pendentes: foco em todos os temas/texto ampliado, seleção SAF e simulação isolada de falhas/interrupção de restauração. O acabamento visual 0.12.2 requer conferência na Box. Não executar falhas destrutivas nos dados reais nem declarar toda a rodada nativa concluída com base nestes relatos.

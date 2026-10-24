@@ -18,7 +18,7 @@ import com.pelican.comictv.ui.*
 
 @Composable internal fun LibraryHero(comic: ComicEntity?, repository: LibraryRepository,
     onRead: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit) {
-    Box(Modifier.fillMaxWidth().heightIn(min = 184.dp)) {
+    Box(Modifier.fillMaxWidth().heightIn(min = 204.dp)) {
         Box(Modifier.matchParentSize()) {
         comic?.takeUnless { TvColors.options.highContrast }?.let {
             AsyncImage(repository.cover(it.id), null, Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(.56f),
@@ -28,8 +28,8 @@ import com.pelican.comictv.ui.*
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .8f)))))
         }
         }
-        Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(.68f).padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(.68f).padding(horizontal = 24.dp, vertical = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUE SUA HISTÓRIA" else "SUA PRÓXIMA HISTÓRIA",
                 color = TvColors.Amber, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text(comic?.title ?: "Seu universo de quadrinhos",
@@ -38,7 +38,12 @@ import com.pelican.comictv.ui.*
             if (comic != null) {
                 Text(if (comic.lastRead > 0) "Página " + (comic.currentPage + 1) + " de " + comic.pageCount
                     else comic.pageCount.toString() + " páginas para explorar", color = TvColors.Muted, fontSize = 15.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (comic.lastRead > 0 && comic.pageCount > 0) {
+                    ProgressTrack((comic.currentPage + 1f) / comic.pageCount,
+                        Modifier.widthIn(max = 240.dp).fillMaxWidth())
+                }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) })
                     TvButton("Ver detalhes", { onOpen(comic.id) })
                 }

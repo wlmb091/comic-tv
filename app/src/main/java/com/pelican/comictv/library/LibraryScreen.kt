@@ -105,12 +105,12 @@ import kotlinx.coroutines.launch
     LazyVerticalGrid(
         columns = GridCells.Adaptive(140.dp), state = grid,
         modifier = Modifier.fillMaxSize().focusRestorer(),
-        contentPadding = PaddingValues(8.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ComicWordmark(Modifier.width(180.dp).heightIn(min = 38.dp))
@@ -136,14 +136,16 @@ import kotlinx.coroutines.launch
                     items(recent, key = { it.id }) { comic ->
                         Card(
                             onClick = { focusComic(comic.id); onOpen(comic.id) },
-                            modifier = libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsFor = comic }).width(280.dp).onFocusChanged { if (it.isFocused) focusComic(comic.id) },
+                            modifier = libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsFor = comic }).width(288.dp).onFocusChanged { if (it.isFocused) focusComic(comic.id) },
                             border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
                             colors = CardDefaults.colors(containerColor = TvColors.Panel),
                         ) {
-                            Row(Modifier.padding(6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                AsyncImage(repository.cover(comic.id), null, Modifier.width(38.dp).height(56.dp), contentScale = ContentScale.Fit)
+                            Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                AsyncImage(repository.cover(comic.id), null, Modifier.width(44.dp).height(64.dp), contentScale = ContentScale.Fit)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(comic.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontSize = 16.sp)
+                                    Text(comic.title, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 16.sp,
+                                        lineHeight = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                                     Text(readingStatus(comic), color = TvColors.Muted, fontSize = 13.sp)
                                     ProgressTrack(readingFraction(comic), Modifier.fillMaxWidth())
                                 }
@@ -156,7 +158,8 @@ import kotlinx.coroutines.launch
         item(key = "collection-heading", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val label = when { filter == "favorites" -> "Favoritos"; filter.startsWith("collection:") -> collections.firstOrNull { "collection:" + it.id == filter }?.name ?: "Coleção"; else -> if (history) "Histórico" else "Sua coleção" }
-                Text(label + " · " + visible.size + (if (query.isNotBlank()) " · Busca: “${query.trim()}”" else ""), fontSize = 19.sp)
+                Text(label + " · " + visible.size + (if (query.isNotBlank()) " · Busca: “${query.trim()}”" else ""),
+                    fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 if (query.isNotBlank()) TvButton("Limpar busca", { onQuery("") })
             }
         }
