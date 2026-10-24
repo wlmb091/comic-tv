@@ -13,7 +13,8 @@ import kotlinx.coroutines.flow.*
 import java.io.File
 
 data class BackupUiState(val busy: Boolean = false, val file: File? = null, val preview: BackupDocument? = null,
-    val restoreAppearance: Boolean = true, val pending: Int = 0, val url: String? = null, val qr: Bitmap? = null, val message: String? = null)
+    val restoreAppearance: Boolean = true, val pending: Int = 0, val url: String? = null, val qr: Bitmap? = null, val message: String? = null,
+    val restoreFeedback: RestoreResult? = null, val restoreFailed: Boolean = false)
 
 class BackupViewModel(private val context: Context, private val repository: BackupRepository) : ViewModel() {
     private val _state = MutableStateFlow(BackupUiState())
@@ -24,13 +25,17 @@ class BackupViewModel(private val context: Context, private val repository: Back
     private var generation = 0
     init { viewModelScope.launch { _state.update { it.copy(pending = repository.pendingCount()) } } }
     fun notice(message: String) { _state.update { it.copy(message = message) } }
-    private fun run(block: suspend () -> Unit) {
+    private fun run(isRestore: Boolean = false, block: suspend () -> Unit) {
         if (_state.value.busy) return
-        _state.update { it.copy(busy = true, message = null) }
+        _state.update { it.copy(busy = true, message = null,
+            restoreFeedback = if (isRestore) null else it.restoreFeedback,restoreFailed = if (isRestore) false else it.restoreFailed) }
         viewModelScope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { notice("Não foi possível concluir. Confira o arquivo, o espaço e tente novamente.") }
+            catch (_: Exception) {
+                if (isRestore) _state.update {it.copy(restoreFailed = true)}
+                notice("Não foi possível concluir. Confira o arquivo, o espaço e tente novamente.")
+            }
             finally { _state.update { it.copy(busy = false) } }
         }
     }
@@ -55,10 +60,11 @@ class BackupViewModel(private val context: Context, private val repository: Back
     }
     fun dismissPreview() { if (!_state.value.busy) _state.update { it.copy(preview = null) } }
     fun toggleAppearance() { _state.update { it.copy(restoreAppearance = !it.restoreAppearance) } }
-    fun restore() = run {
+    fun dismissRestoreFeedback() {if (!_state.value.busy) _state.update {it.copy(restoreFeedback = null,restoreFailed = false)}}
+    fun restore() = run(isRestore = true) {
         val document = checkNotNull(_state.value.preview)
         val result = repository.restore(document, _state.value.restoreAppearance)
-        _state.update { it.copy(preview = null, pending = result.pending,
+        _state.update { it.copy(preview = null, pending = result.pending,restoreFeedback = result,
             message = "Restaurado: ${result.added} adicionados, ${result.updated} mesclados. ${result.pending} locais aguardam reimportação do original.") }
     }
     fun startSession() = run {
@@ -69,7 +75,7 @@ class BackupViewModel(private val context: Context, private val repository: Back
         val instance = BackupTransferServer(host, File(context.cacheDir,"backup-transfers"), { _state.value.file }, { file ->
             runBlocking { withContext(job) {
                 val preview = repository.preview(file); ensureActive()
-                check(generation == expected && !_state.value.busy && _state.value.preview == null) { "TV ocupada" }
+                check(generation == expected && !_state.value.busy && _state.value.preview == null && _state.value.restoreFeedback == null && !_state.value.restoreFailed) { "TV ocupada" }
                 _state.update { it.copy(preview = preview, message = "Backup recebido. Confira a prévia antes de confirmar.") }
             } }
         })

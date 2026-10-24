@@ -62,4 +62,6 @@ import com.pelican.comictv.ui.*
         }
         LaunchedEffect(document) { first.requestFocus() }
     }
+    if (state.restoreFeedback != null || state.restoreFailed)
+        RestoreFeedbackDialog(state.restoreFeedback,state.restoreFailed,viewModel::dismissRestoreFeedback)
 }

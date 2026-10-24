@@ -2,7 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.12.0
+## Versão 0.12.1
+
+- Resultado da restauração em diálogo visível com contagens e botão Entendi focado; falhas também recebem aviso explícito. Corrige mensagem que podia ficar fora da tela na sessão QR.
+- Validação manual do usuário confirmou exportação/prévia de backup e abertura offline após limpar os dois caches. A nova confirmação ainda precisa de conferência na Box; detalhes em docs/validation/2026-10-24-mi-box-manual.md.
 
 - Configurações → Backup e restauração: arquivo de dados versionado com progresso, histórico, favoritos, coleções e preferências, por seletor Android ou sessão temporária de rede local com QR. Originais e páginas baixadas ficam separados.
 - Restauração com prévia/confirmação, mesclagem por data sem excluir a biblioteca e recuperação após interrupção. Originais locais ausentes aguardam reimportação pelo mesmo SHA-256; confiança de fontes e extensões não é restaurada automaticamente.

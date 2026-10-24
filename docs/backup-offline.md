@@ -14,6 +14,8 @@ Use **Escolher backup para restaurar**, ou envie o arquivo pelo navegador da ses
 
 A restauração mescla com a biblioteca atual: conserva o progresso de leitura mais recente, une favoritos e vínculos, reutiliza coleções por ID/nome normalizado e não exclui edições por ausência no arquivo. Empates conservam o estado atual. A aparência pode ser desmarcada na prévia. A mesclagem tem verificação de limites antes de gravar e registro recuperável para concluir uma aplicação interrompida no próximo início.
 
+Desde 0.12.1, ao terminar é exibido um diálogo com as contagens e o botão **Entendi**. Falhas mostram **Restauração não concluída**, permitindo reconhecer o erro e tentar novamente; a confirmação não depende de rolar a tela até uma mensagem.
+
 Originais locais já presentes são conferidos por SHA-256. Se faltarem, os metadados ficam pendentes, sem uma capa quebrada oferecendo leitura impossível. Reimporte **o mesmo arquivo original** para recuperar identidade/progresso/coleções; renomear o arquivo não altera sua impressão digital, mas recompactar/editar os bytes pode alterá-la. A contagem de pendências aparece nas Configurações e continua incluída em novos backups.
 
 Edições online restauradas precisam da fonte/extensão configurada e confiável no aparelho para voltar a buscar páginas. O backup não concede confiança automaticamente. Restaurar os metadados em outra TV não recria os arquivos baixados nem anuncia disponibilidade offline sem eles.
