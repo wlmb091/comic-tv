@@ -134,7 +134,7 @@ import androidx.compose.ui.platform.LocalContext
         composable("reader/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             val reader: ReaderViewModel = viewModel(factory = viewModelFactory {
-                initializer { ReaderViewModel(if (id.startsWith("online-")) container.online else container.library, id, createSavedStateHandle()) }
+                initializer { ReaderViewModel(if (id.startsWith("online-")) container.online else container.library, id, createSavedStateHandle(), thumbnailWarm = container::warmReaderThumbnail, imagePreferences = container.readerImages) }
             })
             ReaderScreen(reader, onExit = { if (id.startsWith("online-")) nav.popBackStack() else nav.popBackStack("library", false) },
                 onEditions = if (id.startsWith("online-")) ({

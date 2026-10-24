@@ -5,6 +5,7 @@ import com.pelican.comictv.model.PageRef
 import java.io.File
 
 interface ReaderRepository : ComicPageProvider {
+    suspend fun prefetch(comicId: String, page: PageRef): File = materialize(comicId, page)
     suspend fun thumbnail(comicId: String, page: PageRef): File
     suspend fun getComic(id: String): ComicEntity
     suspend fun saveProgress(id: String, page: Int)

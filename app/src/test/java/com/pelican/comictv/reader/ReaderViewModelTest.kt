@@ -25,10 +25,12 @@ class ReaderViewModelTest {
         var failIndex = false
         var textFile: File? = null
         val thumbnailCalls = mutableListOf<Int>()
+        val materialized = mutableListOf<Int>()
         var thumbnailDelay = 0L
         var thumbnailFailure = false
         var ignoreThumbnailCancellation = false
         var pageDelay = 0L
+        var ignorePageCancellation = false
         var activeMaterializations = 0
         var pageFailure = false
         var failingPage: Int? = null
@@ -49,9 +51,10 @@ class ReaderViewModelTest {
             return (0 until count).map { PageRef(it, if (textFile != null) "epub:text:$it" else "$it.jpg") }
         }
         override suspend fun materialize(comicId: String, page: PageRef): File {
+            materialized += page.index
             activeMaterializations++
             try {
-                delay(pageDelay)
+                if (ignorePageCancellation) withContext(NonCancellable) { delay(pageDelay) } else delay(pageDelay)
                 if (pageFailure || failingPage == page.index) throw java.io.IOException("Page unavailable")
                 delay(if (page.index == 1) 100 else 1)
                 return textFile ?: File("page-${page.index}")
@@ -59,6 +62,75 @@ class ReaderViewModelTest {
         }
         override suspend fun saveProgress(id: String, page: Int) { delay(saveDelay); saved += page }
         override suspend fun savePreferences(id: String, fit: Int, rtl: Boolean) = Unit
+    }
+
+    @Test fun filtersPersistPerEditionAndComparisonDoesNotOverwriteChoice() = runTest(dispatcher) {
+        val values = mutableMapOf<String, ReaderImageOptions>()
+        val store = object : ReaderImageStore {
+            override fun read(id: String) = values[id] ?: ReaderImageOptions()
+            override suspend fun save(id: String, options: ReaderImageOptions) { values[id] = options }
+        }
+        val vm = ReaderViewModel(FakeRepository(), "filters", SavedStateHandle(), ioDispatcher = dispatcher,
+            imagePreferences = store, pageDimensions = { 100 to 200 })
+        advanceUntilIdle(); vm.cycleImagePreset(); vm.cycleImageIntensity(); vm.toggleOriginalComparison(); advanceUntilIdle()
+        assertEquals(ReaderImageOptions(ImagePreset.Ink, 2), values["filters"])
+        assertTrue(vm.compareOriginal.value)
+        assertEquals(ReaderImageOptions(), store.read("another-comic"))
+        val restored = ReaderViewModel(FakeRepository(), "filters", SavedStateHandle(), ioDispatcher = dispatcher,
+            imagePreferences = store, pageDimensions = { 100 to 200 })
+        assertEquals(vm.imageOptions.value, restored.imageOptions.value)
+        assertFalse(restored.compareOriginal.value)
+    }
+    @Test fun exitWaitsForCancelledOlderPrefetchAndLoads() = runTest(dispatcher) {
+        val repo = FakeRepository().apply { count = 8 }
+        val vm = ReaderViewModel(repo, "wait", SavedStateHandle(), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        repo.pageDelay = 1000; repo.ignorePageCancellation = true
+        vm.imageDisplayed(vm.image.value!!.file)
+        advanceTimeBy(150); runCurrent()
+        vm.action(ReaderAction.Right); runCurrent()
+        vm.action(ReaderAction.Right); runCurrent()
+        var left = false
+        vm.close { left = true }; runCurrent()
+        assertFalse(left)
+        advanceTimeBy(999); runCurrent(); assertFalse(left)
+        advanceUntilIdle()
+        assertTrue(left)
+        assertEquals(0, repo.activeMaterializations)
+    }
+
+    @Test fun displayedPageWarmsNextTwoAndTimelineBeforeOpening() = runTest(dispatcher) {
+        val repo = FakeRepository().apply { count = 8 }
+        val vm = ReaderViewModel(repo, "warm", SavedStateHandle(mapOf("page" to 0)), ioDispatcher = dispatcher, previewFileValid = { true }, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.imageDisplayed(vm.image.value!!.file)
+        advanceUntilIdle()
+        assertTrue("next two pages should already be materialized", repo.materialized.containsAll(listOf(1, 2)))
+        assertTrue(repo.thumbnailCalls.containsAll(listOf(0, 1, 2, 3, 4)))
+        val saved = repo.saved.toList()
+        vm.action(ReaderAction.StartTimeline)
+        assertTrue("warm previews must be published without waiting", vm.previews.value.all { it.file != null && !it.loading })
+        assertEquals(saved, repo.saved)
+    }
+
+    @Test fun leavingTimelineResumesInterruptedAnticipationOnTheSamePage() = runTest(dispatcher) {
+        for (confirm in listOf(true, false)) {
+            val repo = FakeRepository().apply { count = 8 }
+            val vm = ReaderViewModel(repo, "resume-$confirm", SavedStateHandle(mapOf("page" to 0)),
+                ioDispatcher = dispatcher, previewFileValid = { true }, pageDimensions = { 100 to 200 })
+            advanceUntilIdle()
+            vm.imageDisplayed(vm.image.value!!.file)
+            advanceTimeBy(100)
+            vm.action(ReaderAction.StartTimeline)
+            advanceUntilIdle()
+            assertFalse(repo.materialized.contains(1))
+            vm.action(if (confirm) ReaderAction.Select else ReaderAction.Back)
+            if (!confirm) vm.action(ReaderAction.Back)
+            advanceUntilIdle()
+            assertEquals(0, vm.state.value.page)
+            assertTrue("leaving timeline must restart the next two pages", repo.materialized.containsAll(listOf(1, 2)))
+            assertEquals(2, vm.anticipated.value.size)
+        }
     }
 
     @Test fun layoutCyclesAndRestoresLegacyGallery() {
@@ -220,7 +292,7 @@ class ReaderViewModelTest {
         vm.action(ReaderAction.StartTimeline)
         advanceUntilIdle()
         assertEquals(listOf(48, 49, 50, 51, 52), vm.previews.value.map { it.page })
-        assertEquals(5, repository.thumbnailCalls.size)
+        assertEquals(7, repository.thumbnailCalls.size)
         assertEquals(50, repository.thumbnailCalls.first())
     }
 

@@ -1,0 +1,84 @@
+package com.pelican.comictv.reader
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Text
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ensureActive
+import java.io.File
+import kotlin.math.roundToInt
+
+internal fun tileIdentity(page: PageImage) = page.file.absolutePath + ":" + page.file.length() + ":" + page.width + "x" + page.height
+internal fun overviewRegion(page: PageImage): TileRegion {
+    var sample = 1
+    while (maxOf(page.width, page.height) / sample > 512) sample *= 2
+    return TileRegion(0, 0, page.width, page.height, sample)
+}
+
+/** Display coordinates change immediately; visible source pixels are decoded asynchronously. */
+@Composable internal fun HighResolutionPages(state: ReaderState, pages: List<PageImage?>,
+    cache: ReaderTileCache, options: ReaderImageOptions, modifier: Modifier = Modifier, gap: Float = 0f,
+    onDisplayed: (File) -> Unit, onFailed: (File) -> Unit) {
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val extents = pages.map { ImageExtent(it?.width ?: pages.filterNotNull().firstOrNull()?.width ?: 1,
+        it?.height ?: pages.filterNotNull().firstOrNull()?.height ?: 1) }
+    val placements = zoomPlacements(extents, size.width, size.height, state.zoom, state.fit, state.panX, state.panY, gap)
+    val stamps = remember(pages.map { it?.file }) { pages.map { it?.let(::tileIdentity) } }
+    val visible = placements.flatMapIndexed { index, placement -> pages[index]?.let { page ->
+        visibleTiles(placement, size.width, size.height).map { TileKey(page.file, stamps[index].orEmpty(), it, options) }
+    }.orEmpty() }
+    val overview = pages.mapIndexedNotNull { index, page -> page?.let { TileKey(it.file, stamps[index].orEmpty(), overviewRegion(it), options) } }
+    val requested = if (size.width == 0) emptyList() else (overview + visible).distinct()
+    var tiles by remember(stamps, options) { mutableStateOf<Map<TileKey, TileBitmap>>(emptyMap()) }
+    var failed by remember(stamps, options) { mutableStateOf(false) }
+    LaunchedEffect(requested) {
+        if (requested.isEmpty()) return@LaunchedEffect
+        val previous = tiles
+        tiles = requested.mapNotNull { key -> (previous[key] ?: cache.peek(key))?.let { key to it } }.toMap()
+        for (key in requested) {
+            ensureActive()
+            if (key in tiles) continue
+            try { val tile = cache.load(key); ensureActive(); tiles = tiles + (key to tile) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { failed = true; onFailed(key.file); return@LaunchedEffect }
+        }
+        pages.filterNotNull().forEach { onDisplayed(it.file) }
+        // Two neighboring image blocks are optional, never block readiness or reading progress.
+        val nearby = placements.flatMapIndexed { index, placement -> pages[index]?.let { page ->
+            visibleTiles(placement, size.width, size.height, 1).map { TileKey(page.file, stamps[index].orEmpty(), it, options) }
+        }.orEmpty() }.filter { it !in visible }.take(2)
+        for (key in nearby) {
+            try { cache.load(key) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+        }
+    }
+    Box(modifier.clipToBounds().onSizeChanged { size = it }, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize().semantics { contentDescription = "Página " + (state.page + 1) + ", zoom de alta resolução" }) {
+            fun paint(key: TileKey) {
+                val tile = tiles[key] ?: return
+                val index = pages.indexOfFirst { it?.file == key.file }
+                val placement = placements.getOrNull(index) ?: return
+                val scale = placement.width / placement.source.width
+                val r = tile.region
+                drawImage(tile.bitmap.asImageBitmap(), dstOffset = IntOffset((placement.left + r.left * scale).roundToInt(),
+                    (placement.top + r.top * scale).roundToInt()),
+                    dstSize = IntSize(((r.right-r.left) * scale).roundToInt().coerceAtLeast(1), ((r.bottom-r.top) * scale).roundToInt().coerceAtLeast(1)),
+                    filterQuality = FilterQuality.High)
+            }
+            overview.forEach(::paint)
+            visible.filterNot { it in overview }.forEach(::paint)
+        }
+        if (tiles.isEmpty() && !failed) Text("Preparando detalhes da imagem…", fontSize = 16.sp)
+    }
+}

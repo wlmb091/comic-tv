@@ -156,15 +156,16 @@ class OnlineReaderRepository(
 
     override suspend fun materialize(comicId: String, page: PageRef): File = image(comicId, page, false)
     override suspend fun thumbnail(comicId: String, page: PageRef): File = image(comicId, page, true)
+    override suspend fun prefetch(comicId: String, page: PageRef): File = image(comicId, page, false, foreground = false)
 
-    private suspend fun image(id: String, page: PageRef, thumbnail: Boolean): File = withContext(Dispatchers.IO) {
+    private suspend fun image(id: String, page: PageRef, thumbnail: Boolean, foreground: Boolean = true): File = withContext(Dispatchers.IO) {
         val record = mutex.withLock {
             val current = session(id)
             require(page.index in current.pages.indices && page.key == "online:${page.index}") { "Página online inválida." }
             current
         }
         trusted(record.pin)
-        val result = library.externalImage(id, page.index, thumbnail) { target ->
+        val result = library.externalImage(id, page.index, thumbnail, foreground) { target ->
             trusted(record.pin)
             extensionOperation { engine.download(record.source, record.pages[page.index], target) }
         }

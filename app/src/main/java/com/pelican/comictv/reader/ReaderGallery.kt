@@ -12,7 +12,7 @@ import coil3.compose.AsyncImage
 import java.io.File
 
 @Composable internal fun ReaderGallery(state: ReaderState, image: PageImage?, previews: List<TimelinePreview>,
-    modifier: Modifier = Modifier, onDisplayed: (File) -> Unit, onFailed: (File) -> Unit) {
+    cache: ReaderTileCache, options: ReaderImageOptions, modifier: Modifier = Modifier, onDisplayed: (File) -> Unit, onFailed: (File) -> Unit) {
     Row(modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(24.dp)) {
         val left = if (state.rtl) state.page + 1 else state.page - 1
@@ -28,23 +28,9 @@ import java.io.File
             }
         }
         Neighbor(left, Modifier.weight(.26f))
-        BoxWithConstraints(Modifier.weight(.48f).fillMaxHeight().clipToBounds(), contentAlignment = Alignment.Center) {
-            image?.let { page ->
-                val fitted = minOf(constraints.maxWidth.toFloat() / page.width, constraints.maxHeight.toFloat() / page.height)
-                val adjustment = when (state.fit) {
-                    FitMode.Page -> 1f
-                    FitMode.Width -> constraints.maxWidth / (page.width * fitted)
-                    FitMode.Height -> constraints.maxHeight / (page.height * fitted)
-                }
-                val scale = state.zoom * adjustment
-                val maxX = ((page.width * fitted * scale - constraints.maxWidth) / 2).coerceAtLeast(0f)
-                val maxY = ((page.height * fitted * scale - constraints.maxHeight) / 2).coerceAtLeast(0f)
-                AsyncImage(page.file, "Página " + (state.page + 1), Modifier.fillMaxSize().graphicsLayer {
-                    scaleX = scale; scaleY = scale
-                    translationX = -state.panX * maxX; translationY = -state.panY * maxY
-                }, contentScale = ContentScale.Fit,
-                    onSuccess = { onDisplayed(page.file) }, onError = { onFailed(page.file) })
-            }
+        Box(Modifier.weight(.48f).fillMaxHeight().clipToBounds(), contentAlignment = Alignment.Center) {
+            image?.let { page -> HighResolutionPages(state, listOf(page), cache, options,
+                Modifier.fillMaxSize(), onDisplayed = onDisplayed, onFailed = onFailed) }
         }
         Neighbor(right, Modifier.weight(.26f))
     }

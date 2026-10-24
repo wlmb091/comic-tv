@@ -47,7 +47,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     }
 
     /** Remote and local pages share quotas, serialization and the visible-page protection. */
-    internal suspend fun externalImage(id: String, index: Int, thumbnail: Boolean,
+    internal suspend fun externalImage(id: String, index: Int, thumbnail: Boolean, foreground: Boolean = true,
         fetch: suspend (File) -> Unit): File = withContext(Dispatchers.IO) {
         require(id.matches(Regex("online-[a-f0-9]{64}")) && index in 0 until 5000)
         mutex.withLock {
@@ -55,10 +55,14 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
             val directory = if (thumbnail) thumbnailDirectory else pageDirectory
             val selectedCache = if (thumbnail) thumbnailCache else cache
             val name = "$id-$index"
-            val source = File(directory, "$name.remote.part")
+            val temporarySource = File(directory, "$name.remote.part")
+            val cachedFull = File(pageDirectory, name)
+            val source = if (thumbnail && cachedFull.isFile) cachedFull else temporarySource
             val target = File(directory, name)
             try {
-                if (!target.isFile) fetch(source)
+                if (!target.isFile) {
+                    if (source === temporarySource) fetch(source)
+                }
                 currentCoroutineContext().ensureActive()
                 val result = runInterruptible {
                     selectedCache.materialize(name, if (thumbnail) emptySet() else setOfNotNull(protectedPage),
@@ -74,12 +78,16 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
                             } else if (!source.renameTo(destination)) throw IOException("Não foi possível salvar a página.")
                         }, validate = { validateDimensions(it) })
                 }
-                if (!thumbnail) {
+                if (thumbnail && source.isFile) {
+                    try { cache.materialize(name, setOfNotNull(protectedPage),
+                        write = { source.copyTo(it, overwrite = true) }, validate = { validateDimensions(it) }) } catch (_: IOException) { }
+                }
+                if (!thumbnail && foreground) {
                     protectedPage = result.name
                     cache.trim(setOf(result.name))
                 }
                 result
-            } finally { source.delete(); File(source.path + ".part").delete() }
+            } finally { temporarySource.delete(); File(temporarySource.path + ".part").delete() }
         }
     }
 
@@ -150,6 +158,17 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
         }
     }
 
+    override suspend fun prefetch(comicId: String, page: PageRef): File = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            initialize()
+            runInterruptible {
+                cache.materialize("$comicId-" + page.index, setOfNotNull(protectedPage),
+                    write = { archive.extract(store.original(comicId), page, it) },
+                    validate = { if (!page.key.startsWith("epub:text:")) validateDimensions(it) })
+            }
+        }
+    }
+
     override suspend fun thumbnail(comicId: String, page: PageRef): File = withContext(Dispatchers.IO) {
         mutex.withLock {
             initialize()
@@ -159,12 +178,15 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
                     val source = File(thumbnailDirectory, "$comicId-${page.index}.source")
                     val temporary = File(target.parentFile, target.name + ".part")
                     try {
-                        archive.extract(original, page, source)
+                        val full = File(pageDirectory, "$comicId-" + page.index)
+                        val imageSource = if (full.isFile) full else source.also { archive.extract(original, page, it) }
                         if (Thread.currentThread().isInterrupted) throw IOException("Prévia cancelada.")
-                        if (page.key.startsWith("epub:text:")) generateTextCover(source.readText(Charsets.UTF_8).take(200), temporary, 240, 360)
-                        else thumbnailGenerator.generate(source, temporary)
+                        if (page.key.startsWith("epub:text:")) generateTextCover(imageSource.readText(Charsets.UTF_8).take(200), temporary, 240, 360)
+                        else thumbnailGenerator.generate(imageSource, temporary)
                         if (Thread.currentThread().isInterrupted) throw IOException("Prévia cancelada.")
                         if (!temporary.renameTo(target)) throw IOException("Não foi possível salvar a miniatura.")
+                        try { cache.materialize("$comicId-" + page.index, setOfNotNull(protectedPage),
+                            write = { imageSource.copyTo(it, overwrite = true) }, validate = { if (!page.key.startsWith("epub:text:")) validateDimensions(it) }) } catch (_: IOException) { }
                     } finally { source.delete(); File(source.path + ".part").delete(); temporary.delete() }
                 }, validate = { validateDimensions(it) })
             }

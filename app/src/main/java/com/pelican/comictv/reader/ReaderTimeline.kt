@@ -54,7 +54,7 @@ import com.pelican.comictv.ui.TvColors
                         .padding(4.dp), contentAlignment = Alignment.Center) {
                         if (preview.file != null && !decodeFailed) {
                             val context = LocalContext.current
-                            val request = remember(preview.file) { ImageRequest.Builder(context).data(preview.file).size(240, 360).build() }
+                            val request = remember(preview.file) { readerThumbnailRequest(context, preview.file) }
                             AsyncImage(request, "$label ${preview.page + 1}${if (active) ", selecionada" else ""}",
                                 Modifier.fillMaxSize(), contentScale = ContentScale.Fit, onError = { decodeFailed = true })
                         } else Text(if (preview.loading) "Carregando…" else "Sem prévia", fontSize = 12.sp, color = TvColors.Muted)

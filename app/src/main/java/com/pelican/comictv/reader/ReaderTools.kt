@@ -28,7 +28,9 @@ import com.pelican.comictv.ui.*
     onRetry: () -> Unit, onExit: () -> Unit, modifier: Modifier = Modifier,
     automatic: AutomaticReading = AutomaticReading(), onStartAutomatic: () -> Unit = {}, onAutomaticInterval: () -> Unit = {},
     onEditions: (() -> Unit)? = null, onPreviousChapter: (() -> Unit)? = null, onNextChapter: (() -> Unit)? = null,
-    layout: ReaderLayout = ReaderLayout.Normal, onCycleLayout: () -> Unit = {}) {
+    layout: ReaderLayout = ReaderLayout.Normal, onCycleLayout: () -> Unit = {},
+    imageOptions: ReaderImageOptions = ReaderImageOptions(), compareOriginal: Boolean = false,
+    onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}) {
     val first = remember { FocusRequester() }
     var settings by remember { mutableStateOf(false) }
     LaunchedEffect(settings) { if (!settings) first.requestFocus() }
@@ -44,6 +46,13 @@ import com.pelican.comictv.ui.*
                 TvButton("Voltar ao menu", { settings = false }, Modifier.focusRequester(settingsFocus))
                 Text("Página ${state.page + 1} · ${(state.zoom * 100).toInt()}%", color = TvColors.Muted, fontSize = 16.sp)
                 TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) })
+                Text("Imagem", fontSize = 20.sp)
+                TvButton("Filtro: " + imageOptions.preset.label, onCycleImagePreset)
+                if (imageOptions.preset != ImagePreset.Original) {
+                    TvButton("Intensidade: " + listOf("Suave", "Média", "Forte")[imageOptions.intensity.coerceIn(0, 2)], onCycleImageIntensity)
+                    TvButton(if (compareOriginal) "Voltar ao filtro" else "Comparar com original", onCompareOriginal)
+                }
+                Text("Filtro salvo nesta edição. O arquivo original é preservado.", color = TvColors.Muted, fontSize = 16.sp)
                 Text("Leitura automática", fontSize = 20.sp)
                 TvButton("Iniciar leitura automática", onStartAutomatic)
                 TvButton("Intervalo: ${automatic.secondsPerScreen}s", onAutomaticInterval)
@@ -61,7 +70,7 @@ import com.pelican.comictv.ui.*
                 onEditions?.let { RailButton("Capítulos / edições", RailIcon.Chapters, it) }
                 RailButton("Visualização: " + layout.label, if (layout == ReaderLayout.Book) RailIcon.Book else RailIcon.Gallery, onCycleLayout)
                 RailButton("Ajuste: " + when (state.fit) { FitMode.Page -> "Página"; FitMode.Width -> "Largura"; FitMode.Height -> "Altura" }, RailIcon.Fit, { onAction(ReaderAction.ToggleFit) })
-                RailButton("Mais opções", RailIcon.More, { settings = true })
+                RailButton("Imagem e mais opções", RailIcon.More, { settings = true })
                 if (hasError) RailButton("Tentar novamente", RailIcon.Retry, { onRetry(); onAction(ReaderAction.Back) })
                 RailButton("Sair da leitura", RailIcon.Exit, onExit)
             }

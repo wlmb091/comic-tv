@@ -2,12 +2,17 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.9.5
+## Versão 0.10.0
+
+- Zoom nos modos Normal, Galeria e Livro decodifica recortes do arquivo original, com blocos em cache e trabalho fora da interface.
+- Filtros Original, Texto e traços e HQ antiga, com intensidade suave/média/forte e comparação com o original. Escolha salva por edição, sem modificar arquivos.
+- Após exibir a página atual, antecipa duas páginas e aquece miniaturas próximas antes de abrir a linha do tempo. Na faixa, mantém cinco posições visíveis e antecipa mais duas na direção da navegação.
+- Cache limitado por memória, cancelamento ao sair e reaproveitamento das páginas já extraídas/baixadas. Veja limites e funcionamento em [Qualidade de imagem e cache](docs/reader-image-quality.md).
 
 - Design final registrado em docs/design/DESIGN.md e nas instruções AGENTS.md, com imagem aprovada preservada no projeto.
 - Identidade oficial: assinatura fornecida pelo usuário, símbolo vetorial para ícone e lateral e banner com a arte COMIC TV.
 - Biblioteca nativa com destaque da edição focada/última leitura, ações de continuar/detalhes, leituras recentes compactas e coleção em capas verticais.
-- Fundo oficial Comic TV quando a capa desfocada está desligada; opção de capa segue disponível na biblioteca e nos detalhes, com alto contraste preto.
+- Tela principal com identidade Comic TV desfocada e escura; capa desfocada opcional somente nos detalhes, com alto contraste preto.
 - Biblioteca local com capas e lista de leituras recentes.
 - Detalhes com título, informações e ações juntos à esquerda, capa ampliada no centro e resumo independente à direita, com a mesma altura da capa. O bloco de título não é selecionável.
 - Segure OK por 1 segundo sobre capas ou leituras recentes para abrir continuar/leitura, detalhes e remoção/restauração do histórico.
@@ -29,7 +34,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Progresso e preferências por edição em Room.
 - Tema escuro com foco âmbar, seguindo o conceito aprovado.
 - Ao iniciar, o foco fica no conteúdo da biblioteca e a lateral permanece recolhida.
-- Fundo opcional na biblioteca e nos detalhes: cópia da capa preenchendo a tela, desfocada e escurecida. Ative em Configurações → Acessibilidade e aparência → Fundo da biblioteca e detalhes. Em alto contraste, permanece preto.
+- Fundo opcional nos detalhes: cópia da capa preenchendo a tela, desfocada e escurecida. Configure em Acessibilidade e aparência. Em alto contraste, permanece preto.
 - Barra lateral flutuante: recolhida em ícones e expandida com nomes somente quando um ícone recebe foco; o catálogo mantém sua largura.
 - Biblioteca com cabeçalhos roláveis e histórico completo de todas as leituras registradas, sem limite de dois itens.
 - Catálogo e Novidades têm acessos próprios na lateral e usam a mesma fonte selecionada. Novidades vem da fonte (adicionados/atualizados), separado do histórico pessoal.
@@ -38,7 +43,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Capas ausentes na busca são consultadas nos detalhes dos itens visíveis, com cache limitado e até duas consultas simultâneas.
 - Barra para escolher página/seção pelo D-pad, com confirmação antes de carregar e salvar a nova posição.
 - Seletor de páginas com fundo preto, destaque amarelo, miniaturas ampliadas (194 dp na selecionada, 170 dp nas vizinhas) e barra de progresso fina.
-- Miniaturas da posição selecionada e até duas vizinhas de cada lado, geradas sob demanda em cache separado de 32 MiB.
+- Miniaturas da posição selecionada e até duas vizinhas de cada lado, com cache em disco separado de 32 MiB e aquecimento antecipado em memória.
 - Leitura automática: slides de imagens ou rolagem de texto EPUB, com 10 segundos por página/tela inicialmente e intervalos de 5,10,20,30 ou 60 segundos. Pausa com comandos manuais, ferramentas, erro ou segundo plano.
 - Transferência pela rede local (Wi-Fi/Ethernet), com URL temporária, QR code, upload pelo navegador e acompanhamento na TV.
 - Servidor FTP temporário, com usuário/senha por sessão, QR code e recebimento em modo passivo.
@@ -92,7 +97,7 @@ Testes que exigem emulador ou dispositivo Android:
 | Ferramentas | Iniciar leitura automática; Intervalo alterna a velocidade |
 | Automático | Setas e OK pausam; ao final do livro ou em erro a leitura automática termina |
 
-Ao mudar de página, zoom e deslocamento voltam ao estado inicial. O zoom desta versão amplia uma imagem decodificada para a tela; alta resolução por tiles faz parte de um incremento futuro.
+Ao mudar de página, zoom e deslocamento voltam ao estado inicial. Para os filtros, segure OK por 1s → Imagem e mais opções. O zoom lê regiões do original; a nitidez final continua limitada pela resolução e compressão da digitalização.
 
 A contagem do slide começa após a imagem ser exibida com sucesso, sem consumir o intervalo durante carregamento. No texto, o intervalo indica aproximadamente o tempo para rolar uma altura visível; ao fim da seção, segue para a próxima. A automação não reinicia sozinha quando o aplicativo volta ao primeiro plano. A barra carrega apenas até cinco miniaturas após 180 ms de estabilização do cursor; essas prévias não alteram a página lida nem o progresso. Texto EPUB recebe um cartão com trecho, não uma reprodução da paginação impressa.
 

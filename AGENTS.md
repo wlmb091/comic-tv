@@ -13,3 +13,4 @@
 - Símbolo da barra lateral recolhida acompanha a cor do tema ativo.
 - Relacionados ocultos e sem consultas por decisão do usuário; preservar implementação para futura retomada. A função atual compara metadados sem IA.
 - COMIC TV centralizado no topo da barra lateral expandida.
+- Leitor: etapa aprovada prioriza zoom por regiões do original, filtros opcionais para texto/HQ antiga e cache das próximas duas páginas/miniaturas. Painéis individuais ficam para depois; não exigir Android 13 nem modificar arquivos originais.

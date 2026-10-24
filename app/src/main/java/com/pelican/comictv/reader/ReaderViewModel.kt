@@ -25,6 +25,9 @@ class ReaderViewModel(
     private val comicId: String,
     private val saved: SavedStateHandle,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val thumbnailWarm: suspend (File) -> Unit = {},
+    private val previewFileValid: (File) -> Boolean = { it.isFile },
+    private val imagePreferences: ReaderImageStore = object : ReaderImageStore {},
     private val pageDimensions: (File) -> Pair<Int, Int> = { file ->
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(file.path, options)
@@ -47,11 +50,28 @@ class ReaderViewModel(
     val bookPartner = _bookPartner.asStateFlow()
     private val _previews = MutableStateFlow<List<TimelinePreview>>(emptyList())
     val previews = _previews.asStateFlow()
+    private val _imageOptions = MutableStateFlow(imagePreferences.read(comicId))
+    val imageOptions = _imageOptions.asStateFlow()
+    private val _compareOriginal = MutableStateFlow(false)
+    val compareOriginal = _compareOriginal.asStateFlow()
+    private val imageWrites = Mutex()
+    private val _anticipated = MutableStateFlow<List<PageImage>>(emptyList())
+    val anticipated = _anticipated.asStateFlow()
+    private var prefetchJob: Job? = null
+    private val thumbnailFiles = LinkedHashMap<Int, File>(32, .75f, true)
+    private var previousPreviewCursor: Int? = null
     private var previewJob: Job? = null
     private var previewGeneration = 0
     private val _automatic = MutableStateFlow(AutomaticReading())
     val automatic = _automatic.asStateFlow()
     private var pages = emptyList<PageRef>()
+    private val sourceLoads = linkedSetOf<Job>()
+    private fun launchLoad(block: suspend CoroutineScope.() -> Unit): Job {
+        val job = viewModelScope.launch(block = block)
+        synchronized(sourceLoads) { sourceLoads += job }
+        job.invokeOnCompletion { synchronized(sourceLoads) { sourceLoads -= job } }
+        return job
+    }
     private var loadJob: Job? = null
     private var initializationJob: Job? = null
     private var initialized = false
@@ -90,7 +110,7 @@ class ReaderViewModel(
         initializationJob?.cancel()
         _loading.value = true
         _error.value = null
-        initializationJob = viewModelScope.launch {
+        initializationJob = launchLoad {
             try {
                 val comic = repository.getComic(comicId)
                 pages = repository.pages(comicId)
@@ -125,6 +145,8 @@ class ReaderViewModel(
         if (next.page != old.page) {
             saved["page"] = next.page
             writes.trySend(next.page)
+            prefetchJob?.cancel()
+            _anticipated.value = emptyList()
             loadPage()
         }
         if (next.fit != old.fit || next.rtl != old.rtl) viewModelScope.launch {
@@ -174,7 +196,71 @@ class ReaderViewModel(
 
     fun imageDisplayed(file: File) {
         val image = _image.value ?: return
-        if (image.file == file && image.text == null && !image.displayed) _image.value = image.copy(displayed = true)
+        if (image.file == file && image.text == null && !image.displayed) {
+            _image.value = image.copy(displayed = true)
+            warmReadingWindow()
+        }
+    }
+
+    fun cycleImagePreset() {
+        if (closing || exited) return
+        _compareOriginal.value = false
+        val old = _imageOptions.value
+        _imageOptions.value = old.copy(preset = ImagePreset.entries[(old.preset.ordinal + 1) % ImagePreset.entries.size])
+        saveImageOptions()
+    }
+    fun cycleImageIntensity() {
+        if (closing || exited) return
+        _compareOriginal.value = false
+        _imageOptions.value = _imageOptions.value.copy(intensity = (_imageOptions.value.intensity + 1) % 3)
+        saveImageOptions()
+    }
+    fun toggleOriginalComparison() { if (!closing && !exited) _compareOriginal.value = !_compareOriginal.value }
+    private fun saveImageOptions() {
+        viewModelScope.launch {
+            try { imageWrites.withLock { imagePreferences.save(comicId, _imageOptions.value) } }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { _error.value = "Não foi possível salvar o filtro desta edição." }
+        }
+    }
+    private fun cachedThumbnail(index: Int): File? {
+        val file = thumbnailFiles[index] ?: return null
+        if (previewFileValid(file)) return file
+        thumbnailFiles.remove(index)
+        return null
+    }
+    private suspend fun thumbnail(index: Int): File {
+        cachedThumbnail(index)?.let { return it }
+        val file = repository.thumbnail(comicId, pages[index])
+        currentCoroutineContext().ensureActive()
+        thumbnailFiles[index] = file
+        while (thumbnailFiles.size > 64) thumbnailFiles.remove(thumbnailFiles.keys.first())
+        try { thumbnailWarm(file) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+        return file
+    }
+    fun pauseAnticipation() { prefetchJob?.cancel() }
+    fun resumeAnticipation() { if (_image.value?.displayed == true) warmReadingWindow() }
+    private fun warmReadingWindow() {
+        prefetchJob?.cancel()
+        if (closing || exited || _state.value.mode == ReaderMode.Timeline) return
+        val expected = _state.value.page
+        val next = expected + if (_layout.value == ReaderLayout.Book && hasBookPartner(expected)) 2 else 1
+        prefetchJob = launchLoad {
+            delay(150)
+            for (index in next..next + 1) {
+                if (index !in pages.indices || pages[index].key.startsWith("epub:text:")) continue
+                try {
+                    val file = repository.prefetch(comicId, pages[index])
+                    val dimensions = withContext(ioDispatcher) { pageDimensions(file) }
+                    ensureActive()
+                    if (_state.value.page != expected) return@launchLoad
+                    _anticipated.value = (_anticipated.value.filterNot { it.file == file } + PageImage(file, dimensions.first, dimensions.second)).takeLast(2)
+                } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+            }
+            for (index in (expected - 2..expected + 4).filter { it in pages.indices }.sortedBy { kotlin.math.abs(it - expected) }) {
+                try { thumbnail(index) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+            }
+        }
     }
 
     fun imageDisplayFailed(file: File) {
@@ -211,13 +297,15 @@ class ReaderViewModel(
         _bookPartner.value = null
         _bookError.value = null
         val timeline = _state.value.mode == ReaderMode.Timeline
+        if (timeline) prefetchJob?.cancel()
+        else if (_image.value?.displayed == true) warmReadingWindow()
         if (!timeline && _layout.value == ReaderLayout.Book) {
             _previews.value = emptyList()
             val partnerIndex = _state.value.page + 1
             if (!hasBookPartner(_state.value.page)) return
-            previewJob = viewModelScope.launch {
+            previewJob = launchLoad {
                 try {
-                    val file = repository.materialize(comicId, pages[partnerIndex])
+                    val file = repository.prefetch(comicId, pages[partnerIndex])
                     val dimensions = withContext(ioDispatcher) { pageDimensions(file) }
                     ensureActive()
                     if (generation == previewGeneration) _bookPartner.value = PageImage(file, dimensions.first, dimensions.second)
@@ -233,16 +321,21 @@ class ReaderViewModel(
         if (cursor == null) { _previews.value = emptyList(); return }
         val indices = if (timeline) (cursor - 2..cursor + 2).filter { it in pages.indices }
             else listOf(cursor - 1, cursor + 1).filter { it in pages.indices && !pages[it].key.startsWith("epub:text:") }
-        _previews.value = indices.map { TimelinePreview(it) }
-        previewJob = viewModelScope.launch {
+        val direction = if (previousPreviewCursor?.let { cursor < it } == true) -1 else 1
+        previousPreviewCursor = cursor
+        _previews.value = indices.map { index -> if (timeline) cachedThumbnail(index)?.let { TimelinePreview(index, it, loading = false) } ?: TimelinePreview(index) else TimelinePreview(index) }
+        previewJob = launchLoad {
             delay(180)
             for (index in indices.sortedBy { kotlin.math.abs(it - cursor) }) {
-                val result = try { TimelinePreview(index, if (timeline) repository.thumbnail(comicId, pages[index]) else repository.materialize(comicId, pages[index]), loading = false) }
+                val result = try { TimelinePreview(index, if (timeline) thumbnail(index) else repository.prefetch(comicId, pages[index]), loading = false) }
                     catch (e: CancellationException) { throw e }
                     catch (_: Exception) { TimelinePreview(index, loading = false, failed = true) }
                 ensureActive()
-                if (generation != previewGeneration) return@launch
+                if (generation != previewGeneration) return@launchLoad
                 _previews.value = _previews.value.map { if (it.page == index) result else it }
+            }
+            if (timeline) for (index in listOf(cursor + direction * 3, cursor + direction * 4).filter { it in pages.indices }) {
+                try { thumbnail(index) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
             }
         }
     }
@@ -254,7 +347,7 @@ class ReaderViewModel(
         _image.value = null
         _loading.value = true
         _error.value = null
-        loadJob = viewModelScope.launch {
+        loadJob = launchLoad {
             try {
                 val file = repository.materialize(comicId, page)
                 val text = if (page.key.startsWith("epub:text:")) withContext(ioDispatcher) { file.readText(Charsets.UTF_8) } else null
@@ -272,15 +365,25 @@ class ReaderViewModel(
         closing = true
         pauseAutomaticReading()
         previewJob?.cancel()
+        prefetchJob?.cancel()
+        _anticipated.value = emptyList()
         previewGeneration++
         _previews.value = emptyList()
         viewModelScope.launch {
             try {
                 // Navigation may retain the outgoing composable during its animation. Finish
                 // every source operation before another screen reloads the extension context.
+                while (true) {
+                    val pending = synchronized(sourceLoads) { sourceLoads.filterNot { it.isCompleted } }
+                    if (pending.isEmpty()) break
+                    pending.forEach { it.cancel() }
+                    pending.joinAll()
+                }
                 initializationJob?.cancelAndJoin()
                 loadJob?.cancelAndJoin()
                 previewJob?.cancelAndJoin()
+                prefetchJob?.cancelAndJoin()
+                imageWrites.withLock { imagePreferences.save(comicId, _imageOptions.value) }
                 if (initialized) {
                     persistence.withLock { repository.saveProgress(comicId, _state.value.page) }
                     repository.savePreferences(comicId, _state.value.fit.ordinal, _state.value.rtl)

@@ -10,10 +10,14 @@ import com.pelican.comictv.sources.*
 class AppContainer(context: Context) {
     private val app = context.applicationContext
     private val database = Room.databaseBuilder(app, LibraryDatabase::class.java, "comic-tv.db").addMigrations(LibraryDatabase.MIGRATION_1_2).build()
+    val readerImages = com.pelican.comictv.reader.ReaderImagePreferences(app)
     val appearance = com.pelican.comictv.ui.AppearancePreferences(app)
     val library = LibraryRepository(app, database.comics())
     val sourcePreferences = SourcePreferences(app)
     val mihon = MihonEngine(app)
     val extensionInstaller = ExtensionInstaller(app)
+    suspend fun warmReaderThumbnail(file: java.io.File) {
+        coil3.SingletonImageLoader.get(app).execute(com.pelican.comictv.reader.readerThumbnailRequest(app, file))
+    }
     val online = OnlineReaderRepository(app, database.comics(), library, mihon, sourcePreferences)
 }

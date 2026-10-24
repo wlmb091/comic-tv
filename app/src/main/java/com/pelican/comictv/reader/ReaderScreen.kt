@@ -30,6 +30,7 @@ import coil3.request.ImageRequest
 import com.pelican.comictv.ui.*
 import kotlin.math.min
 import android.os.SystemClock
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -43,10 +44,15 @@ import kotlinx.coroutines.launch
     val layout by viewModel.layout.collectAsStateWithLifecycle()
     val bookPartner by viewModel.bookPartner.collectAsStateWithLifecycle()
     val automatic by viewModel.automatic.collectAsStateWithLifecycle()
+    val imageOptions by viewModel.imageOptions.collectAsStateWithLifecycle()
+    val compareOriginal by viewModel.compareOriginal.collectAsStateWithLifecycle()
+    val anticipated by viewModel.anticipated.collectAsStateWithLifecycle()
+    val effectiveImageOptions = if (compareOriginal) ReaderImageOptions() else imageOptions
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, viewModel) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) viewModel.pauseAutomaticReading()
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) { viewModel.pauseAutomaticReading(); viewModel.pauseAnticipation() }
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.resumeAnticipation()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.pauseAutomaticReading() }
@@ -55,6 +61,12 @@ import kotlinx.coroutines.launch
         EpubTextScreen(viewModel, state, page, error, onExit)
         return
     }
+    val context = LocalContext.current
+    val tileCache = remember(viewModel) {
+        val memoryClass = (context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager).memoryClass
+        ReaderTileCache((memoryClass / 8).coerceIn(8, 24) * 1024L * 1024)
+    }
+    DisposableEffect(tileCache) { onDispose { tileCache.close() } }
     var renderError by remember(image?.file) { mutableStateOf(false) }
     val displayedError = error ?: if (renderError) "Não foi possível decodificar esta página." else null
     val focus = remember { FocusRequester() }
@@ -70,6 +82,21 @@ import kotlinx.coroutines.launch
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cancelCenter() }
     }
     var size by remember { mutableStateOf(IntSize.Zero) }
+    LaunchedEffect(anticipated, size, effectiveImageOptions, layout) {
+        if (size.width == 0 || anticipated.isEmpty()) return@LaunchedEffect
+        delay(100)
+        val width = if (layout == ReaderLayout.Gallery) ((size.width - 80) * .48f).toInt().coerceAtLeast(1) else size.width
+        val height = (size.height - if (layout == ReaderLayout.Gallery) 32 else if (layout == ReaderLayout.Book) 24 else 0).coerceAtLeast(1)
+        val forecasts = if (layout == ReaderLayout.Book) zoomPlacements(anticipated.map { ImageExtent(it.width, it.height) }, width - 24, height, 1f, FitMode.Page, 0f, 0f, 4f)
+            else anticipated.flatMap { zoomPlacements(listOf(ImageExtent(it.width, it.height)), width, height, 1f, FitMode.Page, 0f, 0f) }
+        anticipated.forEachIndexed { index, page ->
+            val regions = listOf(overviewRegion(page)) + forecasts.getOrNull(index)?.let { visibleTiles(it, width, height) }.orEmpty()
+            for (region in regions.distinct()) {
+                try { tileCache.load(TileKey(page.file, tileIdentity(page), region, effectiveImageOptions)) }
+                catch (e: CancellationException) { throw e } catch (_: Exception) { }
+            }
+        }
+    }
     val timelineHeight = if (state.mode == ReaderMode.Timeline) 320.dp + pagePickerTextExtra() * 2 else 0.dp
     val timelinePixels = with(LocalDensity.current) { timelineHeight.roundToPx() }
     val pageAreaHeight = (size.height - timelinePixels).coerceAtLeast(1)
@@ -116,32 +143,14 @@ import kotlinx.coroutines.launch
                 }
             }
         }.onFocusChanged { if (!it.hasFocus) cancelCenter() }.focusRequester(focus).focusable()) {
-        if (layout == ReaderLayout.Gallery) ReaderGallery(state, image, previews, Modifier.fillMaxSize().padding(bottom = timelineHeight),
+        if (layout == ReaderLayout.Gallery) ReaderGallery(state, image, previews, tileCache, effectiveImageOptions, Modifier.fillMaxSize().padding(bottom = timelineHeight),
             onDisplayed = viewModel::imageDisplayed, onFailed = viewModel::imageDisplayFailed)
-        if (layout == ReaderLayout.Book) ReaderBook(state, image, bookPartner, viewModel.hasBookPartner(state.page), Modifier.fillMaxSize().padding(bottom = timelineHeight),
+        if (layout == ReaderLayout.Book) ReaderBook(state, image, bookPartner, viewModel.hasBookPartner(state.page), tileCache, effectiveImageOptions, Modifier.fillMaxSize().padding(bottom = timelineHeight),
             viewModel::imageDisplayed, viewModel::imageDisplayFailed, viewModel::bookPageDisplayed, viewModel::bookPageFailed)
         if (layout == ReaderLayout.Normal) image?.let { page ->
-            val fittedScale = if (size.width > 0) min(size.width.toFloat() / page.width, pageAreaHeight.toFloat() / page.height) else 1f
-            val fittedWidth = page.width * fittedScale
-            val fittedHeight = page.height * fittedScale
-            val adjustment = when (state.fit) {
-                FitMode.Page -> 1f
-                FitMode.Width -> if (fittedWidth > 0) size.width / fittedWidth else 1f
-                FitMode.Height -> if (fittedHeight > 0) pageAreaHeight / fittedHeight else 1f
-            }
-            val scale = state.zoom * adjustment
-            val maxX = ((fittedWidth * scale - size.width) / 2).coerceAtLeast(0f)
-            val maxY = ((fittedHeight * scale - pageAreaHeight) / 2).coerceAtLeast(0f)
-            val context = LocalContext.current
-            val request = remember(page.file, size) {
-                ImageRequest.Builder(context).data(page.file).size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1)).build()
-            }
-            AsyncImage(request, "Página ${state.page + 1}", Modifier.fillMaxSize().padding(bottom = timelineHeight).graphicsLayer {
-                scaleX = scale; scaleY = scale
-                translationX = -state.panX * maxX; translationY = -state.panY * maxY
-            }, contentScale = ContentScale.Fit,
-                onSuccess = { viewModel.imageDisplayed(page.file) },
-                onError = { renderError = true; viewModel.imageDisplayFailed(page.file) })
+            HighResolutionPages(state, listOf(page), tileCache, effectiveImageOptions,
+                Modifier.fillMaxSize().padding(bottom = timelineHeight),
+                onDisplayed = viewModel::imageDisplayed, onFailed = viewModel::imageDisplayFailed)
         }
         if (showPosition && state.pageCount > 0 && (state.mode == ReaderMode.Reading || state.mode == ReaderMode.Pan)) {
             Text((if (layout == ReaderLayout.Book && viewModel.hasBookPartner(state.page))
@@ -162,12 +171,14 @@ import kotlinx.coroutines.launch
             ReaderTimeline(state, Modifier.align(Alignment.BottomCenter), previews = previews)
         } else if (state.mode == ReaderMode.Tools) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .15f)))
-            ReaderTools(state, displayedError != null, viewModel::action, { renderError = false; viewModel.retry() }, exit,
+            ReaderTools(state, displayedError != null, viewModel::action, { tileCache.clear(); renderError = false; viewModel.retry() }, exit,
                 Modifier.align(Alignment.CenterEnd), automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval,
                 onEditions = onEditions?.let { action -> { viewModel.close(action) } },
                 onPreviousChapter = onChapterStep?.let { action -> { viewModel.close { action(-1) } } },
                 onNextChapter = onChapterStep?.let { action -> { viewModel.close { action(1) } } },
-                layout = layout, onCycleLayout = viewModel::cycleLayout)
+                layout = layout, onCycleLayout = viewModel::cycleLayout,
+                imageOptions = imageOptions, compareOriginal = compareOriginal, onCycleImagePreset = viewModel::cycleImagePreset,
+                onCycleImageIntensity = viewModel::cycleImageIntensity, onCompareOriginal = viewModel::toggleOriginalComparison)
         }
     }
 }
