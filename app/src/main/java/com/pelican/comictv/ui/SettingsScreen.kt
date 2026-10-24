@@ -46,6 +46,10 @@ import kotlinx.coroutines.launch
                     TvButton((if (options.preset == preset) "✓ " else "") + preset.label,
                         { save(options.copy(preset = preset)) }, primary = options.preset == preset)
                 } }
+                item { Text("Fundo dos detalhes", fontSize = 23.sp) }
+                item { TvButton(if (options.coverBackground) "Fundo: capa desfocada" else "Fundo: preto",
+                    { save(options.copy(coverBackground = !options.coverBackground)) }) }
+                item { Text("A capa preenche o fundo, desfocada e escurecida. Em alto contraste, o fundo permanece preto.", color = TvColors.Muted) }
                 item { Text("Tamanho dos textos", fontSize = 23.sp) }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

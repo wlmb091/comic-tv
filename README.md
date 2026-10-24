@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.8.2
+## Versão 0.8.3
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Detalhes com título, informações e ações juntos à esquerda, capa ampliada no centro e resumo independente à direita, com a mesma altura da capa. O bloco de título não é selecionável.
@@ -24,7 +24,9 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Leitor com ajuste à página, largura ou altura, zoom de 1x a 3x e deslocamento explícito.
 - Progresso e preferências por edição em Room.
 - Tema escuro com foco âmbar, seguindo o conceito aprovado.
-- Barra lateral flutuante: recolhida em ícones e expandida com nomes ao receber foco ou ponteiro; o catálogo mantém sua largura.
+- Ao iniciar, o foco fica no conteúdo da biblioteca e a lateral permanece recolhida.
+- Fundo opcional nos detalhes: cópia da capa preenchendo a tela, desfocada e escurecida. Ative em Configurações → Acessibilidade e aparência → Fundo dos detalhes. Em alto contraste, permanece preto.
+- Barra lateral flutuante: recolhida em ícones e expandida com nomes somente quando um ícone recebe foco; o catálogo mantém sua largura.
 - Biblioteca com cabeçalhos roláveis e histórico completo de todas as leituras registradas, sem limite de dois itens.
 - Catálogo e Novidades têm acessos próprios na lateral e usam a mesma fonte selecionada. Novidades vem da fonte (adicionados/atualizados), separado do histórico pessoal.
 - O ícone de pasta no catálogo troca a fonte. Extensões tem grade de instaladas, atualizações e disponíveis, com busca nos repositórios cadastrados e ícones pequenos.

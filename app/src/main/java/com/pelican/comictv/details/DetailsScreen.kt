@@ -66,7 +66,9 @@ import kotlinx.coroutines.CancellationException
     if (confirmRemoval) ConfirmHistoryRemoval(comic?.title.orEmpty(),
         onDismiss = { confirmRemoval = false },
         onConfirm = { repository.setHistoryHidden(id, true); comic = repository.getComic(id) })
-    BoxWithConstraints(Modifier.fillMaxSize().background(TvColors.Background).padding(24.dp)) {
+    Box(Modifier.fillMaxSize().background(TvColors.Background)) {
+        if (TvColors.options.coverBackground && !TvColors.options.highContrast) CoverBackdrop(repository.cover(id), Modifier.matchParentSize())
+    BoxWithConstraints(Modifier.fillMaxSize().padding(24.dp)) {
         // The cover sets the shared height; both side panels remain independently scrollable.
         val coverWidth = minOf(maxHeight * (2f / 3f), maxWidth * .36f)
         val panelHeight = coverWidth * 1.5f
@@ -151,5 +153,6 @@ import kotlinx.coroutines.CancellationException
                 }
             }
         }
+    }
     }
 }

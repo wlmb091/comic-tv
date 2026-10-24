@@ -13,8 +13,8 @@ class AppearanceOptionsTest {
     @Test fun presetAndTextChoicesRoundTripByStableName() {
         ColorPreset.entries.forEach { preset ->
             for (size in 0..2) {
-                val original = AppearanceOptions(preset, size, true)
-                assertEquals(original, AppearanceOptions.restore(preset.name, size, true))
+                val original = AppearanceOptions(preset, size, true, coverBackground = true)
+                assertEquals(original, AppearanceOptions.restore(preset.name, size, true, coverBackground = true))
             }
         }
     }

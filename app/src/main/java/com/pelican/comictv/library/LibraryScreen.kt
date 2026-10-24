@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
     comics: List<ComicEntity>, repository: LibraryRepository, focusedId: String?,
     onFocus: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
     onRead: (String) -> Unit = onOpen,
+    requestInitialFocus: Boolean = false, onInitialFocus: () -> Unit = {},
 ) {
     val grid = rememberLazyGridState()
     val restore = remember { FocusRequester() }
@@ -38,6 +39,14 @@ import kotlinx.coroutines.launch
     var optionsFor by remember { mutableStateOf<ComicEntity?>(null) }
     val menuScope = rememberCoroutineScope()
     val headerFocus = remember { FocusRequester() }
+    LaunchedEffect(requestInitialFocus) {
+        if (requestInitialFocus) {
+            grid.scrollToItem(0)
+            snapshotFlow { grid.layoutInfo.visibleItemsInfo.any { it.key == "library-header" } }.first { it }
+            headerFocus.requestFocus()
+            onInitialFocus()
+        }
+    }
     optionsFor?.let { selected ->
         HistoryOptions(selected, repository, onRead = { optionsFor = null; onFocus(selected.id); onRead(selected.id) }, onOpen = { optionsFor = null; onFocus(selected.id); onOpen(selected.id) },
             onDismiss = { menuScope.launch {
