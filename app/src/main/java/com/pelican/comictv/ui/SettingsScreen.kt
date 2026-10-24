@@ -41,10 +41,10 @@ import kotlinx.coroutines.launch
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenTitle("Configurações", "Comic TV · versão " + BuildConfig.VERSION_NAME)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { TvButton("Acessibilidade e aparência", { accessibility = true; storageOpen = false; backupOpen = false }, primary = accessibility && !storageOpen && !backupOpen) }
-            item { TvButton("Controle remoto", { accessibility = false; storageOpen = false; backupOpen = false }, primary = !accessibility && !storageOpen && !backupOpen) }
-            item { TvButton("Armazenamento", { storageOpen = true; backupOpen = false; storage.refresh() }, primary = storageOpen && !backupOpen) }
-            item { TvButton("Backup e restauração", { backupOpen = true; storageOpen = false }, primary = backupOpen) }
+            item { TvChoice("Acessibilidade e aparência", accessibility && !storageOpen && !backupOpen, { accessibility = true; storageOpen = false; backupOpen = false }) }
+            item { TvChoice("Controle remoto", !accessibility && !storageOpen && !backupOpen, { accessibility = false; storageOpen = false; backupOpen = false }) }
+            item { TvChoice("Armazenamento", storageOpen && !backupOpen, { storageOpen = true; backupOpen = false; storage.refresh() }) }
+            item { TvChoice("Backup e restauração", backupOpen, { backupOpen = true; storageOpen = false }) }
         }
         if (backupOpen) {
             com.pelican.comictv.backup.BackupSettings(backup, Modifier.weight(1f))
@@ -59,12 +59,12 @@ import kotlinx.coroutines.launch
             error?.let { message -> item { Text(message, color = TvColors.Amber) } }
             if (accessibility) {
                 item { Text("Temas da interface", fontSize = 23.sp) }
-                item { Text("O tema muda fundos, barras, cartões, botões e foco. A logo e as páginas mantêm suas cores.", color = TvColors.Muted) }
+                item { Text("O tema muda fundos, barras, cartões, botões, foco e a cor da marca. Capas e páginas mantêm suas cores originais.", color = TvColors.Muted) }
                 ColorPreset.entries.forEach { preset -> item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         ThemeSwatches(preset)
-                        TvButton((if (options.preset == preset) "✓ " else "") + preset.label,
-                            { save(options.copy(preset = preset)) }, primary = options.preset == preset)
+                        TvChoice((if (options.preset == preset) "✓ " else "") + preset.label, options.preset == preset,
+                            { save(options.copy(preset = preset)) })
                     }
                 } }
                 item { Text("Fundo dos detalhes", fontSize = 23.sp) }
@@ -75,8 +75,8 @@ import kotlinx.coroutines.launch
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         listOf("Padrão", "Maior · 115%", "Extra · 130%").forEachIndexed { index, label ->
-                            TvButton((if (options.textSize == index) "✓ " else "") + label,
-                                { save(options.copy(textSize = index)) }, primary = options.textSize == index)
+                            TvChoice((if (options.textSize == index) "✓ " else "") + label, options.textSize == index,
+                                { save(options.copy(textSize = index)) })
                         }
                     }
                 }

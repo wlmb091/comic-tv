@@ -2,7 +2,9 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.12.2
+## Versão 0.12.3
+
+- Abas da biblioteca, filtros e escolhas das Configurações usam o mesmo padrão: seleção persistente em contorno/texto do tema, foco do controle com preenchimento forte. Semântica de seleção explícita; ações comuns preservadas.
 
 - Acabamento da tela principal: margens mais generosas, progresso no destaque, ações que quebram linha e cartões recentes com capas maiores e títulos de duas linhas. Mantém temas, dados e fundo da identidade Comic TV.
 

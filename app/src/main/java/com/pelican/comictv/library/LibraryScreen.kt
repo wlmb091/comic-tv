@@ -217,11 +217,5 @@ private fun readingStatus(comic: ComicEntity): String =
     else "Página ${comic.currentPage + 1} de ${comic.pageCount}"
 
 @Composable private fun LibraryTab(label: String, active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Button(onClick, modifier.heightIn(min = 36.dp), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-        scale = ButtonDefaults.scale(focusedScale = 1f),
-        colors = ButtonDefaults.colors(containerColor = Color.Transparent,
-            contentColor = if (active) TvColors.Amber else TvColors.Muted,
-            focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
-        Text(label, fontSize = 14.sp)
-    }
+    TvChoice(label, active, onClick, modifier, compact = true)
 }

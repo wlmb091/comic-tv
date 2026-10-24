@@ -35,7 +35,7 @@ import kotlinx.coroutines.flow.first
 }
 
 @Composable private fun FilterButton(label: String, key: String, filter: String, onFilter: (String) -> Unit) {
-    TvButton(label, { onFilter(key) }, Modifier.semantics { selected = filter == key }, primary = filter == key)
+    TvChoice(label, filter == key, { onFilter(key) })
 }
 
 @Composable internal fun LibrarySearchDialog(query: String, onQuery: (String) -> Unit, onDismiss: () -> Unit) {
