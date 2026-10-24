@@ -5,3 +5,4 @@ local.properties
 *.iml
 .superpowers/
 .kotlin/
+tools/translation-server/.env

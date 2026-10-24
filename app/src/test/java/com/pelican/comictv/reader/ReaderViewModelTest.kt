@@ -14,6 +14,28 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReaderViewModelTest {
+    @Test fun narratedNavigationPausesAutomaticReadingAndDefersVisualLoadsUntilReturn() = runTest(dispatcher) {
+        val file = File.createTempFile("narration", ".txt").apply { writeText("Texto para ouvir.") }
+        try {
+            val repo = FakeRepository().apply { textFile = file }
+            val vm = ReaderViewModel(repo, "voice", SavedStateHandle(), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+            advanceUntilIdle()
+            assertTrue(vm.canNarrateBook())
+            vm.startAutomaticReading()
+            vm.beginNarration()
+            val oldLoads = repo.materialized.size
+            vm.narrationSelectPage(2)
+            vm.startAutomaticReading()
+            advanceUntilIdle()
+            assertEquals(2, vm.state.value.page)
+            assertFalse(vm.automatic.value.enabled)
+            assertEquals(oldLoads, repo.materialized.size)
+            vm.finishNarration()
+            advanceUntilIdle()
+            assertEquals("Texto para ouvir.", vm.image.value!!.text)
+            assertEquals(2, repo.materialized.last())
+        } finally { file.delete() }
+    }
     private val dispatcher = StandardTestDispatcher()
     @Before fun setup() { Dispatchers.setMain(dispatcher) }
     @After fun teardown() { Dispatchers.resetMain() }

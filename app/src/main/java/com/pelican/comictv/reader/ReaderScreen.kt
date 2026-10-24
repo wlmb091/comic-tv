@@ -35,7 +35,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null, onChapterStep: ((Int) -> Unit)? = null) {
+@Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null, onChapterStep: ((Int) -> Unit)? = null, narrationOriginal: java.io.File? = null) {
+    var narrationMode by remember(viewModel) { mutableStateOf(false) }
+    val narrate = { viewModel.beginNarration(); narrationMode = true }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val image by viewModel.image.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
@@ -49,16 +51,22 @@ import kotlinx.coroutines.launch
     val anticipated by viewModel.anticipated.collectAsStateWithLifecycle()
     val effectiveImageOptions = if (compareOriginal) ReaderImageOptions() else imageOptions
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, viewModel) {
+    DisposableEffect(lifecycleOwner, viewModel, narrationMode) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) { viewModel.pauseAutomaticReading(); viewModel.pauseAnticipation() }
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.resumeAnticipation()
+            if (event == Lifecycle.Event.ON_RESUME && !narrationMode) viewModel.resumeAnticipation()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.pauseAutomaticReading() }
     }
+    if (narrationMode) {
+        com.pelican.comictv.reader.narration.NarratedReaderScreen(viewModel, narrationOriginal) {
+            viewModel.finishNarration(); narrationMode = false
+        }
+        return
+    }
     image?.takeIf { it.text != null }?.let { page ->
-        EpubTextScreen(viewModel, state, page, error, onExit)
+        EpubTextScreen(viewModel, state, page, error, onExit, narrate)
         return
     }
     val context = LocalContext.current
@@ -178,7 +186,8 @@ import kotlinx.coroutines.launch
                 onNextChapter = onChapterStep?.let { action -> { viewModel.close { action(1) } } },
                 layout = layout, onCycleLayout = viewModel::cycleLayout,
                 imageOptions = imageOptions, compareOriginal = compareOriginal, onCycleImagePreset = viewModel::cycleImagePreset,
-                onCycleImageIntensity = viewModel::cycleImageIntensity, onCompareOriginal = viewModel::toggleOriginalComparison)
+                onCycleImageIntensity = viewModel::cycleImageIntensity, onCompareOriginal = viewModel::toggleOriginalComparison,
+                onNarrate = if (viewModel.canNarrateBook()) narrate else null)
         }
     }
 }

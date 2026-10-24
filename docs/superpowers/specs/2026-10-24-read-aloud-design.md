@@ -74,4 +74,4 @@ OCR, audiolivros gravados/MP3, imitação de narrador real, catálogo OPDS, nuve
 - https://developer.android.com/reference/android/graphics/pdf/PdfRenderer.Page
 - https://github.com/TomRoush/PdfBox-Android
 
-Estado: proposta escrita após escolha das vozes Android. Builder check independente respondeu “nothing important left”. Aguardando aprovação do documento antes de código/dependências.
+Estado: documento aprovado pelo usuário com “pode prosseguir”. Builder check independente respondeu “nothing important left”. Tradução ampliada conforme addendum local aprovado.

@@ -2,7 +2,11 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 1.0.0
+## Versão 1.1.0
+
+Narração de EPUB e PDF com texto usando vozes offline do Android, destaque do trecho, velocidade e retomada. Tradução opcional por computador na rede local, sem serviço de nuvem, com original preservado e antecipação de duas páginas. Configuração do servidor e limitações em [Ouvir livros e traduzir](docs/reader-narration-translation.md). Não inclui OCR; vozes reais e desempenho na Box precisam de teste manual. Notas em [1.1.0](docs/releases/1.1.0.md).
+
+## Base estável 1.0.0
 
 Primeira versão estável, com os fluxos e ajustes visuais confirmados pelo usuário na sua Box. Mantém as funções da 0.12.5 e a assinatura de atualização; não inclui novas funcionalidades nesta promoção. Resultados manuais são relatos do usuário, separados das verificações automatizadas.
 

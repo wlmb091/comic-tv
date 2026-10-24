@@ -30,7 +30,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @OptIn(FlowPreview::class)
-@Composable internal fun EpubTextScreen(viewModel: ReaderViewModel, state: ReaderState, page: PageImage, error: String?, onExit: () -> Unit) {
+@Composable internal fun EpubTextScreen(viewModel: ReaderViewModel, state: ReaderState, page: PageImage, error: String?, onExit: () -> Unit, onNarrate: () -> Unit = {}) {
     val automatic by viewModel.automatic.collectAsStateWithLifecycle()
     val previews by viewModel.previews.collectAsStateWithLifecycle()
     val preferences = LocalContext.current.getSharedPreferences("epub-reading", 0)
@@ -133,6 +133,7 @@ import kotlin.math.roundToInt
                     TvButton("Sair da leitura", exit)
                 }
                 if (state.pageCount > 0) TvButton("Escolher seção", { viewModel.action(ReaderAction.StartTimeline) })
+                TvButton("Ouvir livro e traduzir", { savePosition(); onNarrate() })
                 AutomaticReadingControls(automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval)
                 Text("O texto se ajusta à tela. Use ↑ ↓ para rolar e ← → para trocar de seção.", color = TvColors.Muted, fontSize = 16.sp)
             }

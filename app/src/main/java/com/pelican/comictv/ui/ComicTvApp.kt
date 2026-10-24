@@ -195,7 +195,8 @@ import kotlinx.coroutines.launch
                 onChapterStep = if (id.startsWith("online-")) ({ step ->
                     editionPreview = reader.image.value?.file
                     nav.navigate("online-editions/$id?step=$step") { popUpTo(entry.destination.id) { inclusive = true } }
-                }) else null)
+                }) else null,
+                narrationOriginal = if (id.startsWith("online-")) null else container.library.originalFile(id))
         }
         composable("online-editions/{id}?step={step}&from={from}", arguments = listOf(
             navArgument("step") { type = NavType.IntType; defaultValue = 0 },

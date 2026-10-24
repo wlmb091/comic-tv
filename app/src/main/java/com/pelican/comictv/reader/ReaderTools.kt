@@ -30,7 +30,7 @@ import com.pelican.comictv.ui.*
     onEditions: (() -> Unit)? = null, onPreviousChapter: (() -> Unit)? = null, onNextChapter: (() -> Unit)? = null,
     layout: ReaderLayout = ReaderLayout.Normal, onCycleLayout: () -> Unit = {},
     imageOptions: ReaderImageOptions = ReaderImageOptions(), compareOriginal: Boolean = false,
-    onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}) {
+    onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}, onNarrate: (() -> Unit)? = null) {
     val first = remember { FocusRequester() }
     var settings by remember { mutableStateOf(false) }
     LaunchedEffect(settings) { if (!settings) first.requestFocus() }
@@ -44,6 +44,7 @@ import com.pelican.comictv.ui.*
                 verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Text("Mais opções", fontSize = 25.sp)
                 TvButton("Voltar ao menu", { settings = false }, Modifier.focusRequester(settingsFocus))
+                onNarrate?.let { TvButton("Ouvir livro e traduzir", it) }
                 Text("Página ${state.page + 1} · ${(state.zoom * 100).toInt()}%", color = TvColors.Muted, fontSize = 16.sp)
                 TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) })
                 Text("Imagem", fontSize = 20.sp)
@@ -75,6 +76,7 @@ import com.pelican.comictv.ui.*
                 }, onCycleLayout)
                 RailButton("Ajuste: " + when (state.fit) { FitMode.Page -> "Página"; FitMode.Width -> "Largura"; FitMode.Height -> "Altura" }, RailIcon.Fit, { onAction(ReaderAction.ToggleFit) })
                 RailButton("Imagem e mais opções", RailIcon.More, { settings = true })
+                onNarrate?.let { RailButton("Ouvir livro e traduzir", RailIcon.Book, it) }
                 if (hasError) RailButton("Tentar novamente", RailIcon.Retry, { onRetry(); onAction(ReaderAction.Back) })
                 RailButton("Sair da leitura", RailIcon.Exit, onExit)
             }

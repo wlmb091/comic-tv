@@ -77,6 +77,35 @@ class ReaderViewModel(
     private var initialized = false
     private var closing = false
     private var exited = false
+    private var narrationActive = false
+    internal val narrationBookId get() = comicId
+    internal fun canNarrateBook() = pages.any { it.key.startsWith("epub:text:") || it.key.startsWith("pdf:") }
+    internal fun narrationIsPdf() = pages.any { it.key.startsWith("pdf:") }
+    internal suspend fun narrationText(index: Int): String? {
+        val page = pages.getOrNull(index)?.takeIf { it.key.startsWith("epub:text:") } ?: return null
+        val file = repository.prefetch(comicId, page)
+        return withContext(ioDispatcher) {
+            runInterruptible { require(file.length() <= 480_000) { "Texto da seção excede o limite." }; file.readText(Charsets.UTF_8) }
+        }
+    }
+    internal fun beginNarration() {
+        narrationActive = true
+        pauseAutomaticReading(); prefetchJob?.cancel(); previewJob?.cancel(); loadJob?.cancel()
+        previewGeneration++
+        _anticipated.value = emptyList(); _previews.value = emptyList(); _bookPartner.value = null
+        _state.value = _state.value.copy(mode = ReaderMode.Reading, timelinePage = null)
+    }
+    internal fun narrationSelectPage(page: Int) {
+        if (!narrationActive || closing || exited || page !in pages.indices) return
+        _state.value = _state.value.copy(page = page, mode = ReaderMode.Reading, timelinePage = null, zoom = 1f, panX = 0f, panY = 0f)
+        saved["page"] = page
+        _image.value = null
+        writes.trySend(page)
+    }
+    internal fun finishNarration() {
+        narrationActive = false
+        if (!closing && !exited) { loadPage(); updatePreviews() }
+    }
     private val writes = Channel<Int>(Channel.CONFLATED)
     private val persistence = Mutex()
 
@@ -186,7 +215,7 @@ class ReaderViewModel(
     }
 
     fun startAutomaticReading() {
-        if (closing || exited || !initialized || _state.value.pageCount == 0 || _error.value != null || _bookError.value != null) return
+        if (narrationActive || closing || exited || !initialized || _state.value.pageCount == 0 || _error.value != null || _bookError.value != null) return
         _state.value = _state.value.copy(mode = ReaderMode.Reading, timelinePage = null)
         updatePreviews()
         _automatic.value = _automatic.value.copy(enabled = true)
@@ -242,7 +271,7 @@ class ReaderViewModel(
     fun resumeAnticipation() { if (_image.value?.displayed == true) warmReadingWindow() }
     private fun warmReadingWindow() {
         prefetchJob?.cancel()
-        if (closing || exited || _state.value.mode == ReaderMode.Timeline) return
+        if (narrationActive || closing || exited || _state.value.mode == ReaderMode.Timeline) return
         val expected = _state.value.page
         val next = expected + if (_layout.value == ReaderLayout.Book && hasBookPartner(expected)) 2 else 1
         prefetchJob = launchLoad {
@@ -341,6 +370,7 @@ class ReaderViewModel(
     }
 
     private fun loadPage() {
+        if (narrationActive) return
         loadJob?.cancel()
         val expected = _state.value.page
         val page = pages.getOrNull(expected) ?: return

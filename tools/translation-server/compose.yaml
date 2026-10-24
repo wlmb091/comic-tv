@@ -1,0 +1,17 @@
+services:
+  translator:
+    image: libretranslate/libretranslate:v1.9.6@sha256:1de2d7056bb8ad607a412f4563d9abe324ff632b43b5be9428bcc8e213aebb32
+    ports:
+      - "${COMIC_TV_BIND_IP:?Configure o IPv4 privado do computador no arquivo .env}:5000:5000"
+    restart: "no"
+    environment:
+      LT_HOST: "0.0.0.0"
+      LT_LOAD_ONLY: "en,pt"
+      LT_CHAR_LIMIT: "2000"
+      LT_THREADS: "2"
+      LT_DISABLE_FILES_TRANSLATION: "true"
+      LT_DISABLE_WEB_UI: "true"
+    volumes:
+      - translation_models:/home/libretranslate/.local:rw
+volumes:
+  translation_models:
