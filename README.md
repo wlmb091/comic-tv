@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.9.4
+## Versão 0.9.5
 
 - Design final registrado em docs/design/DESIGN.md e nas instruções AGENTS.md, com imagem aprovada preservada no projeto.
 - Identidade oficial: assinatura fornecida pelo usuário, símbolo vetorial para ícone e lateral e banner com a arte COMIC TV.
@@ -149,4 +149,6 @@ A barra lateral expandida também usa o cabeçalho textual COMIC TV, com TV na c
 
 Relacionados abaixo da tela de detalhes: sugestões da biblioteca e de uma amostra limitada do catálogo da fonte, com motivo verificável (mesma série ou créditos em comum). Abrir uma sugestão do catálogo permite escolher uma edição; nada é adicionado à biblioteca até essa escolha. Metadados da fonte limitam as relações disponíveis; arquivos locais sem créditos não recebem sugestões artificiais.
 
-Na 0.9.4, a seção e o atalho Relacionados estão ocultos; nenhuma consulta de recomendações é iniciada. Código preservado para futura revisão. COMIC TV centralizado no menu lateral expandido.
+Na 0.9.5, a seção e o atalho Relacionados estão ocultos; nenhuma consulta de recomendações é iniciada. Código preservado para futura revisão. COMIC TV centralizado no menu lateral expandido.
+
+0.9.5: catálogo com capas inteiras e títulos abaixo, tipografia e cabeçalho compactos; grades adaptadas ao tamanho do texto. Fontes, extensões e extensões por repositório usam cartões compactos; abas com contadores e estados vazios explicativos. Instalação continua confirmada pelo Android.
