@@ -39,6 +39,7 @@ interface ComicDao {
 abstract class LibraryDatabase : RoomDatabase() {
     abstract fun comics(): ComicDao
     abstract fun collections(): CollectionDao
+    abstract fun backups(): com.pelican.comictv.backup.BackupDao
     companion object {
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {

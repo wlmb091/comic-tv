@@ -10,6 +10,7 @@ import com.pelican.comictv.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.flow.first
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -18,7 +19,8 @@ import com.pelican.comictv.storage.*
 
 class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val coverGenerator: CoverGenerator = BitmapCoverGenerator(),
-    private val collectionDao: CollectionDao? = null) : ReaderRepository {
+    private val collectionDao: CollectionDao? = null,
+    private val pendingRestores: com.pelican.comictv.backup.RestorePendingStore? = null) : ReaderRepository {
     private val archive = ComicArchive(pdfReader = PdfComicArchive())
     private val store = LocalComicStore(File(context.filesDir, "originals"), archive)
     private val pageDirectory = File(context.cacheDir, "pages").apply { mkdirs() }
@@ -30,6 +32,8 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val mutex = Mutex()
     private var protectedPage: String? = null
     private var ready = false
+    suspend fun <T> exclusiveStorage(block: suspend () -> T): T = mutex.withLock { block() }
+    fun originalFile(id: String): File = store.original(id)
 
     private fun storage() = LibraryStorage(File(context.filesDir, "originals"), covers, pageDirectory, thumbnailDirectory)
     suspend fun storageReport(): StorageReport = withContext(Dispatchers.IO) {
@@ -148,7 +152,19 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private suspend fun importComic(name: String, openInput: () -> InputStream): ComicEntity = withContext(Dispatchers.IO) {
         mutex.withLock {
             initialize()
-            val id = UUID.randomUUID().toString()
+            val pendingDocument = pendingRestores?.snapshot()
+            val restored = if (pendingDocument?.comics?.isNotEmpty() == true) {
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                var bytes = 0L
+                openInput().use { input -> val buffer = ByteArray(16384); while (true) {
+                    currentCoroutineContext().ensureActive(); val count = input.read(buffer); if (count < 0) break
+                    bytes += count; require(bytes <= ArchiveLimits().maxArchiveBytes); digest.update(buffer, 0, count)
+                } }
+                pendingRestores?.find(digest.digest().joinToString("") { "%02x".format(it) })
+            } else null
+            val id = restored?.id ?: UUID.randomUUID().toString()
+            val existing = if (restored != null) dao.get(id) else null
+            if (existing != null && store.original(id).isFile) { pendingRestores?.finish(id); return@withLock existing }
             val title = name.substringBeforeLast('.', name).take(200).ifBlank { "Quadrinho" }
             try {
                 val pages = runInterruptible {
@@ -158,9 +174,17 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
                 cache.materialize("$id-0", setOfNotNull(protectedPage),
                     write = { archive.extract(store.original(id), pages.first(), it) },
                     validate = { if (pages.first().key.startsWith("epub:text:")) generateTextCover(title, cover(id)) else coverGenerator.generate(it, cover(id)) })
-                val comic = ComicEntity(id, title, pages.size)
+                val comic = restored?.let { ComicEntity(id, it.title, pages.size, it.currentPage.coerceIn(0, pages.lastIndex),
+                    it.lastRead, it.importedAt, it.fit, it.rtl, it.hiddenFromHistory, it.favorite) } ?: ComicEntity(id, title, pages.size)
                 currentCoroutineContext().ensureActive()
-                withContext(NonCancellable) { dao.insert(comic) }
+                withContext(NonCancellable) {
+                    if (restored != null && collectionDao != null) {
+                        val available = observeCollections().first().map { it.id }.toSet()
+                        val links = pendingDocument!!.links.filter { it.comicId == id }.map { it.collectionId }.toSet().intersect(available)
+                        collectionDao.insertRestoredComic(comic, links)
+                    } else dao.insert(comic)
+                    if (restored != null) pendingRestores?.finish(id)
+                }
                 comic
             } catch (e: Exception) {
                 // If insert committed during cancellation, preserve its original.

@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
@@ -17,11 +18,13 @@ import com.pelican.comictv.BuildConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-@Composable fun SettingsScreen(preferences: AppearancePreferences, storage: com.pelican.comictv.storage.StorageViewModel, onBack: () -> Unit) {
+@Composable fun SettingsScreen(preferences: AppearancePreferences, storage: com.pelican.comictv.storage.StorageViewModel,
+    backup: com.pelican.comictv.backup.BackupViewModel, onBack: () -> Unit) {
     val options by preferences.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var accessibility by rememberSaveable { mutableStateOf(true) }
     var storageOpen by rememberSaveable { mutableStateOf(false) }
+    var backupOpen by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     fun save(value: AppearanceOptions) {
@@ -37,10 +40,15 @@ import kotlinx.coroutines.launch
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenTitle("Configurações", "Comic TV · versão " + BuildConfig.VERSION_NAME)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TvButton("Acessibilidade e aparência", { accessibility = true; storageOpen = false }, primary = accessibility && !storageOpen)
-            TvButton("Controle remoto", { accessibility = false; storageOpen = false }, primary = !accessibility && !storageOpen)
-            TvButton("Armazenamento", { storageOpen = true; storage.refresh() }, primary = storageOpen)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { TvButton("Acessibilidade e aparência", { accessibility = true; storageOpen = false; backupOpen = false }, primary = accessibility && !storageOpen && !backupOpen) }
+            item { TvButton("Controle remoto", { accessibility = false; storageOpen = false; backupOpen = false }, primary = !accessibility && !storageOpen && !backupOpen) }
+            item { TvButton("Armazenamento", { storageOpen = true; backupOpen = false; storage.refresh() }, primary = storageOpen && !backupOpen) }
+            item { TvButton("Backup e restauração", { backupOpen = true; storageOpen = false }, primary = backupOpen) }
+        }
+        if (backupOpen) {
+            com.pelican.comictv.backup.BackupSettings(backup, Modifier.weight(1f))
+            return@Column
         }
         if (storageOpen) {
             com.pelican.comictv.storage.StorageSettings(storage, onBack, Modifier.weight(1f))

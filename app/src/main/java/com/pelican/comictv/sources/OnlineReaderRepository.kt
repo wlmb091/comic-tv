@@ -38,6 +38,17 @@ class OnlineReaderRepository(
     private val sessions = LinkedHashMap<String, OnlineReadingRecord>()
     private val prefetched = mutableSetOf<String>()
 
+    internal suspend fun backupMetadata(id: String): com.pelican.comictv.backup.BackupOnline = mutex.withLock {
+        val record = read(id)
+        com.pelican.comictv.backup.BackupOnline(record.source, record.title.copy(coverUrl = null,
+            description = record.title.description?.take(16000)), record.chapter, record.pin)
+    }
+    internal suspend fun restoreMetadata(id: String, metadata: com.pelican.comictv.backup.BackupOnline) = mutex.withLock {
+        require(OnlineIdentity.id(metadata.source, metadata.title, metadata.chapter) == id)
+        if (!File(directory, "$id.json").isFile) write(id, OnlineReadingRecord(metadata.source, metadata.title, metadata.chapter, metadata.pin, emptyList()))
+        sessions.remove(id); prefetched.remove(id)
+    }
+
     suspend fun editionInfo(id: String): OnlineEditionInfo = withContext(Dispatchers.IO) {
         require(OnlineIdentity.isOnline(id)) { "Identificador online inválido." }
         mutex.withLock { read(id).editionInfo() }

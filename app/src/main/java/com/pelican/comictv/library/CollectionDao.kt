@@ -23,6 +23,11 @@ abstract class CollectionDao {
     @Query("DELETE FROM collections WHERE id = :id") abstract suspend fun delete(id: String)
     @Query("DELETE FROM comic_collections WHERE comicId = :comicId") abstract suspend fun clearMemberships(comicId: String)
     @Insert abstract suspend fun insertMemberships(rows: List<CollectionMembership>)
+    @Insert abstract suspend fun insertComic(row: ComicEntity)
+    @Transaction open suspend fun insertRestoredComic(row: ComicEntity, ids: Set<String>) {
+        insertComic(row)
+        insertMemberships(ids.map { CollectionMembership(row.id, it) })
+    }
     @Transaction open suspend fun replaceMemberships(comicId: String, collectionIds: Set<String>) {
         clearMemberships(comicId)
         insertMemberships(collectionIds.map { CollectionMembership(comicId, it) })

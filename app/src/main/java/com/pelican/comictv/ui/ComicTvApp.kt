@@ -46,6 +46,22 @@ import com.pelican.comictv.transfer.FtpTransferScreen
 import androidx.compose.ui.platform.LocalContext
 
 @Composable fun ComicTvApp(container: AppContainer) {
+    var recovered by remember { mutableStateOf(false) }
+    var recoveryError by remember { mutableStateOf(false) }
+    var attempt by remember { mutableIntStateOf(0) }
+    LaunchedEffect(attempt) {
+        recoveryError = false
+        try { container.backup.recover(); recovered = true }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { recoveryError = true }
+    }
+    if (!recovered) {
+        Column(Modifier.fillMaxSize().background(TvColors.Background).padding(30.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Text(if (recoveryError) "Não foi possível concluir uma restauração pendente. Seus arquivos foram mantidos." else "Preparando biblioteca…")
+            if (recoveryError) TvButton("Tentar novamente", { attempt++ })
+        }
+        return
+    }
     val nav = rememberNavController()
     var startupFocusPending by rememberSaveable { mutableStateOf(true) }
     var sidebarFocusTarget by rememberSaveable { mutableStateOf<String?>(null) }
@@ -120,12 +136,16 @@ import androidx.compose.ui.platform.LocalContext
             }
         }
         composable("settings") {
+            val app = LocalContext.current.applicationContext
+            val backup: com.pelican.comictv.backup.BackupViewModel = viewModel(factory = viewModelFactory {
+                initializer { com.pelican.comictv.backup.BackupViewModel(app, container.backup) }
+            })
             val storage: com.pelican.comictv.storage.StorageViewModel = viewModel(factory = viewModelFactory {
                 initializer { com.pelican.comictv.storage.StorageViewModel(container.library::storageReport, container.library::clearReaderCaches) }
             })
             TvShell("settings", onNavigate = { startupFocusPending = false; sidebarFocusTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
                 focusSectionOnEntry = sidebarFocusTarget == "settings", onSectionFocused = { sidebarFocusTarget = null }) {
-                SettingsScreen(container.appearance, storage) { nav.popBackStack("library", false) }
+                SettingsScreen(container.appearance, storage, backup) { nav.popBackStack("library", false) }
             }
         }
         composable("details/{id}") { entry ->

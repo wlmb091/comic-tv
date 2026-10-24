@@ -22,7 +22,8 @@ internal object OnlineRecordCodec {
         val record = requireNotNull(gson.fromJson(bytes.toString(Charsets.UTF_8), OnlineReadingRecord::class.java))
         require(OnlineIdentity.isOnline(id) && OnlineIdentity.id(record.source, record.title, record.chapter) == id) { "Registro online inválido." }
         require(record.pin.matches(Regex("[a-f0-9]{64}"))) { "Certificado inválido." }
-        requirePages(record.pages)
+        // Restored metadata intentionally has no transient page URLs; refresh before reading.
+        if (record.pages.isNotEmpty()) requirePages(record.pages)
         return record
     }
     fun requirePages(pages: List<OnlinePage>) {

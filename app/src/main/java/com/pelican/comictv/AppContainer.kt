@@ -13,7 +13,8 @@ class AppContainer(context: Context) {
         .addMigrations(LibraryDatabase.MIGRATION_1_2, LibraryDatabase.MIGRATION_2_3).build()
     val readerImages = com.pelican.comictv.reader.ReaderImagePreferences(app)
     val appearance = com.pelican.comictv.ui.AppearancePreferences(app)
-    val library = LibraryRepository(app, database.comics(), collectionDao = database.collections())
+    val pendingRestores = com.pelican.comictv.backup.RestorePendingStore(java.io.File(app.filesDir, "backup"))
+    val library = LibraryRepository(app, database.comics(), collectionDao = database.collections(), pendingRestores = pendingRestores)
     val sourcePreferences = SourcePreferences(app)
     val mihon = MihonEngine(app)
     val extensionInstaller = ExtensionInstaller(app)
@@ -21,4 +22,5 @@ class AppContainer(context: Context) {
         coil3.SingletonImageLoader.get(app).execute(com.pelican.comictv.reader.readerThumbnailRequest(app, file))
     }
     val online = OnlineReaderRepository(app, database.comics(), library, mihon, sourcePreferences)
+    val backup = com.pelican.comictv.backup.BackupRepository(app, database, library, online, appearance, readerImages, pendingRestores)
 }
