@@ -29,7 +29,6 @@ import kotlinx.coroutines.launch
     onFocus: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
     onRead: (String) -> Unit = onOpen,
     requestInitialFocus: Boolean = false, onInitialFocus: () -> Unit = {},
-    onFeatured: (java.io.File?) -> Unit = {},
 ) {
     val grid = rememberLazyGridState()
     val restore = remember { FocusRequester() }
@@ -39,7 +38,6 @@ import kotlinx.coroutines.launch
     var featuredId by remember { mutableStateOf(focusedId) }
     fun focusComic(id: String) { featuredId = id; onFocus(id) }
     val featured = featuredComic(comics, featuredId)
-    LaunchedEffect(featured?.id) { onFeatured(featured?.let { repository.cover(it.id) }) }
     val recent = comics.filter { it.lastRead > 0 && !it.hiddenFromHistory }.sortedByDescending { it.lastRead }
     var optionsFor by remember { mutableStateOf<ComicEntity?>(null) }
     val menuScope = rememberCoroutineScope()
@@ -86,7 +84,7 @@ import kotlinx.coroutines.launch
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ComicSignature(Modifier.width(180.dp).height(38.dp))

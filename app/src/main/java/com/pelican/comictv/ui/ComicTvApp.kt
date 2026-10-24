@@ -49,7 +49,6 @@ import androidx.compose.ui.platform.LocalContext
     val nav = rememberNavController()
     var startupFocusPending by rememberSaveable { mutableStateOf(true) }
     var sidebarFocusTarget by rememberSaveable { mutableStateOf<String?>(null) }
-    var libraryCover by remember { mutableStateOf<File?>(null) }
     var editionPreview by remember { mutableStateOf<File?>(null) }
     val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
     val library: LibraryViewModel = viewModel(factory = viewModelFactory {
@@ -62,12 +61,11 @@ import androidx.compose.ui.platform.LocalContext
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
             TvShell("library", onNavigate = { startupFocusPending = false; sidebarFocusTarget = it; nav.navigate(it) { launchSingleTop = true } },
-                backgroundCover = libraryCover, contentFocusPending = startupFocusPending, focusSectionOnEntry = sidebarFocusTarget == "library", onSectionFocused = { sidebarFocusTarget = null }) {
+                contentFocusPending = startupFocusPending, focusSectionOnEntry = sidebarFocusTarget == "library", onSectionFocused = { sidebarFocusTarget = null }) {
                 LibraryScreen(comics, container.library, library.focusedId,
                     onFocus = { library.focusedId = it }, onOpen = { nav.navigate("details/$it") },
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
-                    requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
-                    onFeatured = { libraryCover = it })
+                    requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false })
             }
         }
         composable("import") {
@@ -156,7 +154,7 @@ import androidx.compose.ui.platform.LocalContext
 }
 
 @Composable internal fun TvShell(selected: String, onNavigate: (String) -> Unit,
-    focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false, backgroundCover: File? = null, content: @Composable () -> Unit) {
+    focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false, content: @Composable () -> Unit) {
     val sectionFocus = remember { FocusRequester() }
     LaunchedEffect(focusSectionOnEntry) {
         if (focusSectionOnEntry) { sectionFocus.requestFocus(); onSectionFocused() }
@@ -166,7 +164,7 @@ import androidx.compose.ui.platform.LocalContext
     var focusWithin by remember { mutableStateOf(false) }
     val expanded = focusWithin
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
-        if (selected == "library") BrandedBackground(backgroundCover, Modifier.matchParentSize())
+        if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
     Box(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
         // The content keeps its full width while the drawer floats above its left edge.
         Box(Modifier.fillMaxSize().padding(start = 80.dp)) { content() }

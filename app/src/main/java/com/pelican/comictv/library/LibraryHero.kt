@@ -28,7 +28,7 @@ import com.pelican.comictv.ui.*
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .8f)))))
         }
         }
-        Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(.68f).padding(vertical = 8.dp),
+        Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(.68f).padding(horizontal = 18.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUE SUA HISTÓRIA" else "SUA PRÓXIMA HISTÓRIA",
                 color = TvColors.Amber, fontSize = 12.sp, fontWeight = FontWeight.Bold)

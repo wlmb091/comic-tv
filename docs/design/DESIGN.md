@@ -23,3 +23,7 @@ A assinatura com texto também serve de fundo padrão da página principal e alt
 - Dados reais da biblioteca: títulos da imagem são ilustração da proposta.
 - Retomada de leitura, histórico completo, confirmação de remoção e controles existentes preservados.
 - Ajustes por tamanho de TV/acessibilidade devem preservar a composição aprovada.
+
+## Refinamento após teste na TV — 0.9.1
+
+A tela principal usa sempre a identidade Comic TV desfocada e mais escura. A opção de capa desfocada aplica-se somente aos detalhes da edição selecionada. Destaque recebe margem interna de 18 dp e separação de 14 dp do cabeçalho para afastar textos e botões das bordas.

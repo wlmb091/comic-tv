@@ -46,10 +46,10 @@ import kotlinx.coroutines.launch
                     TvButton((if (options.preset == preset) "✓ " else "") + preset.label,
                         { save(options.copy(preset = preset)) }, primary = options.preset == preset)
                 } }
-                item { Text("Fundo da biblioteca e detalhes", fontSize = 23.sp) }
+                item { Text("Fundo dos detalhes", fontSize = 23.sp) }
                 item { TvButton(if (options.coverBackground) "Fundo: capa desfocada" else "Fundo: identidade Comic TV",
                     { save(options.copy(coverBackground = !options.coverBackground)) }) }
-                item { Text("Ativado: capa desfocada. Desativado: arte oficial Comic TV. Em alto contraste, o fundo permanece preto.", color = TvColors.Muted) }
+                item { Text("Nos detalhes: capa desfocada quando ativado. Na tela principal: identidade Comic TV desfocada e escura. Em alto contraste, fundo preto.", color = TvColors.Muted) }
                 item { Text("Tamanho dos textos", fontSize = 23.sp) }
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -3,7 +3,13 @@ package com.pelican.comictv.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.Composable
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import com.pelican.comictv.image.blurBackdropPixels
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -27,9 +33,29 @@ import java.io.File
             if (TvColors.options.coverBackground && cover?.isFile == true) {
                 CoverBackdrop(cover, Modifier.fillMaxSize())
             } else {
-                Image(painterResource(R.drawable.brand_wordmark), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .72f)))
+                IdentityBackdrop(Modifier.fillMaxSize())
             }
         }
+    }
+}
+
+// Software blur keeps the static backdrop compatible with Android 8 TVs.
+@Composable private fun IdentityBackdrop(modifier: Modifier = Modifier) {
+    val resources = LocalContext.current.resources
+    val bitmap by produceState<Bitmap?>(null, resources) {
+        value = withContext(Dispatchers.IO) {
+            val decoded = BitmapFactory.decodeResource(resources, R.drawable.brand_wordmark,
+                BitmapFactory.Options().apply { inSampleSize = 4 }) ?: return@withContext null
+            val small = Bitmap.createScaledBitmap(decoded, 96, 54, true)
+            val pixels = IntArray(96 * 54)
+            small.getPixels(pixels, 0, 96, 0, 0, 96, 54)
+            if (small !== decoded) decoded.recycle()
+            small.recycle()
+            Bitmap.createBitmap(blurBackdropPixels(pixels, 96, 54), 96, 54, Bitmap.Config.ARGB_8888)
+        }
+    }
+    Box(modifier.background(Color.Black)) {
+        bitmap?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .88f)))
     }
 }

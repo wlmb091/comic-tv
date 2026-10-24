@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.9.0
+## Versão 0.9.1
 
 - Design final registrado em docs/design/DESIGN.md e nas instruções AGENTS.md, com imagem aprovada preservada no projeto.
 - Identidade oficial: assinatura fornecida pelo usuário, símbolo vetorial para ícone e lateral e banner com a arte COMIC TV.
