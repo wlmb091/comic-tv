@@ -18,7 +18,7 @@ internal class TitlePreviewResolver(private val fetch: suspend (SourceHandle, On
         lock.withLock { cache[key] }?.let { return it }
         return slots.withPermit {
             lock.withLock { cache[key] } ?: fetch(source, title).let { details ->
-                val resolved = title.copy(title = details.title.ifBlank { title.title },
+                val resolved = details.copy(title = details.title.ifBlank { title.title },
                     coverUrl = details.coverUrl?.takeIf { it.isNotBlank() }, description = details.description ?: title.description)
                 if (!resolved.coverUrl.isNullOrBlank()) lock.withLock { cache[key] = resolved }
                 resolved

@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
     val nav = rememberNavController()
     var startupFocusPending by rememberSaveable { mutableStateOf(true) }
     var sidebarFocusTarget by rememberSaveable { mutableStateOf<String?>(null) }
+    var relatedTitle by remember { mutableStateOf<RelatedComic?>(null) }
     var editionPreview by remember { mutableStateOf<File?>(null) }
     val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
     val library: LibraryViewModel = viewModel(factory = viewModelFactory {
@@ -120,7 +121,15 @@ import androidx.compose.ui.platform.LocalContext
         }
         composable("details/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
-            DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo)
+            DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo, loadRelated = container.online::related,
+                onRelated = { selected ->
+                    if (selected.libraryId != null) nav.navigate("details/" + selected.libraryId)
+                    else { relatedTitle = selected; nav.navigate("related-title") }
+                })
+        }
+        composable("related-title") {
+            com.pelican.comictv.details.RelatedTitleScreen(relatedTitle, container.online,
+                onRead = { nav.navigate("reader/$it") }, onBack = { nav.popBackStack() })
         }
         composable("reader/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
@@ -174,9 +183,9 @@ import androidx.compose.ui.platform.LocalContext
             .onFocusChanged { focusWithin = it.hasFocus }.focusGroup().padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.CenterStart) {
-                if (expanded) ComicSignature(Modifier.fillMaxWidth().height(44.dp))
+                if (expanded) ComicWordmark(Modifier.fillMaxWidth().height(44.dp))
                 else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
-                    Modifier.size(38.dp).align(Alignment.Center), tint = Color(0xFFFFBD59))
+                    Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
             }
             routes.forEachIndexed { index, (route, title) ->
                 val active = route == selected

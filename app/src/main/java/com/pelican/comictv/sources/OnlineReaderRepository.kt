@@ -8,6 +8,8 @@ import com.pelican.comictv.library.LibraryRepository
 import com.pelican.comictv.library.ReaderRepository
 import com.pelican.comictv.mihon.MihonEngine
 import com.pelican.comictv.model.PageRef
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -40,6 +42,76 @@ class OnlineReaderRepository(
         require(OnlineIdentity.isOnline(id)) { "Identificador online inválido." }
         mutex.withLock { read(id).editionInfo() }
     }
+    /** Read-only discovery. Never opens pages or updates reading progress. */
+    suspend fun related(id: String): RelatedResult = withContext(Dispatchers.IO) {
+        if (!OnlineIdentity.isOnline(id)) return@withContext RelatedResult(emptyList(),
+            "Este arquivo local não tem créditos cadastrados para encontrar relações.")
+        mutex.withLock {
+            val saved = read(id)
+            trusted(saved.pin)
+            val source = loadSource(saved.source, saved.pin)
+            suspend fun preview(title: OnlineTitle): OnlineTitle = try {
+                withTimeoutOrNull(6_000) { extensionOperation { engine.titlePreview(source, title) } } ?: title
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { title }
+            val base = preview(saved.title)
+            write(id, saved.copy(title = base))
+            sessions[id]?.let { sessions[id] = it.copy(title = base) }
+            val candidates = linkedMapOf<Pair<SourceHandle, String>, RelatedComic>()
+            val rows = dao.observe().first().filter { it.id != id && OnlineIdentity.isOnline(it.id) }.take(60)
+            var refreshed = 0
+            for (row in rows) {
+                currentCoroutineContext().ensureActive()
+                val record = try { read(row.id) } catch (e: Exception) { continue }
+                if (!preferences.isTrusted(record.pin)) continue
+                val same = record.source.packageName == source.packageName && record.source.id == source.id
+                val title = if (same && refreshed < 6 && record.title.author.isNullOrBlank() && record.title.artist.isNullOrBlank()) {
+                    refreshed++
+                    preview(record.title).also { updated ->
+                        write(row.id, record.copy(title = updated))
+                        sessions[row.id]?.let { sessions[row.id] = it.copy(title = updated) }
+                    }
+                } else record.title
+                val reasons = relatedReasons(base, title, same)
+                if (reasons.isNotEmpty()) candidates.putIfAbsent(record.source to title.key,
+                    RelatedComic(row.id, record.source, title, record.pin, reasons))
+            }
+            // Source catalogs rarely expose author filters; confirm credits on a bounded sample.
+            var partial = false
+            val finished = withTimeoutOrNull(35_000) {
+                val pool = linkedMapOf<String, OnlineTitle>()
+                val queries = listOfNotNull(base.author, base.artist).map { it.split(';', ',').first().trim() }
+                    .filter { it.isNotBlank() }.distinct().take(2) + ""
+                for (query in queries) {
+                    try { extensionOperation { engine.catalog(source, query = query) }.titles.take(24)
+                        .forEach { if (it.key != base.key) pool.putIfAbsent(it.key, it) } }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { partial = true }
+                }
+                for (title in pool.values.take(16)) {
+                    currentCoroutineContext().ensureActive()
+                    if (candidates.containsKey(source to title.key)) continue
+                    val resolved = preview(title)
+                    val reasons = relatedReasons(base, resolved, true)
+                    if (reasons.isNotEmpty()) candidates[source to title.key] = RelatedComic(null, source, resolved, saved.pin, reasons)
+                }
+                true
+            }
+            if (finished == null) partial = true
+            val result = selectRelated(id, candidates.values.toList())
+            RelatedResult(result, if (result.isEmpty())
+                "Nenhuma relação confirmada na biblioteca e na amostra consultada da fonte. Créditos ausentes limitam as sugestões."
+                else if (partial) "Resultados parciais da biblioteca e da fonte."
+                else "Relações confirmadas na biblioteca e em uma amostra do catálogo da fonte.")
+        }
+    }
+    suspend fun relatedDetails(item: RelatedComic): OnlineDetails = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val source = loadSource(item.source, item.pin)
+            extensionOperation { engine.details(source, item.title) }
+        }
+    }
+
     /** Call after leaving the reader: loading an extension replaces its active page context. */
     suspend fun editions(id: String): OnlineEditions = withContext(Dispatchers.IO) {
         mutex.withLock {

@@ -3,7 +3,9 @@ package com.pelican.comictv.sources
 data class SourceHandle(val packageName: String, val id: Long, val name: String, val language: String, val baseUrl: String)
 data class InstalledExtension(val packageName: String, val name: String, val versionCode: Long, val versionName: String,
     val fingerprints: Set<String>, val compatible: Boolean)
-data class OnlineTitle(val key: String, val title: String, val coverUrl: String? = null, val description: String? = null)
+data class OnlineTitle(val key: String, val title: String, val coverUrl: String? = null, val description: String? = null,
+    val author: String? = null, val artist: String? = null, val publisher: String? = null,
+    val characters: String? = null, val director: String? = null)
 data class OnlineChapter(val key: String, val title: String, val number: Float = 0f)
 data class OnlinePage(val index: Int, val pageUrl: String, val imageUrl: String? = null)
 data class OnlineDetails(val title: OnlineTitle, val chapters: List<OnlineChapter>)

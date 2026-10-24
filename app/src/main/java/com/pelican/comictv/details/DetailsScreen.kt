@@ -10,6 +10,10 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.key.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import com.pelican.comictv.sources.RelatedComic
+import com.pelican.comictv.sources.RelatedResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
@@ -32,6 +36,8 @@ import kotlinx.coroutines.CancellationException
     onRead: () -> Unit,
     onBack: () -> Unit,
     loadOnlineInfo: suspend (String) -> OnlineEditionInfo? = { null },
+    loadRelated: suspend (String) -> RelatedResult = { RelatedResult(emptyList(), "Relacionados indisponíveis.") },
+    onRelated: (RelatedComic) -> Unit = {},
 ) {
     var comic by remember(id) { mutableStateOf<ComicEntity?>(null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
@@ -39,6 +45,24 @@ import kotlinx.coroutines.CancellationException
     var metadataLoading by remember(id) { mutableStateOf(id.startsWith("online-")) }
     var expandedSummary by remember(id) { mutableStateOf(false) }
     val scrollScope = rememberCoroutineScope()
+    val pageScroll = rememberLazyListState()
+    val relatedFocus = remember { FocusRequester() }
+    var related by remember(id) { mutableStateOf<RelatedResult?>(null) }
+    var relatedBusy by remember(id) { mutableStateOf(false) }
+    var relatedJob by remember(id) { mutableStateOf<Job?>(null) }
+    fun discoverRelated() {
+        if (relatedBusy || related != null) return
+        relatedBusy = true
+        relatedJob = scrollScope.launch {
+            try { related = loadRelated(id) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { related = RelatedResult(emptyList(), "Não foi possível consultar os relacionados. Tente novamente.") }
+            finally { relatedBusy = false }
+        }
+    }
+    fun afterDiscoveryStopped(action: () -> Unit) {
+        scrollScope.launch { relatedJob?.cancelAndJoin(); action() }
+    }
     var confirmRemoval by remember(id) { mutableStateOf(false) }
     var changingHistory by remember { mutableStateOf(false) }
     val summaryScroll = rememberLazyListState()
@@ -72,7 +96,9 @@ import kotlinx.coroutines.CancellationException
         // The cover sets the shared height; both side panels remain independently scrollable.
         val coverWidth = minOf(maxHeight * (2f / 3f), maxWidth * .36f)
         val panelHeight = coverWidth * 1.5f
-        Row(Modifier.fillMaxWidth().height(panelHeight).align(Alignment.Center),
+        LazyColumn(Modifier.fillMaxSize(), state = pageScroll, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        item(key = "overview") {
+        Row(Modifier.fillMaxWidth().height(panelHeight),
             horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -107,7 +133,7 @@ import kotlinx.coroutines.CancellationException
                 error?.let { Text(it, color = TvColors.Amber, fontSize = 16.sp) }
                 comic?.let { item ->
                     TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
-                        onRead, Modifier.focusRequester(first), primary = true)
+                        { afterDiscoveryStopped(onRead) }, Modifier.focusRequester(first), primary = true)
                     if (item.lastRead > 0) {
                         TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
                             if (!item.hiddenFromHistory) confirmRemoval = true
@@ -125,6 +151,10 @@ import kotlinx.coroutines.CancellationException
                 }
                 TvButton("Voltar à biblioteca", onBack,
                     if (comic == null) Modifier.focusRequester(first) else Modifier)
+                TvButton("Relacionados ↓", { scrollScope.launch {
+                    pageScroll.animateScrollToItem(1)
+                    relatedFocus.requestFocus()
+                } })
             }
             AsyncImage(repository.cover(id), "Capa da edição",
                 Modifier.width(coverWidth).fillMaxHeight(), contentScale = ContentScale.Fit)
@@ -152,6 +182,22 @@ import kotlinx.coroutines.CancellationException
                     }
                 }
             }
+        }
+        }
+        item(key = "related-heading") {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Relacionados", fontSize = 26.sp)
+                TvButton(if (relatedBusy) "Buscando relações…" else if (related == null) "Buscar relacionados" else "Atualizar relacionados",
+                    { if (!relatedBusy) { related = null; discoverRelated() } },
+                    Modifier.focusRequester(relatedFocus).onFocusChanged { if (it.isFocused) discoverRelated() })
+                Text(related?.message ?: "Escritores, desenhistas, personagens e editoras em comum, quando informados pela fonte.", color = TvColors.Muted, fontSize = 16.sp)
+            }
+        }
+        item(key = "related-list") {
+            RelatedComicsRow(related?.comics.orEmpty(), repository) { selected ->
+                afterDiscoveryStopped { onRelated(selected) }
+            }
+        }
         }
     }
     }

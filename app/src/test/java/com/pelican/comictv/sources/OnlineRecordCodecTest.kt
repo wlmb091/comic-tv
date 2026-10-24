@@ -9,6 +9,12 @@ class OnlineRecordCodecTest {
     @Test fun persistenceRetainsSourceChapterPinAndPageMetadataForResume() {
         assertEquals(record, OnlineRecordCodec.decode(id, OnlineRecordCodec.encode(record)))
     }
+    @Test fun optionalCreditsRoundTripWithoutChangingEditionIdentity() {
+        val enriched = record.copy(title = record.title.copy(author = "Writer", artist = "Artist", publisher = "Publisher", characters = "Hero"))
+        assertEquals(id, OnlineIdentity.id(enriched.source, enriched.title, enriched.chapter))
+        assertEquals(enriched, OnlineRecordCodec.decode(id, OnlineRecordCodec.encode(enriched)))
+        assertNull(OnlineRecordCodec.decode(id, OnlineRecordCodec.encode(record)).title.author)
+    }
     @Test fun recordCannotBeSubstitutedForAnotherChapter() {
         assertThrows(IllegalArgumentException::class.java) { OnlineRecordCodec.decode(id, OnlineRecordCodec.encode(record.copy(chapter = record.chapter.copy(key = "chapter/2")))) }
     }

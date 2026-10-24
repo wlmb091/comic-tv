@@ -96,13 +96,13 @@ class MihonEngine(context: Context) {
     suspend fun titlePreview(handle: SourceHandle, title: OnlineTitle): OnlineTitle = withContext(Dispatchers.IO) {
         val manga = SManga.create().apply { url = title.key; this.title = title.title; thumbnail_url = title.coverUrl; description = title.description }
         val result = source(handle).getMangaUpdate(manga, emptyList(), fetchDetails = true, fetchChapters = false).manga
-        OnlineTitle(title.key, runCatching { result.title }.getOrDefault(title.title), result.thumbnail_url, result.description)
+        OnlineTitle(title.key, runCatching { result.title }.getOrDefault(title.title), result.thumbnail_url, result.description, result.author ?: title.author, result.artist ?: title.artist)
     }
     suspend fun details(source: SourceHandle, title: OnlineTitle): OnlineDetails = withContext(Dispatchers.IO) {
         val manga = SManga.create().apply { url = title.key; this.title = title.title; thumbnail_url = title.coverUrl; description = title.description }
         // 1.6 sources override getMangaUpdate; older sources use the vendored Rx bridge.
         val update = source(source).getMangaUpdate(manga, emptyList(), true, true)
-        OnlineDetails(OnlineTitle(title.key, runCatching { update.manga.title }.getOrDefault(title.title), update.manga.thumbnail_url ?: title.coverUrl, update.manga.description ?: title.description), update.chapters.map { OnlineChapter(it.url, it.name, it.chapter_number) })
+        OnlineDetails(OnlineTitle(title.key, runCatching { update.manga.title }.getOrDefault(title.title), update.manga.thumbnail_url ?: title.coverUrl, update.manga.description ?: title.description, update.manga.author ?: title.author, update.manga.artist ?: title.artist), update.chapters.map { OnlineChapter(it.url, it.name, it.chapter_number) })
     }
 
     suspend fun pages(source: SourceHandle, chapter: OnlineChapter): List<OnlinePage> = withContext(Dispatchers.IO) {
@@ -149,7 +149,7 @@ class MihonEngine(context: Context) {
         } finally { temporary.delete() }
     }
 
-    private fun mapTitle(manga: SManga) = OnlineTitle(manga.url, manga.title, manga.thumbnail_url, manga.description)
+    private fun mapTitle(manga: SManga) = OnlineTitle(manga.url, manga.title, manga.thumbnail_url, manga.description, manga.author, manga.artist)
     private fun isExtension(info: PackageInfo) = info.reqFeatures.orEmpty().any { it.name == "tachiyomi.extension" }
     private fun lib(info: PackageInfo): String? = info.applicationInfo?.metaData?.get("tachiyomix.extensionLib")?.toString()
         ?: info.versionName?.split('.')?.take(2)?.joinToString(".")

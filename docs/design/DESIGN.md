@@ -35,3 +35,7 @@ Comic TV (dourado), Tema Flix (preto/vermelho), Tema Prime (marinho/ciano), Tema
 As ações do destaque inicial (Continuar/Começar leitura e Importar) ficam neutras sem foco; a cor preenchida indica foco ou interação, evitando aparência de seleção permanente.
 
 Cabeçalho da biblioteca: somente texto COMIC TV, usando Montserrat ExtraBold incorporada como aproximação da referência aprovada. COMIC branco e TV na cor do tema ativo; sem símbolo nem fundo retangular. Símbolo lateral e artes de fundo preservados. Fonte: https://github.com/JulietaUla/Montserrat; licença SIL OFL incluída no APK e em docs/licenses.
+
+0.9.3: o topo da barra lateral expandida usa o mesmo cabeçalho textual Montserrat ExtraBold da biblioteca, sem imagem retangular; COMIC branco e TV na cor do tema.
+
+Relacionados ficam abaixo da ficha, com capas e motivo explícito. Incluir biblioteca e amostra do catálogo da fonte; não inferir créditos pela sinopse. A API atual fornece principalmente escritor/desenhista; editora, personagens e direção dependem de metadados explícitos. Arquivos locais sem créditos mostram indisponibilidade. O símbolo recolhido acompanha o tema.

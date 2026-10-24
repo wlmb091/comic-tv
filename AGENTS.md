@@ -9,3 +9,5 @@
 
 - Temas aprovados: Comic TV (padrão), Tema Flix, Tema Prime, Tema Max e Tema Cinema; alterar superfícies completas e preservar logo/capas originais. Presets anteriores continuam disponíveis.
 - Cabeçalho da biblioteca somente COMIC TV em Montserrat ExtraBold: COMIC branco e TV na cor do tema; sem símbolo nem retângulo de fundo.
+- Barra lateral expandida usa o mesmo ComicWordmark textual da biblioteca: COMIC branco e TV na cor do tema.
+- Símbolo da barra lateral recolhida acompanha a cor do tema ativo.
