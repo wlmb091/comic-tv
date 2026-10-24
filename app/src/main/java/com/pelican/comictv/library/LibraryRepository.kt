@@ -14,6 +14,7 @@ import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
+import com.pelican.comictv.storage.*
 
 class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val coverGenerator: CoverGenerator = BitmapCoverGenerator(),
@@ -29,6 +30,19 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val mutex = Mutex()
     private var protectedPage: String? = null
     private var ready = false
+
+    private fun storage() = LibraryStorage(File(context.filesDir, "originals"), covers, pageDirectory, thumbnailDirectory)
+    suspend fun storageReport(): StorageReport = withContext(Dispatchers.IO) {
+        mutex.withLock { runInterruptible { storage().report() } }
+    }
+    suspend fun clearReaderCaches(selection: CacheSelection): CacheCleanup = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val result = runInterruptible { storage().clear(selection) }
+            if (selection != CacheSelection.Thumbnails) protectedPage = null
+            coil3.SingletonImageLoader.get(context).memoryCache?.clear()
+            result
+        }
+    }
 
     suspend fun setHistoryHidden(id: String, hidden: Boolean) = dao.setHistoryHidden(id, hidden)
     fun observeComics() = dao.observe()

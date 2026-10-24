@@ -120,9 +120,12 @@ import androidx.compose.ui.platform.LocalContext
             }
         }
         composable("settings") {
+            val storage: com.pelican.comictv.storage.StorageViewModel = viewModel(factory = viewModelFactory {
+                initializer { com.pelican.comictv.storage.StorageViewModel(container.library::storageReport, container.library::clearReaderCaches) }
+            })
             TvShell("settings", onNavigate = { startupFocusPending = false; sidebarFocusTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
                 focusSectionOnEntry = sidebarFocusTarget == "settings", onSectionFocused = { sidebarFocusTarget = null }) {
-                SettingsScreen(container.appearance) { nav.popBackStack("library", false) }
+                SettingsScreen(container.appearance, storage) { nav.popBackStack("library", false) }
             }
         }
         composable("details/{id}") { entry ->

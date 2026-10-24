@@ -49,11 +49,15 @@ import kotlinx.coroutines.launch
     var searching by remember { mutableStateOf(false) }
     var managing by remember { mutableStateOf(false) }
     var restoreControl by remember { mutableIntStateOf(0) }
+    var restoreManage by remember { mutableIntStateOf(0) }
     val searchEntries = remember(comics) { comics.map { LibrarySearchEntry(it.id, it.title, it.favorite) } }
     val memberIndex = remember(memberships) { memberships.groupBy { it.collectionId }.mapValues { (_, rows) -> rows.map { it.comicId }.toSet() } }
     val matching = remember(searchEntries, query, filter, memberIndex) { filterLibrary(searchEntries, query, filter, memberIndex).toSet() }
     if (searching) LibrarySearchDialog(query, onQuery) { searching = false; restoreControl++ }
-    if (managing) ManageCollections(repository) { managing = false; restoreControl++ }
+    if (managing) ManageCollections(repository) {
+        managing = false
+        menuScope.launch { grid.scrollToItem(0); withFrameNanos { }; restoreManage++ }
+    }
     LaunchedEffect(restoreControl) { if (restoreControl > 0) { grid.scrollToItem(0); withFrameNanos { }; searchFocus.requestFocus() } }
     LaunchedEffect(requestInitialFocus) {
         if (requestInitialFocus) {
@@ -113,7 +117,7 @@ import kotlinx.coroutines.launch
                     LibraryTab("Biblioteca · " + comics.size, !history, { history = false }, Modifier.focusRequester(headerFocus))
                     LibraryTab("Histórico · " + recent.size, history, { history = true })
                 }
-                LibraryFilters(collections, filter, onFilter) { managing = true }
+                LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage)
                 if (!history) LibraryHero(featured, repository,
                     onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport)
             }

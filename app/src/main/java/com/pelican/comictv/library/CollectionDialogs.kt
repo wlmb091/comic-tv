@@ -107,7 +107,7 @@ import kotlinx.coroutines.launch
         TvButton(if (busy) "Salvando…" else "Salvar", {
             if (!busy && loaded) scope.launch {
                 busy = true; error = null
-                try { repository.setCollections(comic.id, selected.intersect(collections.map { it.id }.toSet())); onDismiss() }
+                try { repository.setCollections(comic.id, selected); onDismiss() }
                 catch (e: CancellationException) { throw e }
                 catch (_: Exception) { error = "Não foi possível salvar as coleções." }
                 finally { busy = false }
@@ -127,20 +127,27 @@ import kotlinx.coroutines.launch
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var restore by remember { mutableIntStateOf(0) }
+    var origin by remember { mutableStateOf("create") }
+    val origins = remember { mutableMapOf<String, FocusRequester>() }
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
     LibraryDialog("Gerenciar coleções", onDismiss) {
-        TvButton("Criar coleção", { creating = true }, Modifier.focusRequester(first))
+        TvButton("Criar coleção", { origin = "create"; creating = true }, Modifier.focusRequester(first))
         if (rows.isEmpty()) Text("Você ainda não criou coleções.", color = TvColors.Muted)
-        for (row in rows) {
+        for (row in rows) key(row.id) {
+            val rename = origins.getOrPut("rename:" + row.id) { FocusRequester() }
+            val delete = origins.getOrPut("delete:" + row.id) { FocusRequester() }
             Text(row.name, fontSize = 20.sp)
-            TvButton("Renomear · " + row.name, { editing = row })
-            TvButton("Excluir · " + row.name, { deleting = row })
+            TvButton("Renomear · " + row.name, { origin = "rename:" + row.id; editing = row }, Modifier.focusRequester(rename))
+            TvButton("Excluir · " + row.name, { origin = "delete:" + row.id; deleting = row }, Modifier.focusRequester(delete))
         }
         error?.let { Text(it, color = TvColors.Amber) }
         TvButton("Fechar", onDismiss)
     }
-    LaunchedEffect(restore) { first.requestFocus() }
+    LaunchedEffect(restore) {
+        val existing = rows.any { origin.substringAfter(':') == it.id }
+        if (origin != "create" && existing) origins[origin]?.requestFocus() else first.requestFocus()
+    }
     if (creating || editing != null) CollectionNameDialog(repository, editing, { creating = false; editing = null; restore++ },
         { creating = false; editing = null; restore++ })
     deleting?.let { row ->
@@ -152,7 +159,7 @@ import kotlinx.coroutines.launch
             TvButton(if (busy) "Excluindo…" else "Excluir coleção", {
                 if (!busy) scope.launch {
                     busy = true; error = null
-                    try { repository.deleteCollection(row.id); deleting = null; restore++ }
+                    try { repository.deleteCollection(row.id); deleting = null; origin = "create"; restore++ }
                     catch (e: CancellationException) { throw e }
                     catch (_: Exception) { error = "Não foi possível excluir a coleção." }
                     finally { busy = false }

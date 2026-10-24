@@ -17,10 +17,11 @@ import com.pelican.comictv.BuildConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-@Composable fun SettingsScreen(preferences: AppearancePreferences, onBack: () -> Unit) {
+@Composable fun SettingsScreen(preferences: AppearancePreferences, storage: com.pelican.comictv.storage.StorageViewModel, onBack: () -> Unit) {
     val options by preferences.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var accessibility by rememberSaveable { mutableStateOf(true) }
+    var storageOpen by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     fun save(value: AppearanceOptions) {
@@ -37,8 +38,13 @@ import kotlinx.coroutines.launch
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenTitle("Configurações", "Comic TV · versão " + BuildConfig.VERSION_NAME)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            TvButton("Acessibilidade e aparência", { accessibility = true }, primary = accessibility)
-            TvButton("Controle remoto", { accessibility = false }, primary = !accessibility)
+            TvButton("Acessibilidade e aparência", { accessibility = true; storageOpen = false }, primary = accessibility && !storageOpen)
+            TvButton("Controle remoto", { accessibility = false; storageOpen = false }, primary = !accessibility && !storageOpen)
+            TvButton("Armazenamento", { storageOpen = true; storage.refresh() }, primary = storageOpen)
+        }
+        if (storageOpen) {
+            com.pelican.comictv.storage.StorageSettings(storage, onBack, Modifier.weight(1f))
+            return@Column
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
