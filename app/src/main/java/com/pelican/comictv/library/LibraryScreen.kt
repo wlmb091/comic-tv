@@ -111,14 +111,9 @@ import kotlinx.coroutines.launch
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ComicWordmark(Modifier.width(180.dp).heightIn(min = 38.dp))
-                    Spacer(Modifier.weight(1f))
-                    LibraryTab("Buscar", searching || query.isNotBlank(), { searching = true }, Modifier.focusRequester(searchFocus))
-                    LibraryTab("Biblioteca · " + comics.size, !history, { history = false }, Modifier.focusRequester(headerFocus))
-                    LibraryTab("Histórico · " + recent.size, history, { history = true })
-                }
+                LibraryHeader(comics.size, recent.size, history, searching || query.isNotBlank(),
+                    { searching = true }, { history = false }, { history = true },
+                    Modifier.focusRequester(headerFocus), Modifier.focusRequester(searchFocus))
                 LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage)
                 if (!history) LibraryHero(featured, repository,
                     onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport)
@@ -215,7 +210,3 @@ private fun readingFraction(comic: ComicEntity): Float =
 private fun readingStatus(comic: ComicEntity): String =
     if (comic.pageCount > 0 && comic.currentPage >= comic.pageCount - 1) "Concluído"
     else "Página ${comic.currentPage + 1} de ${comic.pageCount}"
-
-@Composable private fun LibraryTab(label: String, active: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    TvChoice(label, active, onClick, modifier, compact = true)
-}

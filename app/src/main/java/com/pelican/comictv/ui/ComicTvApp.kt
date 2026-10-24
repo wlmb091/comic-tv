@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -44,6 +46,7 @@ import com.pelican.comictv.transfer.LocalTransferScreen
 import com.pelican.comictv.transfer.FtpTransferViewModel
 import com.pelican.comictv.transfer.FtpTransferScreen
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.launch
 
 @Composable fun ComicTvApp(container: AppContainer) {
@@ -219,25 +222,27 @@ import kotlinx.coroutines.launch
     val icons = listOf(R.drawable.nav_library, R.drawable.nav_recent, R.drawable.nav_sources, R.drawable.nav_extensions, R.drawable.nav_import, R.drawable.nav_settings)
     var focusWithin by remember { mutableStateOf(false) }
     val expanded = focusWithin
+    val expandedWidth = minOf(320.dp, 228.dp * LocalDensity.current.fontScale.coerceAtLeast(1f))
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
     Box(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
         // The content keeps its full width while the drawer floats above its left edge.
         Box(Modifier.fillMaxSize().padding(start = 80.dp)) { content() }
-        Column(Modifier.width(if (expanded) 228.dp else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
+        Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
             .background(TvColors.Panel, RoundedCornerShape(18.dp))
             .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(18.dp))
-            .onFocusChanged { focusWithin = it.hasFocus }.focusGroup().padding(8.dp),
+            .onFocusChanged { focusWithin = it.hasFocus }.focusGroup()
+            .verticalScroll(rememberScrollState()).padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.CenterStart) {
-                if (expanded) ComicWordmark(Modifier.fillMaxWidth().height(44.dp), centered = true)
+            Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
+                if (expanded) ComicWordmark(Modifier.fillMaxWidth().heightIn(min = 44.dp), centered = true)
                 else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
                     Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
             }
             routes.forEachIndexed { index, (route, title) ->
                 val active = route == selected
                 androidx.tv.material3.Button(onClick = { if (route != selected) onNavigate(route) },
-                    modifier = Modifier.fillMaxWidth().height(52.dp).focusProperties { canFocus = !contentFocusPending }.testTag("nav-" + route)
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).focusProperties { canFocus = !contentFocusPending }.testTag("nav-" + route)
                         .semantics { this.selected = active }
                         .then(if (route == selected) Modifier.focusRequester(sectionFocus) else Modifier), contentPadding = PaddingValues(0.dp),
                     shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(12.dp)),
@@ -246,11 +251,11 @@ import kotlinx.coroutines.launch
                         containerColor = if (route == selected) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
                         contentColor = if (route == selected) TvColors.Amber else Color.White,
                         focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
-                    Row(Modifier.fillMaxWidth().fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.width(48.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.width(48.dp).height(36.dp), contentAlignment = Alignment.Center) {
                             androidx.tv.material3.Icon(painterResource(icons[index]), contentDescription = title, modifier = Modifier.size(26.dp))
                         }
-                        if (expanded) Text(title, Modifier.padding(start = 8.dp), fontSize = 17.sp, maxLines = 1)
+                        if (expanded) Text(title, Modifier.weight(1f).padding(start = 8.dp), fontSize = 17.sp)
                     }
                 }
             }

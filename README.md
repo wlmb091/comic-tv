@@ -2,7 +2,9 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.12.3
+## Versão 0.12.4
+
+- Cabeçalho da biblioteca adaptável à largura e ao texto ampliado, com ações que quebram linha. Lateral expandida mais larga conforme a fonte, rótulos flexíveis e rolagem em telas baixas; preserva navegação e entrada recolhida.
 
 - Abas da biblioteca, filtros e escolhas das Configurações usam o mesmo padrão: seleção persistente em contorno/texto do tema, foco do controle com preenchimento forte. Semântica de seleção explícita; ações comuns preservadas.
 
