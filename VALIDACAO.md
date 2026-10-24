@@ -1,28 +1,31 @@
-# Validação — Comic TV 0.12.5
+# Validação — Comic TV 1.0.0
 
-24/10/2026 · versionCode37 · minSdk26 · base0.12.4.
+24/10/2026 · versionCode 38 · minSdk 26 · targetSdk 36 · base funcional 0.12.5.
 
-## Alterações finais
+## Estado da versão
 
-- Ícones distintos por modo Normal/Galeria/Livro no leitor.
-- Temas em grade adaptativa lado a lado.
-- Controle horizontal D-pad85–130%, passo5%, faixa acessível e saída por Acima/Abaixo. Persistência em sequência sem descartar mudanças enquanto salva.
-- Compatibilidade com preferências/backups100/115/130. Novo campo opcional textPercent validado por tipo/faixa/passo; novos backups com esse campo exigem aplicativo atualizado.
-- Detalhes online recebem Escolher capítulo / edição. A lista usa a fonte existente e retorna à origem; detalhes usam capa em vez de prévia antiga. Consultar lista não abre páginas nem muda progresso; selecionar capítulo abre o leitor existente. Arquivos locais não recebem sequência inventada.
+Primeira versão estável autorizada pelo usuário após confirmar os últimos ajustes na Box: “ja foram confirmados,até entao tudo funcionando”. Aceitou tratar problemas futuros nas próximas atualizações. A confirmação refere-se à base 0.12.5 entregue; o novo pacote 1.0.0 foi gerado nesta rodada. Não há nova funcionalidade nesta promoção.
 
-## Verificações
+## Verificações automatizadas
 
-- work/photo-corrections-0125-chapters.log: BUILD SUCCESSFUL em1m26s; core:test, mihon:testDebugUnitTest, app:testDebugUnitTest, assembleDebug, assembleDebugAndroidTest e lintDebug passaram.
-- 215 casos JVM:214 aprovados,1 ignorado (permissão Windows para symlink),0 falhas/erros. Core118, mihon10, app87.
-- Testes novos de porcentagem e backup roundtrip/validação passaram. Testes Compose do controle e retorno da lista com falha de fonte compilados, não executados.
-- Revisões independentes da aparência/backup e da entrada de capítulos sem bloqueios. Teste nativo não cobre o NavHost completo ou hardware Back em execução.
-- Assinatura v2 verificada; mesmo certificado SHA2565f60801ffa010bb913a59857e851d5eed2d4b63bc79de38747f2db15ae0395ae. Metadados0.12.5/code37/minSdk26 confirmados.
-- DEX real do APK passou check-extension-abi. SQL de histórico e migrações de organização1→3/2→3 passaram.
+- work/release-100-final.log: BUILD SUCCESSFUL em 2m7s, 133 tarefas executadas com --rerun-tasks. Core/JVM, mihon/JVM, app/JVM, debug, compilação AndroidTest e lintDebug passaram.
+- 215 casos JVM: 214 aprovados, 1 ignorado (permissão de symlink no Windows), sem falhas/erros. Core118, mihon10, app87.
+- work/release-100-production.log: assembleRelease e lintRelease aprovados em 2m2s, 97 tarefas. APK release sem minificação, alinhado e assinado externamente com o certificado das atualizações anteriores. Nenhum ramo de comportamento por BuildConfig.DEBUG foi encontrado nas fontes app/mihon.
+- Assinatura v2 verificada, certificado SHA256 5f60801ffa010bb913a59857e851d5eed2d4b63bc79de38747f2db15ae0395ae, igual aos APKs anteriores. Alinhamento ZIP/16KiB validado após assinatura.
+- Manifesto empacotado confirma com.pelican.comictv, versão1.0.0/code38, minSdk26 e launcher Leanback. Sem application-debuggable. Inclui armeabi-v7a, arm64-v8a, x86 e x86_64.
+- ABI de extensões validada no DEX do APK final: GeneratedSerializer.typeParametersSerializers tem implementação padrão executável. Dez entradas de licenças nos assets.
+- SQL de histórico e migrações de organização1→3/2→3 passaram, preservando edições/progresso, restrições e rollback.
+- Revisão independente não encontrou bloqueio de promoção; pendência documental de aceitação antiga foi corrigida.
 
-## Aceitação física pendente
+## Validação manual e limites
 
-Conferir ícones, grade de temas, setas mantidas no controle85–130%, persistência após reabrir, foco/rolagem e capítulo escolhido a partir dos detalhes. Testar Voltar visível e do controle retornando aos detalhes, além do acesso antigo pelo leitor. Lista depende da fonte online disponível e confiável. Sem ADB conectado; não afirmar desempenho/aparência final antes da conferência.
+Uso na MiTV-AFKR0/Android TV11 confirmado pelo usuário, incluindo backup/restauração, offline após limpar caches, organização/persistência, downloads e ajustes finais. Detalhes em docs/validation/2026-10-24-mi-box-manual.md.
 
-Instalar como atualização, sem desinstalar, mantendo o USB de armazenamento conectado.
+Testes Android/Compose foram compilados, não executados por ADB. Não foram explicitamente relatados SAF ou simulações isoladas de falha/interrupção. Não se afirma cobertura de todos os aparelhos ou desempenho medido no hardware. Não repetir testes destrutivos nos dados reais.
 
-SHA256 APK: A21C5A0B653FF4B8631BD2EC03EF35C52C0E15AA866C965B0EBDB563D2FC8B9C.
+## Artefato
+
+Comic-TV-1.0.0.apk · release · 14.010.510 bytes.
+SHA256: 8AE5ECA2A89FD51657CF715134439D021651DE44B5C56F5B8CE264535F899108.
+
+Instalar como atualização sobre a versão existente, sem desinstalar, mantendo o USB de armazenamento conectado. Notas em docs/releases/1.0.0.md. Próximas correções de uso diário seguem em versões1.0.x.

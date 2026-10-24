@@ -2,7 +2,11 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.12.5
+## Versão 1.0.0
+
+Primeira versão estável, com os fluxos e ajustes visuais confirmados pelo usuário na sua Box. Mantém as funções da 0.12.5 e a assinatura de atualização; não inclui novas funcionalidades nesta promoção. Resultados manuais são relatos do usuário, separados das verificações automatizadas.
+
+Notas e instalação em [Versão 1.0.0](docs/releases/1.0.0.md). Problemas encontrados no uso diário entram nas próximas atualizações.
 
 - Detalhes de edições online recebem Escolher capítulo / edição, reutilizando a lista da fonte sem abrir antes o leitor. Voltar retorna aos detalhes; seleção abre a edição escolhida.
 - Ícones do leitor representam o modo ativo: uma página no Normal, três na Galeria e livro aberto no Livro.
@@ -16,7 +20,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Acabamento da tela principal: margens mais generosas, progresso no destaque, ações que quebram linha e cartões recentes com capas maiores e títulos de duas linhas. Mantém temas, dados e fundo da identidade Comic TV.
 
 - Resultado da restauração em diálogo visível com contagens e botão Entendi focado; falhas também recebem aviso explícito. Corrige mensagem que podia ficar fora da tela na sessão QR.
-- Validação manual do usuário confirmou backup/restauração, abertura offline após limpar os dois caches, favoritos/coleções e pausa/retomada/remoção de downloads. Detalhes e limites em docs/validation/2026-10-24-mi-box-manual.md; acabamento visual 0.12.2 ainda requer conferência na Box.
+- Validação manual do usuário confirmou backup/restauração, abertura offline após limpar os dois caches, favoritos/coleções, pausa/retomada/remoção de downloads e os últimos ajustes visuais/de navegação. Detalhes e limites em docs/validation/2026-10-24-mi-box-manual.md; são relatos de uso, sem execução por ADB.
 
 - Configurações → Backup e restauração: arquivo de dados versionado com progresso, histórico, favoritos, coleções e preferências, por seletor Android ou sessão temporária de rede local com QR. Originais e páginas baixadas ficam separados.
 - Restauração com prévia/confirmação, mesclagem por data sem excluir a biblioteca e recuperação após interrupção. Originais locais ausentes aguardam reimportação pelo mesmo SHA-256; confiança de fontes e extensões não é restaurada automaticamente.
@@ -43,7 +47,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Detalhes com título, informações e ações juntos à esquerda, capa ampliada no centro e resumo independente à direita, com a mesma altura da capa. O bloco de título não é selecionável.
 - Segure OK por 1 segundo sobre capas ou leituras recentes para abrir continuar/leitura, detalhes e remoção/restauração do histórico.
 - Remover do histórico abre confirmação com Cancelar e Remover. O aviso explica que edição, arquivos e página salva são mantidos; não fica mais fixo nos detalhes. A edição volta ao histórico quando você retoma a leitura.
-- Configurações com aba Acessibilidade e aparência: presets preto com amarelo, verde, azul ou violeta, texto padrão/115%/130% e alto contraste. Preferências persistidas no aparelho.
+- Configurações com aba Acessibilidade e aparência: temas Comic TV/Flix/Prime/Max/Cinema e presets anteriores, texto85–130% em passos5% e alto contraste. Preferências persistidas no aparelho.
 - Texto claro padrão definido em toda a interface; cores dos quadrinhos não são alteradas.
 - Resumo expandido rola com ↑/↓ mesmo com o botão de expandir/recolher focado.
 - Ao abrir Novidades ou Catálogo pela lateral, foco e seleção acompanham a aba acionada e não o resultado atrasado da fonte.
@@ -58,7 +62,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Páginas JPEG, PNG e WebP, ordenadas naturalmente.
 - Leitor com ajuste à página, largura ou altura, zoom de 1x a 3x e deslocamento explícito.
 - Progresso e preferências por edição em Room.
-- Tema escuro com foco âmbar, seguindo o conceito aprovado.
+- Tema escuro com foco na cor do tema ativo, seguindo o conceito aprovado.
 - Ao iniciar, o foco fica no conteúdo da biblioteca e a lateral permanece recolhida.
 - Fundo opcional nos detalhes: cópia da capa preenchendo a tela, desfocada e escurecida. Configure em Acessibilidade e aparência. Em alto contraste, permanece preto.
 - Barra lateral flutuante: recolhida em ícones e expandida com nomes somente quando um ícone recebe foco; o catálogo mantém sua largura.
@@ -78,7 +82,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Catálogo online com populares, recentes, busca, detalhes e capítulos/edições na sequência da fonte; leitura no mesmo leitor, com progresso na biblioteca.
 - Nas ferramentas do leitor online, Edições da saga / série abre a lista atualizada, destaca a edição atual e oferece anterior/próxima e ordem invertível por título.
 
-O projeto está em desenvolvimento. Consulte `VALIDACAO.md` para resultados reais de compilação e testes; a existência do código não significa validação em uma TV.
+Consulte `VALIDACAO.md` para resultados reais de compilação/testes e relatos manuais. A aceitação na Box do usuário não equivale a testes em todos os modelos de TV ou a execução da suíte instrumentada por ADB.
 
 Especificação, plano, referências funcionais e conceito visual aprovado estão em `docs/`.
 

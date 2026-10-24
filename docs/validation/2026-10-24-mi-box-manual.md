@@ -1,6 +1,6 @@
 # Validação manual na Box do usuário — 24/10/2026
 
-Aplicativos testados: Comic TV 0.12.0 e confirmação de restauração na 0.12.1. Aparelho identificado na tela Sobre como MiTV-AFKR0, Android TV 11. Resultados abaixo foram relatados pelo usuário nesta conversa, não observados por instrumentação/ADB.
+Relatos de uso das versões 0.12.0 a 0.12.5, conforme os fluxos e a confirmação final abaixo. Aparelho identificado na tela Sobre como MiTV-AFKR0, Android TV 11. Resultados abaixo foram relatados pelo usuário nesta conversa, não observados por instrumentação/ADB.
 
 ## Condição do aparelho
 
@@ -29,3 +29,9 @@ Testes Compose do diálogo foram preparados e compilados; não executados no apa
 Após o roteiro de favoritar, criar coleção Teste, adicionar edição, fechar/reabrir e remover favorito/coleção preservando edição/progresso, o usuário respondeu “tudo certo”. Após o roteiro de pausa ao sair, reabertura, retomada e remoção do download preservando edição/progresso, respondeu “tudo funcionando”. Fluxos aceitos conforme relato, sem observação direta ou instrumentação.
 
 Ainda pendentes: foco em todos os temas/texto ampliado, seleção SAF e simulação isolada de falhas/interrupção de restauração. O acabamento visual 0.12.2 requer conferência na Box. Não executar falhas destrutivas nos dados reais nem declarar toda a rodada nativa concluída com base nestes relatos.
+
+## Aceitação final relatada — promoção a1.0.0
+
+Após a entrega0.12.5 e o roteiro de conferir capítulos nos detalhes/retorno, texto85–130% com persistência, grade de temas e ícones dos modos, o usuário confirmou: “ja foram confirmados,até entao tudo funcionando”. Em seguida aceitou corrigir eventuais problemas nas próximas atualizações. Os últimos ajustes e o uso na Box ficam aprovados conforme esse relato, sem captura individual de cada combinação ou observação por ADB.
+
+Essa confirmação substitui a pendência de aceitação visual acima para o aparelho do usuário. SAF e simulações nativas isoladas de interrupção/falha não foram explicitamente relatados; a suíte instrumentada continua compilada, sem execução nesta máquina. Não executar testes destrutivos nos dados reais.
