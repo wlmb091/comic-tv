@@ -31,7 +31,8 @@ object BackupCodec {
         "comics" to Rule(element = comic, limit = 20000),
         "collections" to Rule(element = obj("id" to text(100), "name" to text(100)), limit = 2000),
         "links" to Rule(element = obj("comicId" to text(100), "collectionId" to text(100)), limit = 100000),
-        "appearance" to obj("preset" to text(30), "textSize" to smallNumber, "highContrast" to boolean, "coverBackground" to boolean))
+        "appearance" to obj("preset" to text(30), "textSize" to smallNumber, "highContrast" to boolean, "coverBackground" to boolean,
+            "textPercent" to smallNumber.copy(optional = true)))
 
     fun decode(input: InputStream): BackupDocument {
         val bytes = ByteArrayOutputStream().also { output ->
@@ -111,5 +112,6 @@ object BackupCodec {
         require(document.links.toSet().size == document.links.size)
         require(document.links.all { it.comicId in comics && it.collectionId in collections }) { "Vínculo sem edição/coleção correspondente." }
         require(document.appearance.textSize in 0..2 && document.appearance.preset in setOf("Amber", "Flix", "Prime", "Max", "Cinema", "Green", "Blue", "Violet"))
+        document.appearance.textPercent?.let { require(it in 85..130 && it % 5 == 0) { "Tamanho do texto inválido." } }
     }
 }

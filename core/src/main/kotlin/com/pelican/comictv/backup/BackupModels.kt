@@ -9,7 +9,8 @@ data class BackupComic(val id: String, val title: String, val pageCount: Int, va
     val online: BackupOnline? = null, val imagePreset: String = "Original", val imageIntensity: Int = 1)
 data class BackupCollection(val id: String, val name: String)
 data class BackupLink(val comicId: String, val collectionId: String)
-data class BackupAppearance(val preset: String = "Amber", val textSize: Int = 0, val highContrast: Boolean = false, val coverBackground: Boolean = false)
+data class BackupAppearance(val preset: String = "Amber", val textSize: Int = 0, val highContrast: Boolean = false,
+    val coverBackground: Boolean = false, val textPercent: Int? = null)
 data class BackupDocument(val format: String = "ComicTVBackup", val version: Int = 1, val createdAt: Long,
     val comics: List<BackupComic>, val collections: List<BackupCollection> = emptyList(),
     val links: List<BackupLink> = emptyList(), val appearance: BackupAppearance = BackupAppearance())

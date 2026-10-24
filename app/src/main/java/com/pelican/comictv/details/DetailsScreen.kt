@@ -40,6 +40,7 @@ import kotlinx.coroutines.CancellationException
     onRelated: (RelatedComic) -> Unit = {},
     showRelated: Boolean = false,
     offlineAvailable: Boolean = false, onDownload: (() -> Unit)? = null,
+    onEditions: (() -> Unit)? = null,
 ) {
     var comic by remember(id) { mutableStateOf<ComicEntity?>(null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
@@ -136,6 +137,9 @@ import kotlinx.coroutines.CancellationException
                 comic?.let { item ->
                     TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
                         { afterDiscoveryStopped(onRead) }, Modifier.focusRequester(first), primary = true)
+                    if (isOnline && onEditions != null) {
+                        TvButton("Escolher capítulo / edição", { afterDiscoveryStopped(onEditions) })
+                    }
                     OrganizationActions(item, repository)
                     if (isOnline && onDownload != null) {
                         if (offlineAvailable) Text("✓ Disponível offline",color = TvColors.Amber)

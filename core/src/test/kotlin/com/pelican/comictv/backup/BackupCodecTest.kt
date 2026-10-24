@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BackupCodecTest {
+    @Test fun optionalPercentagePreservesLegacyBackupsAndAllNewSteps() {
+        val legacy = BackupCodec.encode(document())
+        assertFalse(legacy.toString(Charsets.UTF_8).contains("textPercent"))
+        assertNull(BackupCodec.decode(legacy.inputStream()).appearance.textPercent)
+        for (percent in 85..130 step 5) {
+            val value = document().copy(appearance = BackupAppearance(textPercent = percent))
+            assertEquals(value, BackupCodec.decode(BackupCodec.encode(value).inputStream()))
+        }
+        val valid = BackupCodec.encode(document().copy(appearance = BackupAppearance(textPercent = 100))).toString(Charsets.UTF_8)
+        for (bad in listOf("84", "131", "101", "100.5", "\"100\"", "true")) {
+            assertThrows(Exception::class.java) { BackupCodec.decode(valid.replace("\"textPercent\":100", "\"textPercent\":$bad").byteInputStream()) }
+        }
+    }
     private fun document() = BackupDocument(createdAt = 123, comics = listOf(BackupComic("local-one", "Órbita", 25,
         currentPage = 12, lastRead = 100, favorite = true, sha256 = "a".repeat(64))),
         collections = listOf(BackupCollection("sci-fi", "Ficção")), links = listOf(BackupLink("local-one", "sci-fi")))

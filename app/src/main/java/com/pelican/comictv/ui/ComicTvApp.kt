@@ -165,6 +165,7 @@ import kotlinx.coroutines.launch
         composable("details/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo, loadRelated = container.online::related,
+                onEditions = if (id.startsWith("online-")) ({ nav.navigate("online-editions/$id?from=details") }) else null,
                 offlineAvailable = id in downloadsState.complete, onDownload = {openDownload(id)}, onRelated = { selected ->
                     if (selected.libraryId != null) nav.navigate("details/" + selected.libraryId)
                     else { relatedTitle = selected; nav.navigate("related-title") }
@@ -196,8 +197,12 @@ import kotlinx.coroutines.launch
                     nav.navigate("online-editions/$id?step=$step") { popUpTo(entry.destination.id) { inclusive = true } }
                 }) else null)
         }
-        composable("online-editions/{id}?step={step}", arguments = listOf(navArgument("step") { type = NavType.IntType; defaultValue = 0 })) { entry ->
+        composable("online-editions/{id}?step={step}&from={from}", arguments = listOf(
+            navArgument("step") { type = NavType.IntType; defaultValue = 0 },
+            navArgument("from") { type = NavType.StringType; defaultValue = "reader" },
+        )) { entry ->
             val id = entry.arguments?.getString("id")!!
+            val fromDetails = entry.arguments?.getString("from") == "details"
             val editions: OnlineEditionsViewModel = viewModel(factory = viewModelFactory {
                 initializer { OnlineEditionsViewModel(id, createSavedStateHandle(), container.online::editions,
                     { context, chapter -> container.online.open(context.source, context.title, chapter, context.pin) },
@@ -206,8 +211,13 @@ import kotlinx.coroutines.launch
             })
             OnlineEditionsScreen(editions, onRead = { next ->
                 nav.navigate("reader/$next") { popUpTo(entry.destination.id) { inclusive = true } }
-            }, onBack = { nav.navigate("reader/$id") { popUpTo(entry.destination.id) { inclusive = true } } },
-                previewFile = editionPreview, initialStep = entry.arguments?.getInt("step") ?: 0, fallbackCover = container.library.cover(id))
+            }, onBack = {
+                if (fromDetails) nav.popBackStack()
+                else nav.navigate("reader/$id") { popUpTo(entry.destination.id) { inclusive = true } }
+            }, previewFile = if (fromDetails) null else editionPreview,
+                initialStep = entry.arguments?.getInt("step") ?: 0, fallbackCover = container.library.cover(id),
+                backLabel = if (fromDetails) "Voltar aos detalhes" else "Voltar à leitura",
+                previewDescription = if (fromDetails) "Capa da edição" else "Página atual da leitura")
         }
     }
 }

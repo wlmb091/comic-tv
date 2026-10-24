@@ -2,7 +2,12 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.12.4
+## Versão 0.12.5
+
+- Detalhes de edições online recebem Escolher capítulo / edição, reutilizando a lista da fonte sem abrir antes o leitor. Voltar retorna aos detalhes; seleção abre a edição escolhida.
+- Ícones do leitor representam o modo ativo: uma página no Normal, três na Galeria e livro aberto no Livro.
+- Temas lado a lado em grade adaptável. Controle horizontal de tamanho dos textos de 85% a 130%, em passos de 5%, pelas setas esquerda/direita.
+- Preferências e backups antigos preservam os tamanhos 100/115/130; a nova porcentagem também é salva no backup. Backups com esse campo exigem aplicativo atualizado.
 
 - Cabeçalho da biblioteca adaptável à largura e ao texto ampliado, com ações que quebram linha. Lateral expandida mais larga conforme a fonte, rótulos flexíveis e rolagem em telas baixas; preserva navegação e entrada recolhida.
 

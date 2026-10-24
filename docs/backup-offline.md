@@ -8,6 +8,8 @@ Escolha **Salvar backup em arquivo** para usar o seletor Android. Se a TV não o
 
 O arquivo não contém os próprios quadrinhos, downloads completos, caches, capas, APKs, cookies/senhas ou autorizações de confiança. Não é compatível com backups de Mihon. É um formato próprio de dados JSON UTF-8 versionado, com limite de 32 MiB, 20.000 edições, 2.000 coleções e 100.000 vínculos.
 
+A partir da 0.12.5: porcentagem de texto85–130% em passos5%, salva no campo opcional `appearance.textPercent`. Backups sem esse campo mantêm os tamanhos antigos100/115/130. Backups que incluem o novo campo precisam ser restaurados no aplicativo atualizado; versões anteriores rejeitam campos desconhecidos.
+
 ## Restauração
 
 Use **Escolher backup para restaurar**, ou envie o arquivo pelo navegador da sessão local. Escolher/enviar somente abre a prévia; a TV mostra data e quantidades e exige **Confirmar restauração**. Cancelar inicialmente focado não grava dados.

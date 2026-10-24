@@ -3,6 +3,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AppearanceOptionsTest {
+    @Test fun percentageStepsPreserveLegacySettingsAndClampTheAllowedRange() {
+        assertEquals(listOf(100, 115, 130), (0..2).map { AppearanceOptions(textSize = it).textPercentage })
+        for (percent in 85..130 step 5) {
+            val options = AppearanceOptions(ColorPreset.Prime, highContrast = true, coverBackground = true).withTextPercentage(percent)
+            assertEquals(percent, options.textPercentage)
+            assertEquals(percent / 100f, options.textScale, .001f)
+            assertEquals(options, AppearanceOptions.restore(options.preset.name, options.textSize, true, true, options.textPercent))
+            assertEquals(ColorPreset.Prime, options.preset)
+        }
+        assertEquals(85, AppearanceOptions().withTextPercentage(-100).textPercentage)
+        assertEquals(130, AppearanceOptions().withTextPercentage(1000).textPercentage)
+        assertEquals(100, AppearanceOptions().withTextPercentage(102).textPercentage)
+    }
     @Test fun invalidStoredValuesRestoreSafeDefaults() {
         val restored = AppearanceOptions.restore("unknown", -100, true)
         assertEquals(ColorPreset.Amber, restored.preset)

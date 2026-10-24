@@ -43,7 +43,7 @@ class BackupRepository(private val context: Context, private val db: LibraryData
                 .filter { it.collectionId in validCollections && it.comicId in allIds }.distinct()
             val options = appearance.state.value
             val document = BackupDocument(createdAt = System.currentTimeMillis(), comics = all, collections = collections, links = links,
-                appearance = BackupAppearance(options.preset.name, options.textSize, options.highContrast, options.coverBackground))
+                appearance = BackupAppearance(options.preset.name, options.textSize, options.highContrast, options.coverBackground, options.textPercent))
             val exportDirectory = File(context.cacheDir,"backup-exports").apply {mkdirs()}
             val date = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date())
             val target = File.createTempFile("Comic-TV-${com.pelican.comictv.BuildConfig.VERSION_NAME}-$date-", ".ctvbackup",exportDirectory)
@@ -132,7 +132,7 @@ class BackupRepository(private val context: Context, private val db: LibraryData
         images.saveAll(document.comics.associate { it.id to ReaderImageOptions.restore(it.imagePreset,it.imageIntensity) })
         if (restoreAppearance) {
             val a = document.appearance
-            appearance.update(AppearanceOptions.restore(a.preset, a.textSize, a.highContrast, a.coverBackground))
+            appearance.update(AppearanceOptions.restore(a.preset, a.textSize, a.highContrast, a.coverBackground, a.textPercent))
         }
         return RestoreResult(added, updated, deferred.size)
     }

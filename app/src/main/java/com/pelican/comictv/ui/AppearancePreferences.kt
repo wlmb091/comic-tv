@@ -24,24 +24,34 @@ enum class ColorPreset(
     Blue("Preto e azul", 0xFF82C7FF, 0xFF080F1B, 0xFF18263B, 0xFF354B69),
     Violet("Preto e violeta", 0xFFD1A5FF, 0xFF110B1B, 0xFF2B1E3B, 0xFF503B67),
 }
-data class AppearanceOptions(val preset: ColorPreset = ColorPreset.Amber, val textSize: Int = 0, val highContrast: Boolean = false, val coverBackground: Boolean = false) {
-    val textScale: Float get() = listOf(1f, 1.15f, 1.3f)[textSize.coerceIn(0, 2)]
+data class AppearanceOptions(val preset: ColorPreset = ColorPreset.Amber, val textSize: Int = 0, val highContrast: Boolean = false,
+    val coverBackground: Boolean = false, val textPercent: Int? = null) {
+    val textPercentage: Int get() = textPercent?.let(::normalizeTextPercentage) ?: listOf(100, 115, 130)[textSize.coerceIn(0, 2)]
+    val textScale: Float get() = textPercentage / 100f
+    fun withTextPercentage(percent: Int): AppearanceOptions {
+        val normalized = normalizeTextPercentage(percent)
+        val legacy = listOf(100, 115, 130).indices.minBy { kotlin.math.abs(listOf(100, 115, 130)[it] - normalized) }
+        return copy(textSize = legacy, textPercent = normalized)
+    }
     companion object {
-        fun restore(preset: String?, textSize: Int, highContrast: Boolean, coverBackground: Boolean = false) = AppearanceOptions(
+        fun restore(preset: String?, textSize: Int, highContrast: Boolean, coverBackground: Boolean = false, textPercent: Int? = null) = AppearanceOptions(
             ColorPreset.entries.firstOrNull { it.name == preset } ?: ColorPreset.Amber,
-            textSize.coerceIn(0, 2), highContrast, coverBackground)
+            textSize.coerceIn(0, 2), highContrast, coverBackground).let { if (textPercent == null) it else it.withTextPercentage(textPercent) }
+        private fun normalizeTextPercentage(value: Int) = ((value.coerceIn(85, 130) + 2) / 5) * 5
     }
 }
 class AppearancePreferences(context: Context) {
     private val preferences = context.getSharedPreferences("appearance", Context.MODE_PRIVATE)
     private val writes = Mutex()
     private val _state = MutableStateFlow(AppearanceOptions.restore(
-        preferences.getString("preset", null), preferences.getInt("text-size", 0), preferences.getBoolean("contrast", false), preferences.getBoolean("cover-background", false)))
+        preferences.getString("preset", null), preferences.getInt("text-size", 0), preferences.getBoolean("contrast", false), preferences.getBoolean("cover-background", false),
+        if (preferences.contains("text-percent")) preferences.getInt("text-percent", 100) else null))
     val state = _state.asStateFlow()
     suspend fun update(options: AppearanceOptions) = withContext(Dispatchers.IO) {
         writes.withLock {
-            val value = options.copy(textSize = options.textSize.coerceIn(0, 2))
+            val value = options.copy(textSize = options.textSize.coerceIn(0, 2)).let { if (it.textPercent == null) it else it.withTextPercentage(it.textPercent) }
             check(preferences.edit().putString("preset", value.preset.name).putInt("text-size", value.textSize)
+                .apply { if (value.textPercent == null) remove("text-percent") else putInt("text-percent", value.textPercent) }
                 .putBoolean("contrast", value.highContrast).putBoolean("cover-background", value.coverBackground).commit()) { "Não foi possível salvar a aparência." }
             _state.value = value
         }

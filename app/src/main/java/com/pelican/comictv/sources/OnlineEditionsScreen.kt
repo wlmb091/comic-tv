@@ -31,6 +31,8 @@ import kotlinx.coroutines.launch
     previewFile: File? = null,
     initialStep: Int = 0,
     fallbackCover: File? = null,
+    backLabel: String = "Voltar à leitura",
+    previewDescription: String = "Página atual da leitura",
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val first = remember { FocusRequester() }
@@ -64,7 +66,7 @@ import kotlinx.coroutines.launch
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("CAPÍTULOS", color = TvColors.Amber, fontSize = 13.sp)
                     Text(context?.title?.title ?: "Edições online", fontSize = 23.sp, maxLines = 3)
-                    TvButton("Voltar à leitura", exit, Modifier.fillMaxWidth().focusRequester(first)
+                    TvButton(backLabel, exit, Modifier.fillMaxWidth().focusRequester(first)
                         .onGloballyPositioned {
                             if (!initialFocus) { initialFocus = true; first.requestFocus() }
                         })
@@ -115,7 +117,7 @@ import kotlinx.coroutines.launch
         Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
             val preview = previewFile ?: fallbackCover
             if (preview != null) {
-                AsyncImage(preview, "Página atual da leitura", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                AsyncImage(preview, previewDescription, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             } else {
                 Text(context?.title?.title ?: "Sua leitura", Modifier.padding(32.dp), color = TvColors.Muted, fontSize = 24.sp)
             }

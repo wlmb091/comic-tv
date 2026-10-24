@@ -68,7 +68,11 @@ import com.pelican.comictv.ui.*
                 onPreviousChapter?.let { RailButton("Capítulo anterior", RailIcon.Previous, it) }
                 onNextChapter?.let { RailButton("Próximo capítulo", RailIcon.Next, it) }
                 onEditions?.let { RailButton("Capítulos / edições", RailIcon.Chapters, it) }
-                RailButton("Visualização: " + layout.label, if (layout == ReaderLayout.Book) RailIcon.Book else RailIcon.Gallery, onCycleLayout)
+                RailButton("Visualização: " + layout.label, when (layout) {
+                    ReaderLayout.Normal -> RailIcon.Normal
+                    ReaderLayout.Gallery -> RailIcon.Gallery
+                    ReaderLayout.Book -> RailIcon.Book
+                }, onCycleLayout)
                 RailButton("Ajuste: " + when (state.fit) { FitMode.Page -> "Página"; FitMode.Width -> "Largura"; FitMode.Height -> "Altura" }, RailIcon.Fit, { onAction(ReaderAction.ToggleFit) })
                 RailButton("Imagem e mais opções", RailIcon.More, { settings = true })
                 if (hasError) RailButton("Tentar novamente", RailIcon.Retry, { onRetry(); onAction(ReaderAction.Back) })
@@ -78,7 +82,7 @@ import com.pelican.comictv.ui.*
     }
 }
 
-private enum class RailIcon { Play, Pages, Gallery, Book, Previous, Next, Chapters, Pan, Fit, More, Retry, Exit }
+private enum class RailIcon { Play, Pages, Normal, Gallery, Book, Previous, Next, Chapters, Pan, Fit, More, Retry, Exit }
 
 @Composable private fun RailButton(label: String, icon: RailIcon, onClick: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
@@ -103,6 +107,7 @@ private enum class RailIcon { Play, Pages, Gallery, Book, Previous, Next, Chapte
         }
         when (icon) {
             RailIcon.Play -> path(8f,4f,19f,12f,8f,20f,8f,4f)
+            RailIcon.Normal -> path(5f,2f,19f,2f,19f,22f,5f,22f,5f,2f)
             RailIcon.Book -> { path(12f,5f,3f,3f,3f,20f,12f,22f,21f,20f,21f,3f,12f,5f,12f,22f) }
             RailIcon.Gallery -> { path(8f,2f,16f,2f,16f,22f,8f,22f,8f,2f); path(1f,7f,5f,7f,5f,17f,1f,17f,1f,7f); path(19f,7f,23f,7f,23f,17f,19f,17f,19f,7f) }
             RailIcon.Pages -> { path(7f,3f,20f,3f,20f,18f,7f,18f,7f,3f); path(3f,7f,3f,22f,16f,22f) }
