@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import androidx.compose.ui.Modifier
@@ -20,14 +21,17 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.TvColors
 
+@Composable internal fun pagePickerTextExtra() = (100f * (LocalDensity.current.fontScale - 1f).coerceAtLeast(0f)).dp
+
 /** Preview IO is separate from reading: progress changes only on confirmation. */
 @Composable internal fun ReaderTimeline(state: ReaderState, modifier: Modifier = Modifier, section: Boolean = false,
     previews: List<TimelinePreview> = emptyList()) {
+    val textExtra = pagePickerTextExtra()
     val count = state.pageCount.coerceAtLeast(1)
     val selected = (state.timelinePage ?: state.page).coerceIn(0, count - 1)
     val fraction = if (count == 1) 0f else selected.toFloat() / (count - 1)
     val label = if (section) "Seção" else "Página"
-    Column(modifier.fillMaxWidth().then(if (section) Modifier.padding(24.dp) else Modifier.height(320.dp))
+    Column(modifier.fillMaxWidth().then(if (section) Modifier.padding(24.dp) else Modifier.height(320.dp + textExtra * 2))
         .background(if (section) TvColors.Panel else Color.Black, RoundedCornerShape(14.dp))
         .border(1.dp, TvColors.Amber.copy(alpha = .6f), RoundedCornerShape(14.dp))
             .padding(horizontal = 24.dp, vertical = if (section) 24.dp else 10.dp),
@@ -36,7 +40,7 @@ import com.pelican.comictv.ui.TvColors
             Text("Escolher ${label.lowercase()}", color = Color.White, fontSize = if (section) 23.sp else 18.sp)
             Text(if (section) "$label ${selected + 1} de $count" else "Lendo: ${state.page + 1}  ·  $label ${selected + 1} de $count", color = TvColors.Amber, fontSize = if (section) 23.sp else 18.sp)
         }
-        Row(Modifier.fillMaxWidth().height(if (section) 174.dp else 224.dp), horizontalArrangement = Arrangement.spacedBy(if (section) 16.dp else 12.dp, Alignment.CenterHorizontally),
+        Row(Modifier.fillMaxWidth().height(if (section) 174.dp else 224.dp + textExtra), horizontalArrangement = Arrangement.spacedBy(if (section) 16.dp else 12.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically) {
             val ordered = if (state.rtl) previews.reversed() else previews
             ordered.forEach { preview ->

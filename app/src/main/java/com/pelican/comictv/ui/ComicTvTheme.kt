@@ -4,7 +4,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -12,19 +14,25 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 
 object TvColors {
-    val Background = Color(0xFF101113)
-    val Panel = Color(0xFF1C1E21)
-    val Muted = Color(0xFFB8BABE)
-    val Amber = Color(0xFFFFBD59)
+    internal var options by mutableStateOf(AppearanceOptions())
+    val Background get() = Color.Black
+    val Panel get() = if (options.highContrast) Color.Black else Color(0xFF161719)
+    val Muted get() = if (options.highContrast) Color.White else Color(0xFFCFD1D5)
+    val Amber get() = Color(options.preset.accent)
     val Ink = Color(0xFF15120C)
 }
 
-@Composable fun ComicTvTheme(content: @Composable () -> Unit) {
+@Composable fun ComicTvTheme(options: AppearanceOptions = AppearanceOptions(), content: @Composable () -> Unit) {
+    SideEffect { TvColors.options = options }
+    val density = LocalDensity.current
     MaterialTheme(colorScheme = darkColorScheme(
         primary = TvColors.Amber, onPrimary = TvColors.Ink,
         background = TvColors.Background, surface = TvColors.Panel,
         onBackground = Color(0xFFF5F3EF), onSurface = Color(0xFFF5F3EF),
-    ), content = content)
+    )) {
+        CompositionLocalProvider(LocalContentColor provides Color.White,
+            LocalDensity provides Density(density.density, density.fontScale * options.textScale), content = content)
+    }
 }
 
 @Composable fun TvButton(
@@ -41,7 +49,7 @@ object TvColors {
             focusedContainerColor = TvColors.Amber,
             focusedContentColor = TvColors.Ink,
         ),
-        border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.Amber))),
+        border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber))),
         scale = ButtonDefaults.scale(focusedScale = 1.03f),
     ) { Text(text, fontSize = 17.sp) }
 }

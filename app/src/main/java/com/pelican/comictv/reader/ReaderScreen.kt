@@ -69,7 +69,7 @@ import kotlinx.coroutines.launch
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cancelCenter() }
     }
     var size by remember { mutableStateOf(IntSize.Zero) }
-    val timelineHeight = if (state.mode == ReaderMode.Timeline) 320.dp else 0.dp
+    val timelineHeight = if (state.mode == ReaderMode.Timeline) 320.dp + pagePickerTextExtra() * 2 else 0.dp
     val timelinePixels = with(LocalDensity.current) { timelineHeight.roundToPx() }
     val pageAreaHeight = (size.height - timelinePixels).coerceAtLeast(1)
     var showPosition by remember { mutableStateOf(true) }

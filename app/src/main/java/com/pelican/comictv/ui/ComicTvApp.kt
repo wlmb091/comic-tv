@@ -57,7 +57,7 @@ import androidx.compose.ui.platform.LocalContext
             TvShell("library", onNavigate = { nav.navigate(it) { launchSingleTop = true } }) {
                 LibraryScreen(comics, container.library, library.focusedId,
                     onFocus = { library.focusedId = it }, onOpen = { nav.navigate("details/$it") },
-                    onImport = { nav.navigate("import") })
+                    onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") })
             }
         }
         composable("import") {
@@ -108,11 +108,7 @@ import androidx.compose.ui.platform.LocalContext
         }
         composable("settings") {
             TvShell("settings", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
-                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                    ScreenTitle("Seu controle, sua leitura", "Comic TV · versão ${BuildConfig.VERSION_NAME}")
-                    Text("← →  Página anterior / próxima\n↑ ↓  Aumentar / reduzir zoom\nOK rápido  Alternar zoom/mover\nSegurar OK 2s  Abrir ferramentas\nMover página  Deslocar com as quatro setas\nVoltar  Sair do modo ativo e retornar", fontSize = 20.sp, lineHeight = 34.sp)
-                    TvButton("Voltar à biblioteca", { nav.popBackStack("library", false) })
-                }
+                SettingsScreen(container.appearance) { nav.popBackStack("library", false) }
             }
         }
         composable("details/{id}") { entry ->

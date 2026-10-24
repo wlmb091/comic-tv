@@ -22,17 +22,31 @@ import androidx.tv.material3.*
 import coil3.compose.AsyncImage
 import com.pelican.comictv.ui.*
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @Composable fun LibraryScreen(
     comics: List<ComicEntity>, repository: LibraryRepository, focusedId: String?,
     onFocus: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
+    onRead: (String) -> Unit = onOpen,
 ) {
     val grid = rememberLazyGridState()
     val restore = remember { FocusRequester() }
     var history by rememberSaveable { mutableStateOf(false) }
     var target by remember { mutableStateOf<String?>(null) }
     var positioned by remember { mutableStateOf<String?>(null) }
-    val recent = comics.filter { it.lastRead > 0 }.sortedByDescending { it.lastRead }
+    val recent = comics.filter { it.lastRead > 0 && !it.hiddenFromHistory }.sortedByDescending { it.lastRead }
+    var optionsFor by remember { mutableStateOf<ComicEntity?>(null) }
+    val menuScope = rememberCoroutineScope()
+    val headerFocus = remember { FocusRequester() }
+    optionsFor?.let { selected ->
+        HistoryOptions(selected, repository, onRead = { optionsFor = null; onFocus(selected.id); onRead(selected.id) }, onOpen = { optionsFor = null; onFocus(selected.id); onOpen(selected.id) },
+            onDismiss = { menuScope.launch {
+                grid.scrollToItem(0)
+                optionsFor = null
+                withFrameNanos { }
+                headerFocus.requestFocus()
+            } })
+    }
     val visible = if (history) recent else comics
     // Capture the entry target once: database emissions must not take focus from navigation.
     val entryId = remember { focusedId }
@@ -61,7 +75,7 @@ import kotlinx.coroutines.flow.first
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Sua biblioteca", fontSize = 26.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    TvButton("Biblioteca · ${comics.size}", { history = false }, primary = !history)
+                    TvButton("Biblioteca · ${comics.size}", { history = false }, Modifier.focusRequester(headerFocus), primary = !history)
                     TvButton("Histórico · ${recent.size}", { history = true }, primary = history)
                 }
             }
@@ -78,7 +92,7 @@ import kotlinx.coroutines.flow.first
                     items(recent, key = { it.id }) { comic ->
                         Card(
                             onClick = { onFocus(comic.id); onOpen(comic.id) },
-                            modifier = Modifier.width(280.dp).onFocusChanged { if (it.isFocused) onFocus(comic.id) },
+                            modifier = libraryCardKeys({ onFocus(comic.id); onOpen(comic.id) }, { optionsFor = comic }).width(280.dp).onFocusChanged { if (it.isFocused) onFocus(comic.id) },
                             border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
                             colors = CardDefaults.colors(containerColor = TvColors.Panel),
                         ) {
@@ -117,7 +131,7 @@ import kotlinx.coroutines.flow.first
                 .onGloballyPositioned { positioned = comic.id } else Modifier
             Card(
                 onClick = { onFocus(comic.id); onOpen(comic.id) },
-                modifier = restoreModifier.onFocusChanged { if (it.isFocused) onFocus(comic.id) },
+                modifier = restoreModifier.then(libraryCardKeys({ onFocus(comic.id); onOpen(comic.id) }, { optionsFor = comic })).onFocusChanged { if (it.isFocused) onFocus(comic.id) },
                 scale = CardDefaults.scale(focusedScale = 1.03f),
                 border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
                 colors = CardDefaults.colors(containerColor = TvColors.Panel),

@@ -8,6 +8,8 @@ import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pelican.comictv.ui.ComicTvApp
 import com.pelican.comictv.ui.ComicTvTheme
 import coil3.ImageLoader
@@ -29,6 +31,10 @@ class MainActivity : ComponentActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
-        setContent { ComicTvTheme { ComicTvApp((application as ComicTvApplication).container) } }
+        setContent {
+            val container = (application as ComicTvApplication).container
+            val appearance by container.appearance.state.collectAsStateWithLifecycle()
+            ComicTvTheme(appearance) { ComicTvApp(container) }
+        }
     }
 }

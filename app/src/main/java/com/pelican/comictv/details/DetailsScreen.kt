@@ -37,6 +37,9 @@ import kotlinx.coroutines.CancellationException
     var expandedSummary by remember(id) { mutableStateOf(false) }
     val metadataScroll = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
+    var changingHistory by remember { mutableStateOf(false) }
+    val summaryScroll = rememberLazyListState()
+    var summaryFocused by remember { mutableStateOf(false) }
     var metadataFocused by remember { mutableStateOf(false) }
     val first = remember(id) { FocusRequester() }
     val isOnline = id.startsWith("online-")
@@ -57,14 +60,14 @@ import kotlinx.coroutines.CancellationException
             finally { metadataLoading = false }
         }
     }
-    LaunchedEffect(comic, error) { if (comic != null || error != null) first.requestFocus() }
+    LaunchedEffect(comic != null, error) { if (comic != null || error != null) first.requestFocus() }
     Row(
-        Modifier.fillMaxSize().background(TvColors.Background).padding(40.dp),
-        horizontalArrangement = Arrangement.spacedBy(36.dp),
+        Modifier.fillMaxSize().background(TvColors.Background).padding(32.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
     ) {
         AsyncImage(
             repository.cover(id), "Capa da edição",
-            Modifier.width(230.dp).fillMaxHeight(), contentScale = ContentScale.Fit,
+            Modifier.width(180.dp).fillMaxHeight(), contentScale = ContentScale.Fit,
         )
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LazyColumn(
@@ -97,7 +100,7 @@ import kotlinx.coroutines.CancellationException
                 Text(
                     onlineInfo?.title?.takeIf { it.isNotBlank() } ?: comic?.title
                         ?: if (error != null) "Edição indisponível" else "Carregando edição…",
-                    fontSize = 30.sp, lineHeight = 38.sp,
+                    fontSize = 26.sp, lineHeight = 34.sp,
                 )
             }
             onlineInfo?.let { info ->
@@ -136,6 +139,47 @@ import kotlinx.coroutines.CancellationException
             }
             error?.let { message -> item { Text(message, fontSize = 18.sp, lineHeight = 26.sp) } }
 
+
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            comic?.let { item ->
+                TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
+                    onRead, Modifier.focusRequester(first), primary = true)
+            }
+            comic?.takeIf { it.lastRead > 0 }?.let { item ->
+                TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
+                    if (!changingHistory) scrollScope.launch {
+                        changingHistory = true
+                        try {
+                            repository.setHistoryHidden(id, !item.hiddenFromHistory)
+                            comic = repository.getComic(id)
+                        } catch (e: CancellationException) { throw e }
+                        catch (_: Exception) { error = "Não foi possível alterar o histórico." }
+                        finally { changingHistory = false }
+                    }
+                })
+                Text("O quadrinho e a página salva são mantidos.", color = TvColors.Muted, fontSize = 13.sp)
+            }
+            TvButton("Voltar à biblioteca", onBack,
+                if (comic == null) Modifier.focusRequester(first) else Modifier)
+        }
+        }
+        LazyColumn(
+            Modifier.weight(.9f).fillMaxHeight().background(TvColors.Panel)
+                .border(if (summaryFocused) 2.dp else 0.dp, TvColors.Amber)
+                .onFocusChanged { summaryFocused = it.isFocused }
+                .onPreviewKeyEvent { event ->
+                    val delta = when {
+                        !summaryFocused || event.type != KeyEventType.KeyDown -> 0f
+                        event.key == Key.DirectionDown && summaryScroll.canScrollForward -> 120f
+                        event.key == Key.DirectionUp && summaryScroll.canScrollBackward -> -120f
+                        else -> 0f
+                    }
+                    if (delta == 0f) false else { scrollScope.launch { summaryScroll.scrollBy(delta) }; true }
+                }.focusable(),
+            state = summaryScroll, contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Sobre esta edição", fontSize = 20.sp, lineHeight = 28.sp)
@@ -159,15 +203,6 @@ import kotlinx.coroutines.CancellationException
 
                 }
             }
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            comic?.let { item ->
-                TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
-                    onRead, Modifier.focusRequester(first), primary = true)
-            }
-            TvButton("Voltar à biblioteca", onBack,
-                if (comic == null) Modifier.focusRequester(first) else Modifier)
-        }
         }
     }
 }

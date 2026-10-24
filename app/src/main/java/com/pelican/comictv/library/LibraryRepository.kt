@@ -29,6 +29,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private var protectedPage: String? = null
     private var ready = false
 
+    suspend fun setHistoryHidden(id: String, hidden: Boolean) = dao.setHistoryHidden(id, hidden)
     fun observeComics() = dao.observe()
     override suspend fun getComic(id: String) = dao.get(id) ?: throw IOException("Esta edição não está mais disponível.")
     fun cover(id: String) = File(covers, "$id.jpg")

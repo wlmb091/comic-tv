@@ -2,9 +2,15 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.7.10
+## Versão 0.8.0
 
 - Biblioteca local com capas e lista de leituras recentes.
+- Resumo em painel separado à direita dos detalhes, com rolagem própria e ações de leitura no centro.
+- Segure OK por 1 segundo sobre capas ou leituras recentes para abrir continuar/leitura, detalhes e remoção/restauração do histórico.
+- Remover do histórico mantém edição, arquivos, preferências e página salva. A edição volta ao histórico quando você retoma a leitura.
+- Configurações com aba Acessibilidade e aparência: presets preto com amarelo, verde, azul ou violeta, texto padrão/115%/130% e alto contraste. Preferências persistidas no aparelho.
+- Texto claro padrão definido em toda a interface; cores dos quadrinhos não são alteradas.
+
 - Detalhes com título legível, progresso e resumo real salvo pela fonte; painel de informações rolável pelo controle e ações de leitura sempre acessíveis.
 - Galeria opcional: página atual maior ao centro e vizinhas menores, com ordem visual invertida para leitura RTL. O ícone substitui mover/zoom; toque curto no OK mantém essa função.
 - Ferramentas do leitor em ícones na lateral direita, com nome ao focar: páginas, capítulos anterior/próximo, lista de capítulos, galeria, ajuste e opções.
