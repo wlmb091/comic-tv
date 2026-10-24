@@ -1,4 +1,4 @@
-# Backup e restauração — desenho para aprovação
+# Backup e restauração — desenho aprovado
 
 Base: Comic TV 0.11.0. Data: 24/10/2026.
 

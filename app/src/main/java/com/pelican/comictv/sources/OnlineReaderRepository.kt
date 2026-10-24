@@ -37,11 +37,19 @@ class OnlineReaderRepository(
     private val mutex = Mutex()
     private val sessions = LinkedHashMap<String, OnlineReadingRecord>()
     private val prefetched = mutableSetOf<String>()
+    internal suspend fun prepareOffline(id: String): List<OnlinePage> = withContext(Dispatchers.IO) { mutex.withLock { refresh(id).pages } }
+    internal suspend fun downloadOffline(id: String, index: Int, target: File) = withContext(Dispatchers.IO) {
+        val record = mutex.withLock { checkNotNull(sessions[id]) { "Retome o download para atualizar a fonte." } }
+        trusted(record.pin)
+        extensionOperation { engine.download(record.source, record.pages[index], target) }
+    }
 
     internal suspend fun backupMetadata(id: String): com.pelican.comictv.backup.BackupOnline = mutex.withLock {
         val record = read(id)
-        com.pelican.comictv.backup.BackupOnline(record.source, record.title.copy(coverUrl = null,
-            description = record.title.description?.take(16000)), record.chapter, record.pin)
+        com.pelican.comictv.backup.BackupOnline(record.source, record.title.copy(coverUrl = null, title = record.title.title.take(300),
+            description = record.title.description?.take(16000),author = record.title.author?.take(300),artist = record.title.artist?.take(300),
+            publisher = record.title.publisher?.take(300),characters = record.title.characters?.take(2000),director = record.title.director?.take(300)),
+            record.chapter.copy(title = record.chapter.title.take(300)), record.pin)
     }
     internal suspend fun restoreMetadata(id: String, metadata: com.pelican.comictv.backup.BackupOnline) = mutex.withLock {
         require(OnlineIdentity.id(metadata.source, metadata.title, metadata.chapter) == id)

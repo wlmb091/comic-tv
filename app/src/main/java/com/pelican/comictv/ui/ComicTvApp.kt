@@ -44,6 +44,7 @@ import com.pelican.comictv.transfer.LocalTransferScreen
 import com.pelican.comictv.transfer.FtpTransferViewModel
 import com.pelican.comictv.transfer.FtpTransferScreen
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
 @Composable fun ComicTvApp(container: AppContainer) {
     var recovered by remember { mutableStateOf(false) }
@@ -51,7 +52,14 @@ import androidx.compose.ui.platform.LocalContext
     var attempt by remember { mutableIntStateOf(0) }
     LaunchedEffect(attempt) {
         recoveryError = false
-        try { container.backup.recover(); recovered = true }
+        try {
+            container.backup.recover(); recovered = true
+            launch {
+                try { container.downloads.refresh() }
+                catch (e: kotlinx.coroutines.CancellationException) {throw e}
+                catch (_: Exception) { /* Reader still verifies local packages independently. */ }
+            }
+        }
         catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (_: Exception) { recoveryError = true }
     }
@@ -78,6 +86,8 @@ import androidx.compose.ui.platform.LocalContext
     val memberships by library.memberships.collectAsStateWithLifecycle()
     val libraryQuery by library.browse.query.collectAsStateWithLifecycle()
     val libraryFilter by library.browse.filter.collectAsStateWithLifecycle()
+    val downloadsState by container.downloads.state.collectAsStateWithLifecycle()
+    fun openDownload(id: String) { nav.navigate(if (id in downloadsState.complete) "downloads" else "downloads?edition=$id") }
 
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
@@ -88,7 +98,8 @@ import androidx.compose.ui.platform.LocalContext
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
                     requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
                     query = libraryQuery, filter = libraryFilter, collections = collections, memberships = memberships,
-                    onQuery = library.browse::setQuery, onFilter = library.browse::setFilter)
+                    onQuery = library.browse::setQuery, onFilter = library.browse::setFilter,
+                    offlineIds = downloadsState.complete,onDownload = ::openDownload)
             }
         }
         composable("import") {
@@ -145,16 +156,23 @@ import androidx.compose.ui.platform.LocalContext
             })
             TvShell("settings", onNavigate = { startupFocusPending = false; sidebarFocusTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
                 focusSectionOnEntry = sidebarFocusTarget == "settings", onSectionFocused = { sidebarFocusTarget = null }) {
-                SettingsScreen(container.appearance, storage, backup) { nav.popBackStack("library", false) }
+                SettingsScreen(container.appearance, storage, backup, onDownloads = {nav.navigate("downloads")}) { nav.popBackStack("library", false) }
             }
         }
         composable("details/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo, loadRelated = container.online::related,
-                onRelated = { selected ->
+                offlineAvailable = id in downloadsState.complete, onDownload = {openDownload(id)}, onRelated = { selected ->
                     if (selected.libraryId != null) nav.navigate("details/" + selected.libraryId)
                     else { relatedTitle = selected; nav.navigate("related-title") }
                 })
+        }
+        composable("downloads?edition={edition}",arguments = listOf(navArgument("edition") {type = NavType.StringType;nullable = true;defaultValue = null})) { entry ->
+            val downloads: com.pelican.comictv.offline.DownloadsViewModel = viewModel(factory = viewModelFactory {
+                initializer {com.pelican.comictv.offline.DownloadsViewModel(container.downloads)}
+            })
+            com.pelican.comictv.offline.DownloadsScreen(downloads,comics,entry.arguments?.getString("edition"),
+                onBack = {nav.popBackStack()},onRead = {nav.navigate("reader/$it")})
         }
         composable("related-title") {
             com.pelican.comictv.details.RelatedTitleScreen(relatedTitle, container.online,
@@ -163,7 +181,7 @@ import androidx.compose.ui.platform.LocalContext
         composable("reader/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             val reader: ReaderViewModel = viewModel(factory = viewModelFactory {
-                initializer { ReaderViewModel(if (id.startsWith("online-")) container.online else container.library, id, createSavedStateHandle(), thumbnailWarm = container::warmReaderThumbnail, imagePreferences = container.readerImages) }
+                initializer { ReaderViewModel(if (id.startsWith("online-")) container.onlineReader else container.library, id, createSavedStateHandle(), thumbnailWarm = container::warmReaderThumbnail, imagePreferences = container.readerImages) }
             })
             ReaderScreen(reader, onExit = { if (id.startsWith("online-")) nav.popBackStack() else nav.popBackStack("library", false) },
                 onEditions = if (id.startsWith("online-")) ({

@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
     requestInitialFocus: Boolean = false, onInitialFocus: () -> Unit = {},
     query: String = "", filter: String = "all", collections: List<CollectionEntity> = emptyList(),
     memberships: List<CollectionMembership> = emptyList(), onQuery: (String) -> Unit = {}, onFilter: (String) -> Unit = {},
+    offlineIds: Set<String> = emptySet(), onDownload: ((String) -> Unit)? = null,
 ) {
     val grid = rememberLazyGridState()
     val restore = remember { FocusRequester() }
@@ -69,6 +70,7 @@ import kotlinx.coroutines.launch
     }
     optionsFor?.let { selected ->
         HistoryOptions(selected, repository, onRead = { optionsFor = null; focusComic(selected.id); onRead(selected.id) }, onOpen = { optionsFor = null; focusComic(selected.id); onOpen(selected.id) },
+            onDownload = onDownload?.let { callback -> {optionsFor = null;focusComic(selected.id);callback(selected.id)} },offlineAvailable = selected.id in offlineIds,
             onDismiss = { menuScope.launch {
                 grid.scrollToItem(0)
                 optionsFor = null
@@ -187,6 +189,7 @@ import kotlinx.coroutines.launch
             ) {
                 Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Panel)) {
                     AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    if (comic.id in offlineIds) Text("OFFLINE",Modifier.align(Alignment.TopStart).background(Color.Black.copy(alpha = .85f)).padding(5.dp),fontSize = 11.sp,color = TvColors.Amber)
                     if (comic.favorite) Text("★", Modifier.align(Alignment.TopEnd).background(Color.Black.copy(alpha = .8f)).padding(6.dp)
                         .semantics { contentDescription = "Favorito" }, color = TvColors.Amber, fontSize = 19.sp)
                     Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()

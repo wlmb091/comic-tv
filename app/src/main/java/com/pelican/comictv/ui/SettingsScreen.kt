@@ -19,7 +19,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable fun SettingsScreen(preferences: AppearancePreferences, storage: com.pelican.comictv.storage.StorageViewModel,
-    backup: com.pelican.comictv.backup.BackupViewModel, onBack: () -> Unit) {
+    backup: com.pelican.comictv.backup.BackupViewModel, onDownloads: (() -> Unit)? = null, onBack: () -> Unit) {
     val options by preferences.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var accessibility by rememberSaveable { mutableStateOf(true) }
@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
             return@Column
         }
         if (storageOpen) {
-            com.pelican.comictv.storage.StorageSettings(storage, onBack, Modifier.weight(1f))
+            com.pelican.comictv.storage.StorageSettings(storage, onBack, Modifier.weight(1f), onDownloads)
             return@Column
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(8.dp),

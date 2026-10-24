@@ -54,6 +54,7 @@ import kotlinx.coroutines.launch
 
 @Composable internal fun HistoryOptions(
     comic: ComicEntity, repository: LibraryRepository, onOpen: () -> Unit, onRead: () -> Unit, onDismiss: () -> Unit,
+    onDownload: (() -> Unit)? = null, offlineAvailable: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
@@ -77,6 +78,8 @@ import kotlinx.coroutines.launch
             TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", onRead, Modifier.focusRequester(first), primary = true)
             TvButton("Abrir detalhes", onOpen)
             OrganizationActions(comic, repository)
+            if (comic.id.startsWith("online-") && onDownload != null)
+                TvButton(if (offlineAvailable) "Gerenciar download offline" else "Baixar para ler offline",onDownload)
             if (comic.lastRead > 0) TvButton(if (hidden) "Restaurar no histórico" else "Remover do histórico", {
                 if (!hidden) confirmRemoval = true
                 else if (!saving) scope.launch {

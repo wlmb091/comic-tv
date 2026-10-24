@@ -2,7 +2,13 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.11.0
+## Versão 0.12.0
+
+- Configurações → Backup e restauração: arquivo de dados versionado com progresso, histórico, favoritos, coleções e preferências, por seletor Android ou sessão temporária de rede local com QR. Originais e páginas baixadas ficam separados.
+- Restauração com prévia/confirmação, mesclagem por data sem excluir a biblioteca e recuperação após interrupção. Originais locais ausentes aguardam reimportação pelo mesmo SHA-256; confiança de fontes e extensões não é restaurada automaticamente.
+- Downloads completos de edições online, com fila persistente, pausa/retomada e verificação de integridade. Pasta permanente independente do cache; leitura completa não consulta rede ou extensão.
+- Baixar pelo menu de OK longo ou detalhes. Gerenciar em Configurações → Armazenamento → Gerenciar downloads offline. Downloads pausam ao sair da tela ou ir ao segundo plano.
+- Guia e limites reais em [Backup e leitura offline](docs/backup-offline.md). Sem dependência nova, conta, nuvem ou aplicativo auxiliar na TV.
 
 - Biblioteca com favoritos e coleções manuais; uma edição pode participar de várias coleções sem duplicar o quadrinho.
 - Busca local por título, ignorando acentos e maiúsculas, combinada com Todas/Favoritos/coleção. Busca e filtro ficam salvos ao abrir detalhes/leitor e retornar.
@@ -125,7 +131,7 @@ No celular, selecione o CBZ original diretamente, sem compactá-lo novamente. Um
 
 Abra **Fontes → Adicionar Keiyoushi** ou informe a URL HTTPS de outro repositório. Abra as extensões, filtre por nome/idioma e escolha **Instalar**. O Android poderá solicitar autorização para o Comic TV instalar pacotes; confirme a instalação na tela do sistema. Ao retornar, atualize as instaladas e abra a fonte desejada. Os APKs são conferidos por pacote, versão e certificado SHA-256 do repositório antes de serem oferecidos ao instalador.
 
-No catálogo, escolha uma capa para abrir detalhes e capítulos. Sagas como as do HQ Now são apresentadas conforme o título e a sequência de edições que a extensão retornar. Ao sair da leitura online, você volta à lista anterior. O capítulo aberto aparece na biblioteca para continuar depois; as páginas são carregadas sob demanda e compartilham o cache de 256 MiB, com prévias em 32 MiB separados. A retomada consulta a fonte novamente; esta versão não é um gerenciador de downloads completos para leitura offline.
+No catálogo, escolha uma capa para abrir detalhes e capítulos. Sagas como as do HQ Now são apresentadas conforme o título e a sequência de edições que a extensão retornar. Ao sair da leitura online, você volta à lista anterior. O capítulo aberto aparece na biblioteca para continuar depois; as páginas sob demanda compartilham cache de 256 MiB e prévias de 32 MiB. Edições sem download completo consultam a fonte ao retomar; desde 0.12.0, edições completas usam seus arquivos permanentes sem rede/extensão. O catálogo e a consulta de outras edições continuam online.
 
 Para continuar outra edição durante a leitura, segure OK por 1 segundo → **Edições da saga / série**. A posição é salva antes de consultar a fonte. A lista identifica a edição atual, permite abrir anterior/próxima ou qualquer item e pode inverter a sequência; a escolha de ordem fica salva por título. A ordem da fonte não é presumida como cronológica. Edições já abertas retomam sua própria página. A leitura automática continua limitada às páginas da edição atual.
 
@@ -142,7 +148,7 @@ Cada sessão dura até 15 minutos e termina ao parar, sair da tela, mudar de red
 ## Próximos incrementos acordados
 
 - **Web:** portal próprio com token temporário e QR de pareamento; adiado em favor da leitura online por extensões, conforme a prioridade esclarecida pelo usuário. Fontes online não dependem desse portal nem da hospedagem do Conchat.
-- Backup/restauração e downloads completos para leitura offline são os próximos pacotes; ainda não implementados.
+- Backup manual e downloads offline estão implementados. Backup automático, nuvem/sincronização e downloads contínuos em segundo plano ficam para revisão futura, sem serviço ativo nesta versão.
 - Marcadores, rotação e painéis individuais continuam opcionais para revisão futura. Galeria/Livro e zoom por regiões já estão disponíveis.
 
 O portal remoto ainda não está ativo. Os servidores da rede local e FTP funcionam somente durante uma sessão iniciada pelo usuário.

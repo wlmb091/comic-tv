@@ -36,14 +36,17 @@ class BackupRepository(private val context: Context, private val db: LibraryData
             }
             val ids = entries.map { it.id }.toSet()
             val all = entries + pendingDoc.comics.filter { it.id !in ids }
+            val allIds = all.map {it.id}.toSet()
             val collections = dao.collections().map { BackupCollection(it.id, it.name) }
             val validCollections = collections.map { it.id }.toSet()
             val links = (dao.links().map { BackupLink(it.comicId, it.collectionId) } + pendingDoc.links)
-                .filter { it.collectionId in validCollections && all.any { comic -> comic.id == it.comicId } }.distinct()
+                .filter { it.collectionId in validCollections && it.comicId in allIds }.distinct()
             val options = appearance.state.value
             val document = BackupDocument(createdAt = System.currentTimeMillis(), comics = all, collections = collections, links = links,
                 appearance = BackupAppearance(options.preset.name, options.textSize, options.highContrast, options.coverBackground))
-            val target = File(context.cacheDir, "comic-tv-${System.currentTimeMillis()}.ctvbackup")
+            val exportDirectory = File(context.cacheDir,"backup-exports").apply {mkdirs()}
+            val date = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date())
+            val target = File.createTempFile("Comic-TV-${com.pelican.comictv.BuildConfig.VERSION_NAME}-$date-", ".ctvbackup",exportDirectory)
             val bytes = BackupCodec.encode(document)
             try { target.outputStream().use { it.write(bytes); it.fd.sync() }; target }
             catch (e: Exception) { target.delete(); throw e }
@@ -53,10 +56,11 @@ class BackupRepository(private val context: Context, private val db: LibraryData
     suspend fun restore(document: BackupDocument, restoreAppearance: Boolean): RestoreResult = withContext(Dispatchers.IO) {
         mutex.withLock { library.exclusiveStorage {
             recoverLocked(); BackupCodec.validate(document)
+            val resolved = resolve(document)
             check(flags.edit().putBoolean("restore-appearance", restoreAppearance).commit())
-            val bytes = BackupCodec.encode(document); val out = journal.startWrite()
+            val bytes = BackupCodec.encode(resolved); val out = journal.startWrite()
             try { out.write(bytes); journal.finishWrite(out) } catch (e: Throwable) { journal.failWrite(out); throw e }
-            withContext(NonCancellable) { val result = apply(document, restoreAppearance); journal.delete(); result }
+            withContext(NonCancellable) { val result = apply(resolved, restoreAppearance); journal.delete(); result }
         } }
     }
     suspend fun recover() = withContext(Dispatchers.IO) { mutex.withLock { library.exclusiveStorage { recoverLocked() } } }
@@ -65,6 +69,25 @@ class BackupRepository(private val context: Context, private val db: LibraryData
             val document = journal.openRead().use(BackupCodec::decode)
             withContext(NonCancellable) { apply(document, flags.getBoolean("restore-appearance", true)); journal.delete() }
         }
+    }
+    private suspend fun resolve(document: BackupDocument): BackupDocument {
+        val dao = db.backups(); val current = dao.comics().associateBy { it.id }; val oldPending = pending.snapshot()
+        val pendingById = oldPending.comics.associateBy { it.id }
+        val resolved = document.copy(comics = document.comics.map { incoming ->
+            val old = current[incoming.id]?.backup(images.read(incoming.id)) ?: pendingById[incoming.id]
+            if (incoming.online == null && library.originalFile(incoming.id).isFile)
+                require(sha256(library.originalFile(incoming.id)) == incoming.sha256) { "O original local não corresponde ao backup." }
+            (old?.let { mergeBackupComic(it, incoming) } ?: incoming).copy(sha256 = incoming.sha256, online = incoming.online)
+        })
+        val (collections, map) = mergeBackupCollections(dao.collections().map { BackupCollection(it.id,it.name) }, resolved.collections)
+        require((current.keys + pendingById.keys + resolved.comics.map { it.id }).toSet().size <= 20000) { "Limite de 20.000 edições na mesclagem." }
+        val links = (dao.links().map { BackupLink(it.comicId,it.collectionId) } + oldPending.links + resolved.links.map { it.copy(collectionId = checkNotNull(map[it.collectionId])) }).distinct()
+        require(links.size <= 100000) { "Limite de vínculos na mesclagem." }
+        val deferred = (pendingById + resolved.comics.filter { it.online == null && !library.originalFile(it.id).isFile }.associateBy { it.id }).values.toList()
+        val ids = deferred.map { it.id }.toSet(); val collectionIds = collections.map { it.id }.toSet()
+        BackupCodec.encode(BackupDocument(createdAt = resolved.createdAt, comics = deferred, collections = collections,
+            links = links.filter { it.comicId in ids && it.collectionId in collectionIds }))
+        return resolved
     }
     private suspend fun apply(document: BackupDocument, restoreAppearance: Boolean): RestoreResult {
         val dao = db.backups()
@@ -104,10 +127,9 @@ class BackupRepository(private val context: Context, private val db: LibraryData
         val deferredLinks = (oldPending.links + document.links.map { it.copy(collectionId = checkNotNull(collectionMap[it.collectionId])) })
             .filter { it.comicId in deferred && it.collectionId in validIds }.distinct()
         pending.write(BackupDocument(createdAt = document.createdAt, comics = deferred.values.toList(), collections = collections, links = deferredLinks))
-        for (incoming in document.comics) {
-            val latest = current[incoming.id]?.let { mergeBackupComic(it.backup(images.read(it.id)), incoming) } ?: incoming
-            images.save(incoming.id, ReaderImageOptions.restore(latest.imagePreset, latest.imageIntensity))
-        }
+        // Resolved journal choices survive date ties on replay; commit preferences in
+        // one batch rather than thousands of disk commits for a large collection.
+        images.saveAll(document.comics.associate { it.id to ReaderImageOptions.restore(it.imagePreset,it.imageIntensity) })
         if (restoreAppearance) {
             val a = document.appearance
             appearance.update(AppearanceOptions.restore(a.preset, a.textSize, a.highContrast, a.coverBackground))

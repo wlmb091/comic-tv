@@ -39,6 +39,7 @@ import kotlinx.coroutines.CancellationException
     loadRelated: suspend (String) -> RelatedResult = { RelatedResult(emptyList(), "Relacionados indisponíveis.") },
     onRelated: (RelatedComic) -> Unit = {},
     showRelated: Boolean = false,
+    offlineAvailable: Boolean = false, onDownload: (() -> Unit)? = null,
 ) {
     var comic by remember(id) { mutableStateOf<ComicEntity?>(null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
@@ -136,6 +137,10 @@ import kotlinx.coroutines.CancellationException
                     TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
                         { afterDiscoveryStopped(onRead) }, Modifier.focusRequester(first), primary = true)
                     OrganizationActions(item, repository)
+                    if (isOnline && onDownload != null) {
+                        if (offlineAvailable) Text("✓ Disponível offline",color = TvColors.Amber)
+                        TvButton(if (offlineAvailable) "Gerenciar download offline" else "Baixar para ler offline",onDownload)
+                    }
                     if (item.lastRead > 0) {
                         TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
                             if (!item.hiddenFromHistory) confirmRemoval = true

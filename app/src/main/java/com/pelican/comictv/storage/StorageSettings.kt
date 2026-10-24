@@ -14,7 +14,7 @@ import androidx.tv.material3.Text
 import com.pelican.comictv.library.LibraryDialog
 import com.pelican.comictv.ui.*
 
-@Composable fun StorageSettings(viewModel: StorageViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+@Composable fun StorageSettings(viewModel: StorageViewModel, onBack: () -> Unit, modifier: Modifier = Modifier, onDownloads: (() -> Unit)? = null) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pending by remember { mutableStateOf<CacheSelection?>(null) }
     val context = LocalContext.current
@@ -29,6 +29,8 @@ import com.pelican.comictv.ui.*
             item { Text("Capas salvas · " + bytes(report.covers)) }
             item { Text("Cache de páginas · " + bytes(report.pages)) }
             item { Text("Miniaturas · " + bytes(report.thumbnails)) }
+            item { Text("Downloads offline (completos e parciais) · " + bytes(report.offline)) }
+            if (onDownloads != null) item {TvButton("Gerenciar downloads offline",onDownloads)}
             if (report.skipped > 0) item { Text("${report.skipped} caminho(s) não foram contabilizados por acesso indisponível ou link externo.", color = TvColors.Amber) }
         }
         state.cleanup?.let { result -> item {

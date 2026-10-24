@@ -23,4 +23,14 @@ class AppContainer(context: Context) {
     }
     val online = OnlineReaderRepository(app, database.comics(), library, mihon, sourcePreferences)
     val backup = com.pelican.comictv.backup.BackupRepository(app, database, library, online, appearance, readerImages, pendingRestores)
+    val offlineStore = com.pelican.comictv.offline.OfflineStore(java.io.File(app.filesDir,"offline"))
+    val downloads = com.pelican.comictv.offline.DownloadRepository(java.io.File(app.filesDir,"offline-queue.json"),offlineStore,
+        online::prepareOffline,{id,index,file ->
+            online.downloadOffline(id,index,file)
+            if (index == 0) runCatching {library.writeOnlineCover(id,file)}
+            Unit
+        })
+    val onlineReader = com.pelican.comictv.offline.OfflineFirstReaderRepository(offlineStore,online,library,onOfflineOpened = library::updatePageCount) {id,index,file ->
+        library.externalImage(id,index,true,foreground = false) { target -> file.copyTo(target,overwrite = true); Unit }
+    }
 }

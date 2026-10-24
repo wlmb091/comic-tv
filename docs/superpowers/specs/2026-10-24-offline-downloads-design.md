@@ -1,4 +1,4 @@
-# Downloads para leitura offline — desenho para aprovação
+# Downloads para leitura offline — desenho aprovado
 
 Base: Comic TV 0.11.0; executar após backup/restauração. Data: 24/10/2026.
 

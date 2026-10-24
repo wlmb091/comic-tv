@@ -34,8 +34,9 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private var ready = false
     suspend fun <T> exclusiveStorage(block: suspend () -> T): T = mutex.withLock { block() }
     fun originalFile(id: String): File = store.original(id)
+    suspend fun updatePageCount(id: String, count: Int) = dao.updatePageCount(id,count)
 
-    private fun storage() = LibraryStorage(File(context.filesDir, "originals"), covers, pageDirectory, thumbnailDirectory)
+    private fun storage() = LibraryStorage(File(context.filesDir, "originals"), covers, pageDirectory, thumbnailDirectory, offlineDirectory = File(context.filesDir,"offline"))
     suspend fun storageReport(): StorageReport = withContext(Dispatchers.IO) {
         mutex.withLock { runInterruptible { storage().report() } }
     }
@@ -169,6 +170,14 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
             try {
                 val pages = runInterruptible {
                     openInput().use { store.import(id, it) }
+                }
+                if (restored != null) {
+                    val digest = java.security.MessageDigest.getInstance("SHA-256")
+                    store.original(id).inputStream().use { input -> val buffer = ByteArray(16384); while (true) {
+                        currentCoroutineContext().ensureActive(); val count = input.read(buffer); if (count < 0) break
+                        digest.update(buffer,0,count)
+                    } }
+                    require(digest.digest().joinToString("") { "%02x".format(it) } == restored.sha256) { "O arquivo mudou durante a reimportação. Tente novamente." }
                 }
                 // Validate the first page before publishing the import.
                 cache.materialize("$id-0", setOfNotNull(protectedPage),

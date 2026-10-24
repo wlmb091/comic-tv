@@ -35,4 +35,10 @@ class BackupCodecTest {
         val newer = oldBackup.copy(lastRead = 300, currentPage = 24)
         assertEquals(9, mergeBackupComic(current.copy(pageCount = 10), newer).currentPage)
     }
+    @Test fun restorePreflightRejectsAggregateCollectionOverflowAndPreservesExistingNames() {
+        val existing = (0 until 2000).map { BackupCollection("c$it", "Coleção $it") }
+        assertThrows(IllegalArgumentException::class.java) { mergeBackupCollections(existing, listOf(BackupCollection("new", "Nova"))) }
+        val merged = mergeBackupCollections(existing, listOf(BackupCollection("same", "COLECAO 1")))
+        assertEquals(2000, merged.first.size); assertEquals("c1", merged.second["same"])
+    }
 }

@@ -1,6 +1,6 @@
 # Backup/restauração Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Exportar/restaurar dados locais versionados sem excluir a biblioteca, por seletor Android e sessão LAN.
 **Architecture:** Codec/validação/merge puros em core; repositório coordena transação Room e journal AtomicFile recuperável, descritores online sem URLs e pendências locais por hash. Compose configurações expõe prévia e confirmação.
@@ -22,21 +22,21 @@
 ### Task 1: Modelo e codec
 **Files:** core/backup/BackupCodec.kt, BackupModels.kt, BackupMerge.kt e testes.
 **Interfaces:** BackupDocument/BackupComic/BackupCollection/BackupLink/BackupAppearance; BackupCodec.encode/decode; mergeComic(current,incoming).
-- [ ] Escrever testes roundtrip, limites/tipos/duplicatas e merge por data; rodar e observar RED.
-- [ ] Implementar validação estrita/limitada, serialização e regras de conflito; executar GREEN.
+- [x] Escrever testes roundtrip, limites/tipos/duplicatas e merge por data; rodar e observar RED.
+- [x] Implementar validação estrita/limitada, serialização e regras de conflito; executar GREEN.
 
 ### Task 2: Persistência/restauro
 **Files:** app/backup/BackupRepository.kt, RestorePendingStore.kt; LibraryDatabase/CollectionDao/LibraryRepository, preferências, OnlineReaderRepository/AppContainer.
 **Interfaces:** prepareBackup():File, preview(File):BackupDocument, restore(document,appearance):RestoreResult, recover(); pending lookup por SHA256.
-- [ ] Testar mesclagem/pendências/rollback/journal e reimportação em memória/arquivos temporários antes das alterações.
-- [ ] Implementar DAO de restore em transação, journal atômico, descritor online sem URLs/sem confiança automática e preferências verificadas.
-- [ ] Integrar identidade pendente a importação e backup de pendências; rodar JVM e preparar Room nativo.
+- [x] Testar mesclagem/pendências/rollback/journal e reimportação em memória/arquivos temporários antes das alterações.
+- [x] Implementar DAO de restore em transação, journal atômico, descritor online sem URLs/sem confiança automática e preferências verificadas.
+- [x] Integrar identidade pendente a importação e backup de pendências; rodar JVM e preparar Room nativo.
 
 ### Task 3: Interface e transferência
 **Files:** BackupViewModel/BackupSettings/BackupTransferServer e testes; SettingsScreen/ComicTvApp.
-- [ ] Testar preview não aplica, confirmação aplica, sessão LAN upload/download expira/valida token/Host/Origin/limite.
-- [ ] Implementar seletor SAF, prévia/confirmação, opção aparência, sessão local temporária com QR e encerramento por ciclo de vida.
-- [ ] Rodar testes/build/lint, registrar resultado e commit; continuar plano offline já aprovado.
+- [x] Testar preview não aplica, confirmação aplica, sessão LAN upload/download expira/valida token/Host/Origin/limite.
+- [x] Implementar seletor SAF, prévia/confirmação, opção aparência, sessão local temporária com QR e encerramento por ciclo de vida.
+- [x] Rodar testes/build/lint, registrar resultado e commit; continuar plano offline já aprovado.
 
 ## Execução
 Inline na branch feature/comic-tv existente. Ledger em work/backup-offline-progress.md; aprovações de desenho já recebidas, continuar sem nova pergunta para decisões rotineiras. Helpers POSIX substituídos por PowerShell no Windows.

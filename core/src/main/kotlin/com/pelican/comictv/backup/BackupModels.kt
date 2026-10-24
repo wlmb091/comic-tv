@@ -22,3 +22,17 @@ fun mergeBackupComic(current: BackupComic, incoming: BackupComic): BackupComic {
         favorite = current.favorite || incoming.favorite,
         imagePreset = latest.imagePreset, imageIntensity = latest.imageIntensity)
 }
+
+fun mergeBackupCollections(existing: List<BackupCollection>, incoming: List<BackupCollection>): Pair<List<BackupCollection>, Map<String, String>> {
+    val all = existing.toMutableList(); val mapping = hashMapOf<String,String>()
+    val byId = existing.associateBy {it.id}.toMutableMap()
+    val byName = existing.associateBy {com.pelican.comictv.library.normalizeLibraryText(it.name)}.toMutableMap()
+    for (row in incoming) {
+        val key = com.pelican.comictv.library.validatedCollectionName(row.name).second
+        val match = byId[row.id] ?: byName[key]
+        val target = match ?: row.also { all += it;byId[it.id] = it;byName[key] = it }
+        mapping[row.id] = target.id
+    }
+    require(all.size <= 2000) { "A mesclagem excederia 2.000 coleções. Nenhum dado foi restaurado." }
+    return all to mapping
+}

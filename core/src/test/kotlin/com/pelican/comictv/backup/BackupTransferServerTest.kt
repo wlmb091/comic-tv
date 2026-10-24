@@ -33,4 +33,16 @@ class BackupTransferServerTest {
             assertTrue(File(root,"uploads").listFiles().orEmpty().isEmpty())
         } finally { server.close(); root.deleteRecursively() }
     }
+    @Test fun failedTemporaryFileCreationDoesNotPermanentlyLockUploads() {
+        val root = Files.createTempDirectory("backup-http-retry").toFile()
+        val uploads = File(root,"uploads").apply { writeText("not a directory") }
+        var previews = 0
+        val server = BackupTransferServer("127.0.0.1",uploads,{null},{previews++})
+        val bytes = BackupCodec.encode(BackupDocument(createdAt = 0,comics = emptyList()))
+        try {
+            server.open(); assertEquals(400,request(server.url+"/receive",bytes))
+            assertTrue(uploads.delete()); assertTrue(uploads.mkdirs())
+            assertEquals(200,request(server.url+"/receive",bytes)); assertEquals(1,previews)
+        } finally {server.close();root.deleteRecursively()}
+    }
 }
