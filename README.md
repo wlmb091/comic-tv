@@ -2,17 +2,17 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.8.0
+## Versão 0.8.1
 
 - Biblioteca local com capas e lista de leituras recentes.
-- Resumo em painel separado à direita dos detalhes, com rolagem própria e ações de leitura no centro.
+- Detalhes com título, informações e ações juntos à esquerda, capa ampliada no centro e resumo independente à direita, com a mesma altura da capa. O bloco de título não é selecionável.
 - Segure OK por 1 segundo sobre capas ou leituras recentes para abrir continuar/leitura, detalhes e remoção/restauração do histórico.
 - Remover do histórico mantém edição, arquivos, preferências e página salva. A edição volta ao histórico quando você retoma a leitura.
 - Configurações com aba Acessibilidade e aparência: presets preto com amarelo, verde, azul ou violeta, texto padrão/115%/130% e alto contraste. Preferências persistidas no aparelho.
 - Texto claro padrão definido em toda a interface; cores dos quadrinhos não são alteradas.
 
 - Detalhes com título legível, progresso e resumo real salvo pela fonte; painel de informações rolável pelo controle e ações de leitura sempre acessíveis.
-- Galeria opcional: página atual maior ao centro e vizinhas menores, com ordem visual invertida para leitura RTL. O ícone substitui mover/zoom; toque curto no OK mantém essa função.
+- Um único ícone de visualização alterna Normal → Galeria → Livro. Galeria mostra a página atual maior e vizinhas menores. Livro mostra a atual e a seguinte juntas, com passagem de duas em duas e ordem visual RTL quando ativada. Toque curto no OK mantém mover/zoom.
 - Ferramentas do leitor em ícones na lateral direita, com nome ao focar: páginas, capítulos anterior/próximo, lista de capítulos, galeria, ajuste e opções.
 - Lista de capítulos à esquerda com prévia estática da página atual; seleção de páginas com miniaturas em faixa compacta.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.

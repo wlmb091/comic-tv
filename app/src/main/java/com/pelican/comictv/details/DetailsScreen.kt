@@ -1,5 +1,8 @@
 package com.pelican.comictv.details
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -35,12 +38,10 @@ import kotlinx.coroutines.CancellationException
     var onlineInfo by remember(id) { mutableStateOf<OnlineEditionInfo?>(null) }
     var metadataLoading by remember(id) { mutableStateOf(id.startsWith("online-")) }
     var expandedSummary by remember(id) { mutableStateOf(false) }
-    val metadataScroll = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
     var changingHistory by remember { mutableStateOf(false) }
     val summaryScroll = rememberLazyListState()
     var summaryFocused by remember { mutableStateOf(false) }
-    var metadataFocused by remember { mutableStateOf(false) }
     val first = remember(id) { FocusRequester() }
     val isOnline = id.startsWith("online-")
     LaunchedEffect(id) {
@@ -61,146 +62,96 @@ import kotlinx.coroutines.CancellationException
         }
     }
     LaunchedEffect(comic != null, error) { if (comic != null || error != null) first.requestFocus() }
-    Row(
-        Modifier.fillMaxSize().background(TvColors.Background).padding(32.dp),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
-        AsyncImage(
-            repository.cover(id), "Capa da edição",
-            Modifier.width(180.dp).fillMaxHeight(), contentScale = ContentScale.Fit,
-        )
-        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        LazyColumn(
-            Modifier.weight(1f).fillMaxWidth()
-                .border(if (metadataFocused) 2.dp else 0.dp, TvColors.Amber)
-                .onFocusChanged { metadataFocused = it.isFocused }
-                .onPreviewKeyEvent { event ->
-                    val delta = when {
-                        !metadataFocused || event.type != KeyEventType.KeyDown -> 0f
-                        event.key == Key.DirectionDown && metadataScroll.canScrollForward -> 120f
-                        event.key == Key.DirectionUp && metadataScroll.canScrollBackward -> -120f
-                        else -> 0f
-                    }
-                    if (delta == 0f) false else {
-                        scrollScope.launch { metadataScroll.scrollBy(delta) }
-                        true
-                    }
-                }.focusable(),
-            state = metadataScroll,
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            item {
-                Text(
-                    if (isOnline) "SUA BIBLIOTECA  /  EDIÇÃO ONLINE" else "SUA BIBLIOTECA  /  EDIÇÃO LOCAL",
-                    fontSize = 13.sp, lineHeight = 18.sp, color = TvColors.Amber,
-                )
-            }
-            item {
-                Text(
-                    onlineInfo?.title?.takeIf { it.isNotBlank() } ?: comic?.title
-                        ?: if (error != null) "Edição indisponível" else "Carregando edição…",
-                    fontSize = 26.sp, lineHeight = 34.sp,
-                )
-            }
-            onlineInfo?.let { info ->
-                item {
+    BoxWithConstraints(Modifier.fillMaxSize().background(TvColors.Background).padding(24.dp)) {
+        // The cover sets the shared height; both side panels remain independently scrollable.
+        val coverWidth = minOf(maxHeight * (2f / 3f), maxWidth * .36f)
+        val panelHeight = coverWidth * 1.5f
+        Row(Modifier.fillMaxWidth().height(panelHeight).align(Alignment.Center),
+            horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(if (isOnline) "SUA BIBLIOTECA / EDIÇÃO ONLINE" else "SUA BIBLIOTECA / EDIÇÃO LOCAL",
+                    fontSize = 13.sp, color = TvColors.Amber)
+                Text(onlineInfo?.title?.takeIf { it.isNotBlank() } ?: comic?.title
+                    ?: if (error != null) "Edição indisponível" else "Carregando edição…",
+                    fontSize = 26.sp, lineHeight = 34.sp)
+                onlineInfo?.let { info ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        info.chapter.takeIf { it.isNotBlank() }?.let {
-                            Text(it, fontSize = 20.sp, lineHeight = 28.sp)
-                        }
-                        Text(
-                            listOf(info.sourceName, info.language).filter { it.isNotBlank() }.joinToString("  •  "),
-                            fontSize = 16.sp, lineHeight = 24.sp, color = TvColors.Muted,
-                        )
+                        if (info.chapter.isNotBlank()) Text(info.chapter, fontSize = 20.sp)
+                        Text(listOf(info.sourceName, info.language).filter { it.isNotBlank() }.joinToString(" • "),
+                            fontSize = 16.sp, color = TvColors.Muted)
                     }
                 }
-            }
-            comic?.let { item ->
-                item {
-                    val pageCount = item.pageCount.coerceAtLeast(0)
-                    val readPages = if (item.lastRead > 0) (item.currentPage + 1).coerceIn(0, pageCount) else 0
-                    val progress = if (pageCount > 0) readPages.toFloat() / pageCount else 0f
+                comic?.let { item ->
+                    val count = item.pageCount.coerceAtLeast(0)
+                    val read = if (item.lastRead > 0) (item.currentPage + 1).coerceIn(0, count) else 0
+                    val progress = if (count > 0) read.toFloat() / count else 0f
                     val status = when {
                         item.lastRead == 0L -> "Não iniciada"
-                        pageCount > 0 && readPages >= pageCount -> "Concluída"
+                        count > 0 && read >= count -> "Concluída"
                         else -> "Em andamento"
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("$status  •  ${(progress * 100).toInt()}% lido", fontSize = 18.sp, lineHeight = 26.sp)
-                        Text(
-                            if (readPages > 0) "Página $readPages de $pageCount" else "$pageCount páginas",
-                            fontSize = 16.sp, lineHeight = 24.sp, color = TvColors.Muted,
-                        )
+                        Text(status + " • " + (progress * 100).toInt() + "% lido", fontSize = 18.sp)
+                        Text(if (read > 0) "Página " + read + " de " + count else count.toString() + " páginas",
+                            color = TvColors.Muted, fontSize = 16.sp)
                         ProgressTrack(progress, Modifier.fillMaxWidth())
                     }
                 }
-
-            }
-            error?.let { message -> item { Text(message, fontSize = 18.sp, lineHeight = 26.sp) } }
-
-
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            comic?.let { item ->
-                TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
-                    onRead, Modifier.focusRequester(first), primary = true)
-            }
-            comic?.takeIf { it.lastRead > 0 }?.let { item ->
-                TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
-                    if (!changingHistory) scrollScope.launch {
-                        changingHistory = true
-                        try {
-                            repository.setHistoryHidden(id, !item.hiddenFromHistory)
-                            comic = repository.getComic(id)
-                        } catch (e: CancellationException) { throw e }
-                        catch (_: Exception) { error = "Não foi possível alterar o histórico." }
-                        finally { changingHistory = false }
+                error?.let { Text(it, color = TvColors.Amber, fontSize = 16.sp) }
+                comic?.let { item ->
+                    TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
+                        onRead, Modifier.focusRequester(first), primary = true)
+                    if (item.lastRead > 0) {
+                        TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
+                            if (!changingHistory) scrollScope.launch {
+                                changingHistory = true
+                                try {
+                                    repository.setHistoryHidden(id, !item.hiddenFromHistory)
+                                    comic = repository.getComic(id)
+                                } catch (e: CancellationException) { throw e }
+                                catch (_: Exception) { error = "Não foi possível alterar o histórico." }
+                                finally { changingHistory = false }
+                            }
+                        })
+                        Text("O quadrinho e a página salva são mantidos.", color = TvColors.Muted, fontSize = 13.sp)
                     }
-                })
-                Text("O quadrinho e a página salva são mantidos.", color = TvColors.Muted, fontSize = 13.sp)
+                }
+                TvButton("Voltar à biblioteca", onBack,
+                    if (comic == null) Modifier.focusRequester(first) else Modifier)
             }
-            TvButton("Voltar à biblioteca", onBack,
-                if (comic == null) Modifier.focusRequester(first) else Modifier)
-        }
-        }
-        LazyColumn(
-            Modifier.weight(.9f).fillMaxHeight().background(TvColors.Panel)
-                .border(if (summaryFocused) 2.dp else 0.dp, TvColors.Amber)
-                .onFocusChanged { summaryFocused = it.isFocused }
-                .onPreviewKeyEvent { event ->
-                    val delta = when {
-                        !summaryFocused || event.type != KeyEventType.KeyDown -> 0f
-                        event.key == Key.DirectionDown && summaryScroll.canScrollForward -> 120f
-                        event.key == Key.DirectionUp && summaryScroll.canScrollBackward -> -120f
-                        else -> 0f
-                    }
-                    if (delta == 0f) false else { scrollScope.launch { summaryScroll.scrollBy(delta) }; true }
-                }.focusable(),
-            state = summaryScroll, contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Sobre esta edição", fontSize = 20.sp, lineHeight = 28.sp)
-                    val summary = onlineInfo?.description?.trim()?.takeIf { it.isNotEmpty() }
-                    if (summary != null) {
-                        TvButton(
+            AsyncImage(repository.cover(id), "Capa da edição",
+                Modifier.width(coverWidth).fillMaxHeight(), contentScale = ContentScale.Fit)
+            LazyColumn(
+                Modifier.weight(1f).fillMaxHeight().background(TvColors.Panel)
+                    .border(if (summaryFocused) 2.dp else 0.dp, TvColors.Amber)
+                    .onFocusChanged { summaryFocused = it.isFocused }
+                    .onPreviewKeyEvent { event ->
+                        val delta = when {
+                            !summaryFocused || event.type != KeyEventType.KeyDown -> 0f
+                            event.key == Key.DirectionDown && summaryScroll.canScrollForward -> 120f
+                            event.key == Key.DirectionUp && summaryScroll.canScrollBackward -> -120f
+                            else -> 0f
+                        }
+                        if (delta == 0f) false else { scrollScope.launch { summaryScroll.scrollBy(delta) }; true }
+                    }.focusable(),
+                state = summaryScroll, contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Sobre esta edição", fontSize = 20.sp, lineHeight = 28.sp)
+                        val summary = onlineInfo?.description?.trim()?.takeIf { it.isNotEmpty() }
+                        if (summary != null) TvButton(
                             if (expandedSummary) "Recolher resumo" else "Mostrar resumo completo",
-                            { expandedSummary = !expandedSummary },
-                        )
-                    }
-                    Text(
-                        summary ?: when {
+                            { expandedSummary = !expandedSummary })
+                        Text(summary ?: when {
                             metadataLoading -> "Carregando informações salvas…"
                             isOnline -> "Esta edição não tem sinopse salva."
                             else -> "Edição importada de um arquivo local. Nenhuma sinopse está disponível."
-                        },
-                        fontSize = 17.sp, lineHeight = 26.sp, color = TvColors.Muted,
-                        maxLines = if (expandedSummary) Int.MAX_VALUE else 4,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-
+                        }, fontSize = 17.sp, lineHeight = 26.sp, color = TvColors.Muted,
+                            maxLines = if (expandedSummary) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
         }

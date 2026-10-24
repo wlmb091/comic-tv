@@ -1,6 +1,6 @@
 # Resumo, histórico e aparência — 0.8.0
 
-Detalhes: capa à esquerda, metadados e ações no centro, resumo à direita. Cada região longa tem rolagem independente; não é necessário navegar pelo resumo para iniciar a leitura.
+Detalhes: metadados e ações juntos à esquerda, capa ampliada ao centro, resumo à direita na mesma altura da capa. Cada região longa tem rolagem independente; não é necessário navegar pelo resumo para iniciar a leitura.
 
 Histórico: o campo hiddenFromHistory oculta da lista de histórico e de continuar lendo, sem apagar currentPage ou lastRead. A biblioteca completa mantém a edição. Ler novamente salva a posição e reativa a presença no histórico. A ação pode ser revertida no próprio menu ou nos detalhes.
 

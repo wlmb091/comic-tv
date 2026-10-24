@@ -31,6 +31,7 @@ class ReaderViewModelTest {
         var pageDelay = 0L
         var activeMaterializations = 0
         var pageFailure = false
+        var failingPage: Int? = null
         var count = 3
         var rtl = false
         override suspend fun thumbnail(comicId: String, page: PageRef): File {
@@ -51,7 +52,7 @@ class ReaderViewModelTest {
             activeMaterializations++
             try {
                 delay(pageDelay)
-                if (pageFailure) throw java.io.IOException("Page unavailable")
+                if (pageFailure || failingPage == page.index) throw java.io.IOException("Page unavailable")
                 delay(if (page.index == 1) 100 else 1)
                 return textFile ?: File("page-${page.index}")
             } finally { activeMaterializations-- }
@@ -60,15 +61,112 @@ class ReaderViewModelTest {
         override suspend fun savePreferences(id: String, fit: Int, rtl: Boolean) = Unit
     }
 
+    @Test fun layoutCyclesAndRestoresLegacyGallery() {
+        assertEquals(ReaderLayout.Gallery, ReaderLayout.Normal.next())
+        assertEquals(ReaderLayout.Book, ReaderLayout.Gallery.next())
+        assertEquals(ReaderLayout.Normal, ReaderLayout.Book.next())
+        assertEquals(ReaderLayout.Book, ReaderLayout.restore("Book"))
+        assertEquals(ReaderLayout.Gallery, ReaderLayout.restore(null, true))
+        assertEquals(ReaderLayout.Normal, ReaderLayout.restore("unknown"))
+    }
+
+    @Test fun bookTurnsPairsAndKeepsOddLastPageWithoutRepeatingIt() = runTest(dispatcher) {
+        val repo = FakeRepository().apply { count = 5 }
+        val saved = SavedStateHandle(mapOf("layout" to "Book", "page" to 0))
+        val vm = ReaderViewModel(repo, "book", saved, ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        assertEquals("page-1", vm.bookPartner.value!!.file.name)
+        assertEquals(listOf(0), repo.saved)
+        vm.action(ReaderAction.Right); advanceUntilIdle()
+        assertEquals(2, vm.state.value.page)
+        assertEquals("page-3", vm.bookPartner.value!!.file.name)
+        vm.action(ReaderAction.Right); advanceUntilIdle()
+        assertEquals(4, vm.state.value.page)
+        assertNull(vm.bookPartner.value)
+        vm.action(ReaderAction.Right); advanceUntilIdle()
+        assertEquals(4, vm.state.value.page)
+        vm.action(ReaderAction.Left); advanceUntilIdle()
+        assertEquals(2, vm.state.value.page)
+    }
+
+    @Test fun bookHonorsRTLAndPanDoesNotTurnTheSpread() = runTest(dispatcher) {
+        val vm = ReaderViewModel(FakeRepository().apply { count = 6; rtl = true }, "book",
+            SavedStateHandle(mapOf("layout" to "Book", "page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.action(ReaderAction.Left); advanceUntilIdle()
+        assertEquals(2, vm.state.value.page)
+        vm.action(ReaderAction.TogglePan)
+        vm.action(ReaderAction.Left); advanceUntilIdle()
+        assertEquals(2, vm.state.value.page)
+        vm.action(ReaderAction.TogglePan)
+        vm.action(ReaderAction.Right); advanceUntilIdle()
+        assertEquals(0, vm.state.value.page)
+    }
+
+    @Test fun automaticBookWaitsForBothDisplayedPagesThenAdvancesOneSpread() = runTest(dispatcher) {
+        val vm = ReaderViewModel(FakeRepository().apply { count = 6 }, "book",
+            SavedStateHandle(mapOf("layout" to "Book", "page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.imageDisplayed(vm.image.value!!.file)
+        vm.startAutomaticReading()
+        advanceUntilIdle()
+        advanceTimeBy(30_000); runCurrent()
+        assertEquals(0, vm.state.value.page)
+        vm.bookPageDisplayed(vm.bookPartner.value!!.file)
+        runCurrent()
+        advanceTimeBy(9_999); runCurrent()
+        assertEquals(0, vm.state.value.page)
+        advanceTimeBy(1); runCurrent()
+        assertEquals(2, vm.state.value.page)
+        vm.pauseAutomaticReading()
+        advanceUntilIdle()
+    }
+
+    @Test fun partnerFailureCanBeRetriedAndCloseStopsBothPageLoads() = runTest(dispatcher) {
+        val repo = FakeRepository().apply { count = 6; failingPage = 1 }
+        val vm = ReaderViewModel(repo, "book", SavedStateHandle(mapOf("layout" to "Book", "page" to 0)),
+            ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        assertTrue(vm.error.value!!.contains("segunda página"))
+        repo.failingPage = null
+        vm.retry(); advanceUntilIdle()
+        assertNull(vm.error.value)
+        assertNotNull(vm.bookPartner.value)
+        repo.pageDelay = 10_000
+        vm.action(ReaderAction.Right)
+        runCurrent()
+        assertTrue(repo.activeMaterializations > 0)
+        var activeAtExit = -1
+        vm.close { activeAtExit = repo.activeMaterializations }
+        advanceUntilIdle()
+        assertEquals(0, activeAtExit)
+    }
+
+    @Test fun bookTimelineStillSelectsExactPageAndDisablingKeepsPosition() = runTest(dispatcher) {
+        val vm = ReaderViewModel(FakeRepository().apply { count = 8 }, "book",
+            SavedStateHandle(mapOf("layout" to "Book", "page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
+        advanceUntilIdle()
+        vm.action(ReaderAction.StartTimeline)
+        vm.action(ReaderAction.Right)
+        vm.action(ReaderAction.Select)
+        advanceUntilIdle()
+        assertEquals(1, vm.state.value.page)
+        assertEquals("page-2", vm.bookPartner.value!!.file.name)
+        vm.cycleLayout(); advanceUntilIdle()
+        assertEquals(ReaderLayout.Normal, vm.layout.value)
+        assertEquals(1, vm.state.value.page)
+        assertNull(vm.bookPartner.value)
+    }
+
     @Test fun galleryLoadsNeighborsWithoutChangingProgressAndStopsWhenDisabled() = runTest(dispatcher) {
         val repository = FakeRepository()
         val saved = SavedStateHandle()
         val vm = ReaderViewModel(repository, "gallery", saved, ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
         advanceUntilIdle()
-        vm.toggleGallery()
+        vm.cycleLayout()
         advanceUntilIdle()
-        assertTrue(vm.gallery.value)
-        assertEquals(true, saved.get<Boolean>("gallery"))
+        assertEquals(ReaderLayout.Gallery, vm.layout.value)
+        assertEquals("Gallery", saved.get<String>("layout"))
         assertEquals(listOf(0, 2), vm.previews.value.map { it.page })
         assertEquals(1, vm.state.value.page)
         assertEquals(listOf(1), repository.saved)
@@ -76,9 +174,12 @@ class ReaderViewModelTest {
         advanceUntilIdle()
         assertEquals(listOf(1), vm.previews.value.map { it.page })
         assertEquals(2, repository.saved.last())
-        vm.toggleGallery()
+        vm.cycleLayout()
         advanceUntilIdle()
-        assertFalse(vm.gallery.value)
+        assertEquals(ReaderLayout.Book, vm.layout.value)
+        vm.cycleLayout()
+        advanceUntilIdle()
+        assertEquals(ReaderLayout.Normal, vm.layout.value)
         assertTrue(vm.previews.value.isEmpty())
     }
 
@@ -86,7 +187,7 @@ class ReaderViewModelTest {
         val vm = ReaderViewModel(FakeRepository(), "gallery", SavedStateHandle(mapOf("gallery" to true, "page" to 0)),
             ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })
         advanceUntilIdle()
-        assertTrue(vm.gallery.value)
+        assertEquals(ReaderLayout.Gallery, vm.layout.value)
         assertEquals(listOf(1), vm.previews.value.map { it.page })
         vm.action(ReaderAction.StartTimeline)
         advanceUntilIdle()

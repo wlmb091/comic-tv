@@ -16,6 +16,7 @@ import java.io.File
 data class PageImage(val file: File, val width: Int, val height: Int, val text: String? = null, val displayed: Boolean = false)
 data class TimelinePreview(val page: Int, val file: File? = null, val loading: Boolean = true, val failed: Boolean = false)
 data class AutomaticReading(val enabled: Boolean = false, val secondsPerScreen: Int = 10)
+private data class ReadingImages(val current: PageImage?, val partner: PageImage?, val layout: ReaderLayout)
 private data class AutomaticFrame(val options: AutomaticReading, val page: Int, val mode: ReaderMode,
     val loading: Boolean, val failed: Boolean, val text: Boolean, val ready: Boolean)
 
@@ -37,9 +38,13 @@ class ReaderViewModel(
     private val _loading = MutableStateFlow(true)
     val loading = _loading.asStateFlow()
     private val _error = MutableStateFlow<String?>(null)
-    val error = _error.asStateFlow()
-    private val _gallery = MutableStateFlow(saved.get<Boolean>("gallery") ?: false)
-    val gallery = _gallery.asStateFlow()
+    private val _bookError = MutableStateFlow<String?>(null)
+    val error = combine(_error, _bookError) { main, partner -> main ?: partner }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    private val _layout = MutableStateFlow(ReaderLayout.restore(saved.get<String>("layout"), saved.get<Boolean>("gallery") ?: false))
+    val layout = _layout.asStateFlow()
+    private val _bookPartner = MutableStateFlow<PageImage?>(null)
+    val bookPartner = _bookPartner.asStateFlow()
     private val _previews = MutableStateFlow<List<TimelinePreview>>(emptyList())
     val previews = _previews.asStateFlow()
     private var previewJob: Job? = null
@@ -57,9 +62,12 @@ class ReaderViewModel(
 
     init {
         viewModelScope.launch {
-            combine(_automatic, _state, _loading, _error, _image) { options, state, loading, error, image ->
+            val images = combine(_image, _bookPartner, _layout) { current, partner, layout -> ReadingImages(current, partner, layout) }
+            combine(_automatic, _state, _loading, error, images) { options, state, loading, error, images ->
+                val image = images.current
                 AutomaticFrame(options, state.page, state.mode, loading, error != null, image?.text != null,
-                    image != null && (image.text != null || image.displayed))
+                    image != null && (image.text != null || image.displayed) &&
+                        (images.layout != ReaderLayout.Book || !hasBookPartner(state.page) || images.partner?.displayed == true))
             }.distinctUntilChanged().collectLatest { frame ->
                 if (!frame.options.enabled) return@collectLatest
                 if (frame.failed) { pauseAutomaticReading(); return@collectLatest }
@@ -105,7 +113,13 @@ class ReaderViewModel(
     private fun applyAction(action: ReaderAction) {
         if (closing || exited) return
         val old = _state.value
-        val next = old.reduce(action)
+        val next = if (_layout.value == ReaderLayout.Book && old.mode == ReaderMode.Reading &&
+            pages.getOrNull(old.page)?.key?.startsWith("epub:text:") == false && (action == ReaderAction.Left || action == ReaderAction.Right)) {
+            val forward = (action == ReaderAction.Right) != old.rtl
+            val target = if (forward) old.page + if (hasBookPartner(old.page)) 2 else 1
+                else (old.page - if (old.page >= 2 && pages[old.page - 1].key.startsWith("epub:text:").not() && pages[old.page - 2].key.startsWith("epub:text:").not()) 2 else 1).coerceAtLeast(0)
+            if (target in pages.indices && target != old.page) old.copy(page = target, zoom = 1f, panX = 0f, panY = 0f) else old
+        } else old.reduce(action)
         _state.value = next
         if (next.page != old.page || next.timelinePage != old.timelinePage || next.mode != old.mode) updatePreviews()
         if (next.page != old.page) {
@@ -120,22 +134,37 @@ class ReaderViewModel(
         }
     }
 
-    fun toggleGallery() {
+    fun cycleLayout() {
         if (closing || exited) return
         pauseAutomaticReading()
-        _gallery.value = !_gallery.value
-        saved["gallery"] = _gallery.value
-        _state.value = _state.value.copy(mode = ReaderMode.Reading, fit = FitMode.Page, zoom = 1f, panX = 0f, panY = 0f)
+        _layout.value = _layout.value.next()
+        saved["layout"] = _layout.value.name
+        _state.value = _state.value.copy(mode = if (_state.value.mode == ReaderMode.Tools) ReaderMode.Tools else ReaderMode.Reading, fit = FitMode.Page, zoom = 1f, panX = 0f, panY = 0f)
         updatePreviews()
+    }
+
+    internal fun hasBookPartner(page: Int) = pages.getOrNull(page)?.key?.startsWith("epub:text:") == false &&
+        pages.getOrNull(page + 1)?.key?.startsWith("epub:text:") == false
+
+    fun bookPageDisplayed(file: File) {
+        val partner = _bookPartner.value ?: return
+        if (partner.file == file && !partner.displayed) _bookPartner.value = partner.copy(displayed = true)
+    }
+
+    fun bookPageFailed(file: File) {
+        if (_bookPartner.value?.file == file) {
+            pauseAutomaticReading()
+            _bookError.value = "Não foi possível exibir a segunda página. Tente novamente nas ferramentas."
+        }
     }
 
     fun retry() {
         if (closing || exited) return
-        if (!initialized) initialize() else loadPage()
+        if (!initialized) initialize() else { loadPage(); updatePreviews() }
     }
 
     fun startAutomaticReading() {
-        if (closing || exited || !initialized || _state.value.pageCount == 0 || _error.value != null) return
+        if (closing || exited || !initialized || _state.value.pageCount == 0 || _error.value != null || _bookError.value != null) return
         _state.value = _state.value.copy(mode = ReaderMode.Reading, timelinePage = null)
         updatePreviews()
         _automatic.value = _automatic.value.copy(enabled = true)
@@ -169,18 +198,38 @@ class ReaderViewModel(
     private fun advanceAutomatically(expectedPage: Int) {
         val state = _state.value
         if (!_automatic.value.enabled || closing || exited || state.mode != ReaderMode.Reading || state.page != expectedPage ||
-            _loading.value || _error.value != null || _image.value == null) return
+            _loading.value || _error.value != null || _bookError.value != null || _image.value == null) return
         if (state.page >= state.pageCount - 1) { pauseAutomaticReading(); return }
         applyAction(if (state.rtl) ReaderAction.Left else ReaderAction.Right)
         val next = _state.value.page
-        if (next == state.pageCount - 1 && pages.getOrNull(next)?.key?.startsWith("epub:text:") != true) pauseAutomaticReading()
+        if ((next == state.page || next + (if (_layout.value == ReaderLayout.Book && hasBookPartner(next)) 1 else 0) == state.pageCount - 1) && pages.getOrNull(next)?.key?.startsWith("epub:text:") != true) pauseAutomaticReading()
     }
 
     private fun updatePreviews() {
         previewJob?.cancel()
         val generation = ++previewGeneration
+        _bookPartner.value = null
+        _bookError.value = null
         val timeline = _state.value.mode == ReaderMode.Timeline
-        val cursor = if (timeline) _state.value.timelinePage else if (_gallery.value) _state.value.page else null
+        if (!timeline && _layout.value == ReaderLayout.Book) {
+            _previews.value = emptyList()
+            val partnerIndex = _state.value.page + 1
+            if (!hasBookPartner(_state.value.page)) return
+            previewJob = viewModelScope.launch {
+                try {
+                    val file = repository.materialize(comicId, pages[partnerIndex])
+                    val dimensions = withContext(ioDispatcher) { pageDimensions(file) }
+                    ensureActive()
+                    if (generation == previewGeneration) _bookPartner.value = PageImage(file, dimensions.first, dimensions.second)
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { if (generation == previewGeneration) {
+                    pauseAutomaticReading()
+                    _bookError.value = "Não foi possível carregar a segunda página. Tente novamente nas ferramentas."
+                } }
+            }
+            return
+        }
+        val cursor = if (timeline) _state.value.timelinePage else if (_layout.value == ReaderLayout.Gallery) _state.value.page else null
         if (cursor == null) { _previews.value = emptyList(); return }
         val indices = if (timeline) (cursor - 2..cursor + 2).filter { it in pages.indices }
             else listOf(cursor - 1, cursor + 1).filter { it in pages.indices && !pages[it].key.startsWith("epub:text:") }

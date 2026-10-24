@@ -40,7 +40,8 @@ import kotlinx.coroutines.launch
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val previews by viewModel.previews.collectAsStateWithLifecycle()
-    val gallery by viewModel.gallery.collectAsStateWithLifecycle()
+    val layout by viewModel.layout.collectAsStateWithLifecycle()
+    val bookPartner by viewModel.bookPartner.collectAsStateWithLifecycle()
     val automatic by viewModel.automatic.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, viewModel) {
@@ -115,9 +116,11 @@ import kotlinx.coroutines.launch
                 }
             }
         }.onFocusChanged { if (!it.hasFocus) cancelCenter() }.focusRequester(focus).focusable()) {
-        if (gallery) ReaderGallery(state, image, previews, Modifier.fillMaxSize().padding(bottom = timelineHeight),
+        if (layout == ReaderLayout.Gallery) ReaderGallery(state, image, previews, Modifier.fillMaxSize().padding(bottom = timelineHeight),
             onDisplayed = viewModel::imageDisplayed, onFailed = viewModel::imageDisplayFailed)
-        if (!gallery) image?.let { page ->
+        if (layout == ReaderLayout.Book) ReaderBook(state, image, bookPartner, viewModel.hasBookPartner(state.page), Modifier.fillMaxSize().padding(bottom = timelineHeight),
+            viewModel::imageDisplayed, viewModel::imageDisplayFailed, viewModel::bookPageDisplayed, viewModel::bookPageFailed)
+        if (layout == ReaderLayout.Normal) image?.let { page ->
             val fittedScale = if (size.width > 0) min(size.width.toFloat() / page.width, pageAreaHeight.toFloat() / page.height) else 1f
             val fittedWidth = page.width * fittedScale
             val fittedHeight = page.height * fittedScale
@@ -141,7 +144,9 @@ import kotlinx.coroutines.launch
                 onError = { renderError = true; viewModel.imageDisplayFailed(page.file) })
         }
         if (showPosition && state.pageCount > 0 && (state.mode == ReaderMode.Reading || state.mode == ReaderMode.Pan)) {
-            Text("${state.page + 1} / ${state.pageCount} · ${(state.zoom * 100).toInt()}%",
+            Text((if (layout == ReaderLayout.Book && viewModel.hasBookPartner(state.page))
+                (state.page + 1).toString() + "–" + (state.page + 2) else (state.page + 1).toString()) +
+                " / " + state.pageCount + " · " + (state.zoom * 100).toInt() + "%",
                 Modifier.align(Alignment.TopStart).padding(16.dp).background(Color.Black.copy(alpha = .65f)).padding(8.dp),
                 fontSize = 14.sp, color = Color.White)
         }
@@ -162,7 +167,7 @@ import kotlinx.coroutines.launch
                 onEditions = onEditions?.let { action -> { viewModel.close(action) } },
                 onPreviousChapter = onChapterStep?.let { action -> { viewModel.close { action(-1) } } },
                 onNextChapter = onChapterStep?.let { action -> { viewModel.close { action(1) } } },
-                gallery = gallery, onToggleGallery = viewModel::toggleGallery)
+                layout = layout, onCycleLayout = viewModel::cycleLayout)
         }
     }
 }
