@@ -1,29 +1,27 @@
-# Validação — Comic TV 0.7.7
+# Validação — Comic TV 0.7.8
 
-23/10/2026 · versionCode16 · Android8/API26 ou superior.
+23/10/2026 · versionCode 17 · Android 8/API 26 ou superior.
 
-## Navegação aprovada
+## Alterações
 
-- Lateral: Biblioteca, Novidades, Catálogo, Extensões, Importar e Configurações, com ícones pequenos e expansão flutuante por foco/ponteiro.
-- Catálogo usa a listagem disponibilizada pela fonte selecionada; Novidades usa suas adições/atualizações recentes, sem confundir com histórico pessoal. Respeitam a paginação e os limites da própria extensão, sem prometer enumerar obras que ela não fornece.
-- Mesma fonte preservada entre as duas categorias; pasta no canto superior troca a fonte e lupa abre a busca. Cabeçalho compacto libera espaço para capas.
-- Extensões separado: instaladas, atualizações e disponíveis, contagens, busca por nome/fonte/idioma, grades com ícones40dp. Índices dos repositórios cadastrados são agregados, até32, com falhas parciais informadas e certificados comparados com as chaves salvas.
-- Instalar/atualizar pela grade verifica pertencimento do candidato ao índice atual e repositório confiável antes e depois do download; confirmação nativa do Android preservada.
-- Mantidos biblioteca/histórico completo, lateral flutuante e gestos do leitor entregues anteriormente.
-
-## Ciclo de vida
-
-SourcesViewModel é compartilhado pelas três seções e criado somente ao entrar nelas. Despacho por identidade da entrada de navegação evita apagar detalhes/busca ao voltar do leitor. Catálogo ainda não carregado é consultado ao sair de um gerenciamento aberto na inicialização. Trocas de seção cancelam operações pendentes, preservando a restauração inicial de fontes.
+- Detalhes da biblioteca com título e capítulo separados, progresso, metadados e resumo real armazenado pela fonte. Ausência de resumo é informada sem inventar texto. Carregamento local, sem abrir novamente a extensão.
+- Ações de continuar e voltar ficam sempre compostas; painel de informações recebe foco e rola pelo D-pad. Detalhes da fonte separam informações e lista de capítulos em duas colunas.
+- Ferramentas do leitor em ícones na lateral direita, com rótulo ao focar: continuar, páginas, capítulo anterior/próximo, lista de capítulos, mover/zoom, ajuste, opções e sair. Falhas oferecem nova tentativa.
+- Miniaturas em faixa compacta de 220 dp, reservando espaço para a página acima. Indicador de página/zoom temporário substitui a ajuda inferior permanente.
+- Capítulos abrem em painel esquerdo e mantêm uma prévia estática da página atual; capa serve como alternativa quando a prévia não está disponível. Voltar retoma o progresso salvo.
+- Atalhos anterior/próximo respeitam a sequência da fonte e a preferência de inversão. Limites e capítulo ausente mostram uma mensagem sem escolher outro arbitrariamente.
+- Fechamento do leitor cancela e aguarda suas operações antes de consultar outra edição. Gestos de OK e leitor EPUB de texto preservados.
 
 ## Verificação
 
--145 testes JVM passaram sem erros/falhas:87core,10mihon,48app.
--6 testes novos cobrem candidatos removidos/alterados/não listados e retomada da mesma entrada, navegação explícita e recriação da instância.
--assembleDebug, assembleDebugAndroidTest e lintDebug passaram.
--Verificador de ABI do DEX passou; assinatura APK validada por apksigner; aapt2 confirma0.7.7/code16/minSdk26.
--SHA256:CA9B5F58F02988E79B5A066E784180610D1153D544CF121370483753C833ECDB.
--Revisão independente identificou dois problemas de retomada/back; corrigidos e reavaliados sem novos achados.
+- 151 testes JVM passaram, sem falhas ou erros: 87 core, 10 mihon, 54 app.
+- Seis testes adicionados cobrem metadados/resumo e navegação entre capítulos, incluindo inversão, limites e capítulo ausente.
+- assembleDebug, assembleDebugAndroidTest e lintDebug passaram.
+- Assinatura APK verificada por apksigner; aapt2 confirma 0.7.8/code17/minSdk26.
+- Verificador de ABI do DEX passou para o método padrão executável de GeneratedSerializer.
+- Revisão identificou riscos de foco em botão fora da composição e rolagem do resumo; ambos corrigidos antes da compilação final.
+- SHA256: 9A5BD64B9DFB0E637DC805AD7904A7E1E695228B05D6939BEF11957C925E082E.
 
-## Limites
+## Limites e conferência na TV
 
-Sem teste em aparelho nesta etapa. Validar: Catálogo/Novidades na mesma fonte, pasta troca seleção, Extensões busca/filtra/instala com confirmação Android, voltar do leitor mantém capítulos, sair de Extensões numa inicialização fria carrega catálogo. Repositórios/ícones podem exigir rede. Não foram instaladas extensões no computador nem feitas contratações.
+Sem aparelho ou emulador conectado nesta etapa. Conferir foco dos ícones, leitura de resumo longo, faixa de miniaturas e retomada após selecionar capítulos. A prévia no painel de capítulos é estática. Resumos antigos ausentes não são buscados automaticamente. As referências guiaram a organização; esta versão não adiciona marcadores, compartilhamento nem efeitos FlipPager/CurlPager.

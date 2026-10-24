@@ -36,6 +36,10 @@ class OnlineReaderRepository(
     private val sessions = LinkedHashMap<String, OnlineReadingRecord>()
     private val prefetched = mutableSetOf<String>()
 
+    suspend fun editionInfo(id: String): OnlineEditionInfo = withContext(Dispatchers.IO) {
+        require(OnlineIdentity.isOnline(id)) { "Identificador online inválido." }
+        mutex.withLock { read(id).editionInfo() }
+    }
     /** Call after leaving the reader: loading an extension replaces its active page context. */
     suspend fun editions(id: String): OnlineEditions = withContext(Dispatchers.IO) {
         mutex.withLock {

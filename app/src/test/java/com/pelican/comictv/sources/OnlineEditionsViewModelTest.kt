@@ -65,4 +65,30 @@ class OnlineEditionsViewModelTest {
         advanceUntilIdle()
         assertFalse(navigated)
     }
+    @Test fun nextShortcutOpensNeighborAndBoundaryKeepsList() = runTest {
+        var opened: String? = null
+        val vm = OnlineEditionsViewModel("id", SavedStateHandle(), { context }, { _, chapter -> opened = chapter.key; "reader" })
+        advanceUntilIdle()
+        vm.openNeighbor(-1) { fail("Before first chapter") }
+        assertNull(opened)
+        assertNotNull(vm.state.value.message)
+        vm.openNeighbor(1) { assertEquals("reader", it) }
+        advanceUntilIdle()
+        assertEquals(second.key, opened)
+    }
+    @Test fun neighborShortcutHonorsSavedReverseOrder() = runTest {
+        var opened: String? = null
+        val vm = OnlineEditionsViewModel("id", SavedStateHandle(), { context }, { _, chapter -> opened = chapter.key; "reader" }, readOrder = { true })
+        advanceUntilIdle()
+        vm.openNeighbor(-1) { }
+        advanceUntilIdle()
+        assertEquals(second.key, opened)
+    }
+    @Test fun missingCurrentNeverChoosesAnUnrelatedChapter() = runTest {
+        val missing = context.copy(current = OnlineChapter("gone", "Removed"))
+        val vm = OnlineEditionsViewModel("id", SavedStateHandle(), { missing }, { _, _ -> fail("Unrelated chapter opened"); "reader" })
+        advanceUntilIdle()
+        vm.openNeighbor(1) { fail("Unrelated navigation") }
+        assertNotNull(vm.state.value.message)
+    }
 }

@@ -24,6 +24,9 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.*
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import java.io.File
 import androidx.tv.material3.Text
 import com.pelican.comictv.AppContainer
 import com.pelican.comictv.BuildConfig
@@ -40,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 
 @Composable fun ComicTvApp(container: AppContainer) {
     val nav = rememberNavController()
+    var editionPreview by remember { mutableStateOf<File?>(null) }
     val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
     val library: LibraryViewModel = viewModel(factory = viewModelFactory {
         initializer { LibraryViewModel(container.library, createSavedStateHandle()) }
@@ -113,7 +117,7 @@ import androidx.compose.ui.platform.LocalContext
         }
         composable("details/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
-            DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() })
+            DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo)
         }
         composable("reader/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
@@ -122,10 +126,15 @@ import androidx.compose.ui.platform.LocalContext
             })
             ReaderScreen(reader, onExit = { if (id.startsWith("online-")) nav.popBackStack() else nav.popBackStack("library", false) },
                 onEditions = if (id.startsWith("online-")) ({
+                    editionPreview = reader.image.value?.file
                     nav.navigate("online-editions/$id") { popUpTo(entry.destination.id) { inclusive = true } }
+                }) else null,
+                onChapterStep = if (id.startsWith("online-")) ({ step ->
+                    editionPreview = reader.image.value?.file
+                    nav.navigate("online-editions/$id?step=$step") { popUpTo(entry.destination.id) { inclusive = true } }
                 }) else null)
         }
-        composable("online-editions/{id}") { entry ->
+        composable("online-editions/{id}?step={step}", arguments = listOf(navArgument("step") { type = NavType.IntType; defaultValue = 0 })) { entry ->
             val id = entry.arguments?.getString("id")!!
             val editions: OnlineEditionsViewModel = viewModel(factory = viewModelFactory {
                 initializer { OnlineEditionsViewModel(id, createSavedStateHandle(), container.online::editions,
@@ -135,7 +144,8 @@ import androidx.compose.ui.platform.LocalContext
             })
             OnlineEditionsScreen(editions, onRead = { next ->
                 nav.navigate("reader/$next") { popUpTo(entry.destination.id) { inclusive = true } }
-            }, onBack = { nav.popBackStack() })
+            }, onBack = { nav.navigate("reader/$id") { popUpTo(entry.destination.id) { inclusive = true } } },
+                previewFile = editionPreview, initialStep = entry.arguments?.getInt("step") ?: 0, fallbackCover = container.library.cover(id))
         }
     }
 }

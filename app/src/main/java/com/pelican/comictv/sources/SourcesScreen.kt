@@ -5,6 +5,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.key.*
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -390,22 +395,80 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
 
 @Composable
 private fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineChapter) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                AsyncImage(details.title.coverUrl, details.title.title, Modifier.width(150.dp).aspectRatio(2f / 3f), contentScale = ContentScale.Fit)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(details.title.title, fontSize = 28.sp)
-                    Text(details.title.description?.takeIf { it.isNotBlank() } ?: "Sinopse não informada pela fonte.", color = TvColors.Muted, fontSize = 18.sp, lineHeight = 27.sp)
+    val summaryScroll = rememberLazyListState()
+    val scrollScope = rememberCoroutineScope()
+    var summaryFocused by remember { mutableStateOf(false) }
+    var expandedSummary by rememberSaveable(details.title.key) { mutableStateOf(false) }
+    var summaryOverflows by remember(details.title.key, details.title.description) { mutableStateOf(false) }
+    val summary = details.title.description?.trim()?.takeIf { it.isNotEmpty() }
+    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+        LazyColumn(
+            Modifier.width(280.dp).fillMaxHeight()
+                .border(if (summaryFocused) 2.dp else 0.dp, TvColors.Amber)
+                .onFocusChanged { summaryFocused = it.isFocused }
+                .onPreviewKeyEvent { event ->
+                    val delta = when {
+                        !summaryFocused || event.type != KeyEventType.KeyDown -> 0f
+                        event.key == Key.DirectionDown && summaryScroll.canScrollForward -> 120f
+                        event.key == Key.DirectionUp && summaryScroll.canScrollBackward -> -120f
+                        else -> 0f
+                    }
+                    if (delta == 0f) false else {
+                        scrollScope.launch { summaryScroll.scrollBy(delta) }
+                        true
+                    }
+                }.focusable(),
+            state = summaryScroll,
+            contentPadding = PaddingValues(8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    AsyncImage(
+                        details.title.coverUrl, "Capa de ${details.title.title}",
+                        Modifier.width(190.dp).aspectRatio(2f / 3f), contentScale = ContentScale.Fit,
+                    )
+                }
+            }
+            item { Text(details.title.title, fontSize = 24.sp, lineHeight = 32.sp) }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Sinopse", fontSize = 18.sp, lineHeight = 26.sp)
+                    if (summary != null && (summaryOverflows || expandedSummary)) {
+                        TvButton(
+                            if (expandedSummary) "Recolher sinopse" else "Mostrar sinopse completa",
+                            { expandedSummary = !expandedSummary },
+                        )
+                    }
+                    Text(
+                        summary ?: "Sinopse não informada pela fonte.",
+                        color = TvColors.Muted, fontSize = 16.sp, lineHeight = 24.sp,
+                        maxLines = if (expandedSummary) Int.MAX_VALUE else 5,
+                        overflow = TextOverflow.Ellipsis,
+                        onTextLayout = { if (!expandedSummary) summaryOverflows = it.hasVisualOverflow },
+                    )
+
                 }
             }
         }
-        item { Text("Capítulos · ${details.chapters.size}", fontSize = 23.sp); Muted("Na sequência fornecida pela fonte") }
-        if (details.chapters.isEmpty()) item { Muted("Esta fonte não retornou capítulos.") }
-        items(details.chapters, key = { it.key }) { chapter -> SourceButton(chapter.title, !busy, Modifier.fillMaxWidth()) { open(chapter) } }
+        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Capítulos · ${details.chapters.size}", fontSize = 23.sp, lineHeight = 30.sp)
+                Muted("Na sequência fornecida pela fonte")
+            }
+            LazyColumn(
+                Modifier.weight(1f).fillMaxWidth().focusRestorer(),
+                contentPadding = PaddingValues(8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (details.chapters.isEmpty()) item { Muted("Esta fonte não retornou capítulos.") }
+                items(details.chapters, key = { it.key }) { chapter ->
+                    SourceButton(chapter.title, !busy, Modifier.fillMaxWidth()) { if (!busy) open(chapter) }
+                }
+            }
+        }
     }
 }
-
 @Composable
 private fun SourceInput(value: String, change: (String) -> Unit, label: String, modifier: Modifier = Modifier, urlInput: Boolean = false, submit: () -> Unit = {}) {
     var focused by remember { mutableStateOf(false) }

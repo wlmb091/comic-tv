@@ -55,6 +55,19 @@ class OnlineEditionsViewModel(private val id: String, private val saved: SavedSt
         }
     }
 
+    fun openNeighbor(direction: Int, onRead: (String) -> Unit) {
+        val old = _state.value
+        if (old.busy || leaving || direction !in listOf(-1, 1)) return
+        val context = old.context ?: return
+        val sequence = chapterSequence(context.chapters, context.current.key, old.reversed)
+        val neighbor = if (direction < 0) sequence.previous else sequence.next
+        if (neighbor == null) {
+            _state.update { it.copy(message = if (sequence.index < 0) "A edição atual não aparece na lista da fonte. Escolha uma edição."
+                else if (direction < 0) "Você está na primeira edição desta sequência." else "Você está na última edição desta sequência.") }
+            return
+        }
+        open(neighbor, onRead)
+    }
     fun open(chapter: OnlineChapter, onRead: (String) -> Unit) {
         val old = _state.value
         if (old.busy || leaving) return

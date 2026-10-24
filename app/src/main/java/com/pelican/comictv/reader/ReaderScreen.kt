@@ -34,7 +34,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null) {
+@Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null, onChapterStep: ((Int) -> Unit)? = null) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val image by viewModel.image.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
@@ -68,8 +68,15 @@ import kotlinx.coroutines.launch
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cancelCenter() }
     }
     var size by remember { mutableStateOf(IntSize.Zero) }
-    val statusHeight = with(LocalDensity.current) { 40.dp.roundToPx() }
-    val pageAreaHeight = (size.height - statusHeight).coerceAtLeast(1)
+    val timelineHeight = if (state.mode == ReaderMode.Timeline) 220.dp else 0.dp
+    val timelinePixels = with(LocalDensity.current) { timelineHeight.roundToPx() }
+    val pageAreaHeight = (size.height - timelinePixels).coerceAtLeast(1)
+    var showPosition by remember { mutableStateOf(true) }
+    LaunchedEffect(image?.file, state.page, state.zoom, state.mode) {
+        showPosition = true
+        delay(1800)
+        showPosition = false
+    }
     val exit = { viewModel.close(onExit) }
     BackHandler {
         if (state.mode != ReaderMode.Reading) viewModel.action(ReaderAction.Back) else exit()
@@ -123,12 +130,17 @@ import kotlinx.coroutines.launch
             val request = remember(page.file, size) {
                 ImageRequest.Builder(context).data(page.file).size(size.width.coerceAtLeast(1), size.height.coerceAtLeast(1)).build()
             }
-            AsyncImage(request, "Página ${state.page + 1}", Modifier.fillMaxSize().padding(bottom = 40.dp).graphicsLayer {
+            AsyncImage(request, "Página ${state.page + 1}", Modifier.fillMaxSize().padding(bottom = timelineHeight).graphicsLayer {
                 scaleX = scale; scaleY = scale
                 translationX = -state.panX * maxX; translationY = -state.panY * maxY
             }, contentScale = ContentScale.Fit,
                 onSuccess = { viewModel.imageDisplayed(page.file) },
                 onError = { renderError = true; viewModel.imageDisplayFailed(page.file) })
+        }
+        if (showPosition && state.pageCount > 0 && (state.mode == ReaderMode.Reading || state.mode == ReaderMode.Pan)) {
+            Text("${state.page + 1} / ${state.pageCount} · ${(state.zoom * 100).toInt()}%",
+                Modifier.align(Alignment.TopStart).padding(16.dp).background(Color.Black.copy(alpha = .65f)).padding(8.dp),
+                fontSize = 14.sp, color = Color.White)
         }
         if (loading) Text("Carregando página…", Modifier.align(Alignment.Center), fontSize = 20.sp)
         displayedError?.let { text ->
@@ -140,18 +152,13 @@ import kotlinx.coroutines.launch
         }
         if (state.mode == ReaderMode.Timeline) {
             ReaderTimeline(state, Modifier.align(Alignment.BottomCenter), previews = previews)
-        } else if (state.mode != ReaderMode.Tools) {
-            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(40.dp).background(Color.Black).padding(horizontal = 32.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(if (state.pageCount > 0) "Página ${state.page + 1} de ${state.pageCount}" else "Leitor", fontSize = 14.sp)
-                Text(if (state.mode == ReaderMode.Pan) "↑ ↓ ← →  Mover  ·  OK  Zoom  ·  Segure OK 2s  Ferramentas" else "← →  Páginas  ·  ↑ ↓  Zoom  ·  OK  Mover  ·  Segure OK 2s  Ferramentas", fontSize = 14.sp, color = TvColors.Muted)
-                Text(if (automatic.enabled) "Automático · ${automatic.secondsPerScreen}s" else "${(state.zoom * 100).toInt()}%", fontSize = 14.sp, color = TvColors.Amber)
-            }
-        } else {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .5f)))
+        } else if (state.mode == ReaderMode.Tools) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .15f)))
             ReaderTools(state, displayedError != null, viewModel::action, { renderError = false; viewModel.retry() }, exit,
-                Modifier.align(Alignment.BottomCenter), automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval,
-                onEditions = onEditions?.let { action -> { viewModel.close(action) } })
+                Modifier.align(Alignment.CenterEnd), automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval,
+                onEditions = onEditions?.let { action -> { viewModel.close(action) } },
+                onPreviousChapter = onChapterStep?.let { action -> { viewModel.close { action(-1) } } },
+                onNextChapter = onChapterStep?.let { action -> { viewModel.close { action(1) } } })
         }
     }
 }

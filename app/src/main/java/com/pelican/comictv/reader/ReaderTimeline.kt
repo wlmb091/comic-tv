@@ -26,22 +26,24 @@ import com.pelican.comictv.ui.TvColors
     val selected = (state.timelinePage ?: state.page).coerceIn(0, count - 1)
     val fraction = if (count == 1) 0f else selected.toFloat() / (count - 1)
     val label = if (section) "Seção" else "Página"
-    Column(modifier.fillMaxWidth().padding(24.dp)
+    Column(modifier.fillMaxWidth().then(if (section) Modifier.padding(24.dp) else Modifier.height(220.dp))
         .background(TvColors.Panel, RoundedCornerShape(14.dp))
-        .border(2.dp, TvColors.Amber, RoundedCornerShape(14.dp)).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        .border(2.dp, TvColors.Amber, RoundedCornerShape(14.dp))
+            .padding(horizontal = 24.dp, vertical = if (section) 24.dp else 10.dp),
+        verticalArrangement = Arrangement.spacedBy(if (section) 16.dp else 6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Escolher ${label.lowercase()}", fontSize = 23.sp)
-            Text("$label ${selected + 1} de $count", color = TvColors.Amber, fontSize = 23.sp)
+            Text("Escolher ${label.lowercase()}", fontSize = if (section) 23.sp else 18.sp)
+            Text(if (section) "$label ${selected + 1} de $count" else "Lendo: ${state.page + 1}  ·  $label ${selected + 1} de $count", color = TvColors.Amber, fontSize = if (section) 23.sp else 18.sp)
         }
-        Row(Modifier.fillMaxWidth().height(174.dp), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+        Row(Modifier.fillMaxWidth().height(if (section) 174.dp else 112.dp), horizontalArrangement = Arrangement.spacedBy(if (section) 16.dp else 12.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically) {
             val ordered = if (state.rtl) previews.reversed() else previews
             ordered.forEach { preview ->
                 val active = preview.page == selected
                 var decodeFailed by remember(preview.file) { mutableStateOf(false) }
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(Modifier.width(if (active) 110.dp else 82.dp).height(if (active) 144.dp else 116.dp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if (section) 6.dp else 3.dp)) {
+                    Box(Modifier.width(if (section) { if (active) 110.dp else 82.dp } else { if (active) 68.dp else 54.dp })
+                        .height(if (section) { if (active) 144.dp else 116.dp } else { if (active) 88.dp else 72.dp })
                         .background(TvColors.Background, RoundedCornerShape(6.dp))
                         .border(if (active) 2.dp else 1.dp, if (active) TvColors.Amber else TvColors.Muted.copy(alpha = .4f), RoundedCornerShape(6.dp))
                         .padding(4.dp), contentAlignment = Alignment.Center) {
@@ -56,7 +58,7 @@ import com.pelican.comictv.ui.TvColors
                 }
             }
         }
-        Canvas(Modifier.fillMaxWidth().height(44.dp).semantics {
+        Canvas(Modifier.fillMaxWidth().height(if (section) 44.dp else 18.dp).semantics {
             contentDescription = "Barra de ${if (section) "seções" else "páginas"}"
             stateDescription = "$label ${selected + 1} de $count. OK confirma; Voltar cancela."
             progressBarRangeInfo = ProgressBarRangeInfo((selected + 1).toFloat(), 1f..count.toFloat())
@@ -74,14 +76,14 @@ import com.pelican.comictv.ui.TvColors
                 val tick = if (marks == 1) ratio else i.toFloat() / (marks - 1)
                 drawCircle(TvColors.Muted, 2.dp.toPx(), Offset(inset + width * tick, y))
             }
-            drawCircle(TvColors.Amber, 10.dp.toPx(), Offset(x, y))
+            drawCircle(TvColors.Amber, (if (section) 10.dp else 7.dp).toPx(), Offset(x, y))
             drawCircle(TvColors.Ink, 3.dp.toPx(), Offset(x, y))
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        if (section) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(if (state.rtl) "$count" else "1", color = TvColors.Muted, fontSize = 16.sp)
             Text("Lendo: ${state.page + 1}", color = TvColors.Muted, fontSize = 16.sp)
             Text(if (state.rtl) "1" else "$count", color = TvColors.Muted, fontSize = 16.sp)
         }
-        Text("← →  Escolher  ·  ↑ ↓  −10 / +10  ·  OK  Abrir  ·  Voltar  Cancelar", fontSize = 17.sp)
+        Text("← →  Escolher  ·  ↑ ↓  −10 / +10  ·  OK  Abrir  ·  Voltar  Cancelar", fontSize = if (section) 17.sp else 14.sp)
     }
 }

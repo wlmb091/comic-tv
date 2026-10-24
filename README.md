@@ -2,9 +2,12 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.7.7
+## Versão 0.7.8
 
 - Biblioteca local com capas e lista de leituras recentes.
+- Detalhes com título legível, progresso e resumo real salvo pela fonte; painel de informações rolável pelo controle e ações de leitura sempre acessíveis.
+- Ferramentas do leitor em ícones na lateral direita, com nome ao focar: páginas, capítulos anterior/próximo, lista de capítulos, mover/zoom, ajuste e opções.
+- Lista de capítulos à esquerda com prévia estática da página atual; seleção de páginas com miniaturas em faixa compacta.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.
 - Formato reconhecido pelo conteúdo, mesmo com extensão incorreta. RAR 4 e 5 com extração limitada; arquivos divididos ou com senha são recusados.
 - PDF renderizado uma página por vez; EPUB de imagens e texto na sequência do livro. Texto tem ajuste de fonte e rolagem pelo D-pad.
