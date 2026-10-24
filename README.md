@@ -2,7 +2,13 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.10.0
+## Versão 0.11.0
+
+- Biblioteca com favoritos e coleções manuais; uma edição pode participar de várias coleções sem duplicar o quadrinho.
+- Busca local por título, ignorando acentos e maiúsculas, combinada com Todas/Favoritos/coleção. Busca e filtro ficam salvos ao abrir detalhes/leitor e retornar.
+- Segurar OK por 1 segundo abre opções para favoritar e organizar; as mesmas ações estão nos detalhes. Coleções podem ser criadas, renomeadas e excluídas mantendo quadrinhos/progresso.
+- Configurações → Armazenamento mostra originais, capas, caches e espaço livre. Limpeza confirmada remove somente páginas temporárias e/ou miniaturas, com resultado parcial quando houver falhas.
+- Room 3 com migração aditiva preservando edições, histórico e progresso. Guia em [Organização e armazenamento](docs/library-organization-storage.md).
 
 - Zoom nos modos Normal, Galeria e Livro decodifica recortes do arquivo original, com blocos em cache e trabalho fora da interface.
 - Filtros Original, Texto e traços e HQ antiga, com intensidade suave/média/forte e comparação com o original. Escolha salva por edição, sem modificar arquivos.
@@ -136,7 +142,8 @@ Cada sessão dura até 15 minutos e termina ao parar, sair da tela, mudar de red
 ## Próximos incrementos acordados
 
 - **Web:** portal próprio com token temporário e QR de pareamento; adiado em favor da leitura online por extensões, conforme a prioridade esclarecida pelo usuário. Fontes online não dependem desse portal nem da hospedagem do Conchat.
-- Ferramentas adicionais, marcadores, galeria, outros formatos de arquivo e zoom por tiles.
+- Backup/restauração e downloads completos para leitura offline são os próximos pacotes; ainda não implementados.
+- Marcadores, rotação e painéis individuais continuam opcionais para revisão futura. Galeria/Livro e zoom por regiões já estão disponíveis.
 
 O portal remoto ainda não está ativo. Os servidores da rede local e FTP funcionam somente durante uma sessão iniciada pelo usuário.
 

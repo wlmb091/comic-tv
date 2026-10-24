@@ -14,3 +14,4 @@
 - Relacionados ocultos e sem consultas por decisão do usuário; preservar implementação para futura retomada. A função atual compara metadados sem IA.
 - COMIC TV centralizado no topo da barra lateral expandida.
 - Leitor: etapa aprovada prioriza zoom por regiões do original, filtros opcionais para texto/HQ antiga e cache das próximas duas páginas/miniaturas. Painéis individuais ficam para depois; não exigir Android 13 nem modificar arquivos originais.
+- Pacote de organização aprovado: favoritos e coleções manuais, busca local na biblioteca e Armazenamento nas Configurações, integrados às telas atuais. Limpeza somente de páginas/miniaturas temporárias, preservando originais/progresso. Backup e downloads offline ficam para depois.

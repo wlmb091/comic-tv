@@ -1,6 +1,6 @@
 # Biblioteca, coleções e armazenamento — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Integrar favoritos, coleções, busca local e limpeza segura de caches às telas atuais.
 
@@ -32,10 +32,10 @@
 
 **Interfaces:** normalizeLibraryText(String): String; validatedCollectionName(String): Pair<String,String>; LibrarySearchEntry(id,title,favorite); filterLibrary(entries,query,filter,membership): List<String>. CollectionEntity(id,name,normalizedName), CollectionMembership(comicId,collectionId); repositório observeCollections/observeMemberships/setFavorite/createCollection/renameCollection/deleteCollection/setCollections.
 
-- [ ] Testar normalização, nomes reservados/limites e interseção busca/favoritos/coleção; executar core:test e observar falha antes da implementação.
-- [ ] Implementar regras e Room 2→3 (favorite, coleções e vínculos indexados/FK); registrar migração e adaptar fake DAO existente.
-- [ ] Testar SQL real para cadeias 1→2→3/2→3, unicidade, cancelamento transacional e exclusão mantendo comics/progresso.
-- [ ] Executar testes e compilar app; registrar resultado e commit.
+- [x] Testar normalização, nomes reservados/limites e interseção busca/favoritos/coleção; executar core:test e observar falha antes da implementação.
+- [x] Implementar regras e Room 2→3 (favorite, coleções e vínculos indexados/FK); registrar migração e adaptar fake DAO existente.
+- [x] Testar SQL real para cadeias 1→2→3/2→3, unicidade, cancelamento transacional e exclusão mantendo comics/progresso.
+- [x] Executar testes e compilar app; registrar resultado e commit.
 
 ### Task 2: Biblioteca e organização por controle
 
@@ -43,10 +43,10 @@
 
 **Interfaces:** consulta e chave de filtro em SavedStateHandle; dados persistentes observados do repositório; diálogos usam callbacks onDismiss e invalidam lista por Flow.
 
-- [ ] Testar estado de consulta/filtro, coleção removida e resultado vazio antes de implementar estado.
-- [ ] Acrescentar busca por ação explícita, faixa Todas/Favoritos/coleções, contador/mensagem vazia e restauração de estado/foco.
-- [ ] Implementar favorito e seleção múltipla Salvar/Cancelar em menu de OK longo e detalhes, gerenciamento CRUD com confirmação e nomes validados.
-- [ ] Testar cancelamento/seleção no estado puro e preparar testes nativos dos diálogos/foco; executar JVM e compilar UI; registrar commit.
+- [x] Testar estado de consulta/filtro, coleção removida e resultado vazio antes de implementar estado.
+- [x] Acrescentar busca por ação explícita, faixa Todas/Favoritos/coleções, contador/mensagem vazia e restauração de estado/foco.
+- [x] Implementar favorito e seleção múltipla Salvar/Cancelar em menu de OK longo e detalhes, gerenciamento CRUD com confirmação e nomes validados.
+- [x] Testar cancelamento/seleção no estado puro e preparar testes nativos dos diálogos/foco; executar JVM e compilar UI; registrar commit.
 
 ### Task 3: Armazenamento limitado aos caches
 
@@ -54,18 +54,18 @@
 
 **Interfaces:** StorageReport com bytes por categoria e espaço livre; CacheSelection(Pages,Thumbnails,Both); CacheCleanup com bytes removidos/falhas. repository.storageReport()/clearReaderCaches(selection) suspend no mutex do repositório.
 
-- [ ] Testar cálculo, cache ausente, links fora dos alvos, preservação de originais/capas e falha parcial antes da implementação.
-- [ ] Implementar varredura sem links e limpeza somente em diretórios permitidos; capturar tamanho antes de excluir, confirmar resultado, invalidar memória Coil após limpeza.
-- [ ] Integrar aba Armazenamento, atualização explícita, cálculo em IO, confirmação com Cancelar focado e bloqueio durante operação; testar estado/erros.
-- [ ] Executar testes, build e revisão final independente; corrigir achados importantes com regressões.
+- [x] Testar cálculo, cache ausente, links fora dos alvos, preservação de originais/capas e falha parcial antes da implementação.
+- [x] Implementar varredura sem links e limpeza somente em diretórios permitidos; capturar tamanho antes de excluir, confirmar resultado, invalidar memória Coil após limpeza.
+- [x] Integrar aba Armazenamento, atualização explícita, cálculo em IO, confirmação com Cancelar focado e bloqueio durante operação; testar estado/erros.
+- [x] Executar testes, build e revisão final independente; corrigir achados importantes com regressões.
 
 ### Task 4: Entrega verificável
 
 **Files:** README.md, VALIDACAO.md, AGENTS.md, versão app, APK/ZIP somente em outputs.
 
-- [ ] Executar core:test, mihon:testDebugUnitTest, app:testDebugUnitTest, assembleDebug, assembleDebugAndroidTest e lintDebug.
-- [ ] Verificar assinatura/versionamento/ABI e scripts de migração/organização; conferir dispositivos ADB e declarar instrumentação não executada se ausente.
-- [ ] Atualizar documentação, registrar decisões, normalizar LF, diff --check e commit; empacotar APK e fonte, publicar no repositório privado autorizado e verificar HEAD remoto.
+- [x] Executar core:test, mihon:testDebugUnitTest, app:testDebugUnitTest, assembleDebug, assembleDebugAndroidTest e lintDebug.
+- [x] Verificar assinatura/versionamento/ABI e scripts de migração/organização; conferir dispositivos ADB e declarar instrumentação não executada se ausente.
+- [x] Atualizar documentação, registrar decisões, normalizar LF, diff --check e commit; empacotar APK e fonte, publicar no repositório privado autorizado e verificar HEAD remoto.
 
 ## Execução e registro
 

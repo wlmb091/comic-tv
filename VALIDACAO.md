@@ -1,27 +1,30 @@
-# Validação — Comic TV 0.10.0
+# Validação — Comic TV 0.11.0
 
-24/10/2026 · versionCode 30 · minSdk 26.
+24/10/2026 · versionCode 31 · minSdk 26.
 
 ## Alterações
 
-- Zoom por regiões do arquivo original em Normal/Galeria/Livro, blocos decodificados fora da UI, visão geral inicial e cache LRU de 8–24 MiB conforme a classe de memória.
-- Filtros opcionais Original, Texto e traços, HQ antiga; intensidade suave/média/forte, comparação com o original e escolha salva por edição. Alfa preservado e arquivos inalterados.
-- Após a página atual ficar pronta, antecipação das próximas duas páginas e aquecimento de miniaturas próximas. Linha do tempo reutiliza arquivos conhecidos e cache Coil, com cinco posições visíveis e duas adicionais antecipadas na direção da navegação.
-- Extração/download reutilizados entre miniaturas e leitura. Cache de páginas de 256 MiB, miniaturas em disco de 32 MiB e proteção da página visível preservados. Antecipação não grava progresso.
-- Saída cancela e aguarda também trabalhos antigos substituídos; fechar a linha do tempo na mesma página retoma a antecipação interrompida. Revisão independente identificou esse último caso, reproduzido com teste falhando antes da correção.
-- Escopo aprovado: melhorar zoom, filtros e cache. Detecção de painéis, Lanczos próprio e shader personalizado ficam fora desta etapa. Detalhes em docs/reader-image-quality.md.
+- Favoritos e coleções manuais integrados à biblioteca, menu de OK longo e detalhes. Uma edição participa de várias coleções sem duplicar arquivos; seleção múltipla salva em transação somente ao confirmar.
+- Criar, renomear e excluir coleções com validação de nomes (1–40 caracteres, unicidade sem caixa/acentos) e confirmação de exclusão preservando quadrinhos/progresso.
+- Busca local por título combinada com Todas/Favoritos/coleções. Termo e filtro em SavedStateHandle; contador, estado vazio e limpeza de consulta. Destaque e Continuar lendo permanecem independentes da grade filtrada.
+- Room 3 com migração aditiva 2→3 e cadeia 1→2→3, favorito padrão falso, vínculos com FK/índices e exclusão em cascata limitada aos vínculos.
+- Configurações → Armazenamento: espaço livre, originais, capas e caches conhecidos. Limpeza confirmada somente de páginas/miniaturas temporárias, serializada com materialização, com invalidação de memória de imagens e resultado parcial quando necessário.
+- Travessia recusa links/redirecionamentos no alvo e descendentes; permite aliases confiáveis dos ancestrais do caminho privado Android. Não apaga originais, capas permanentes, banco, progresso ou registros online.
+- Revisão independente não identificou P1/P2; apontou restauração de foco ao fechar diálogos. Corrigido retorno ao botão Gerenciar e às ações Renomear/Excluir sobreviventes; após exclusão efetiva, destino Criar é usado.
+- Preservados temas, histórico, leitor, cache antecipado e fontes. Backup/downloads offline permanecem para o pacote seguinte.
 
 ## Verificação
 
-- 191 testes JVM sem falhas/erros: 103 core, 10 mihon, 78 app.
-- assembleDebug, assembleDebugAndroidTest e lintDebug passaram. Testes instrumentados somente compilados; incluem decodificação regional conservando pixel original, reaproveitamento do bitmap, filtro e integridade do arquivo.
-- Testes de regressão comprovam antecipação de duas páginas/miniaturas, retomada após linha do tempo, espera pelas cargas canceladas e preferências de filtro por edição. Geometria, amostragem, limites de nitidez/alfa e LRU cobertos em core.
-- Assinatura apksigner verificada. aapt2: versão 0.10.0/code30/minSdk26.
-- ABI DEX de GeneratedSerializer e SQL real da migração/histórico passaram nos scripts do projeto.
-- SHA256 do APK: C5A395928D7DF75EF01C3F946021F0B4CC5B9D4C81EDF5123223E9BE739CB722.
+- 200 casos JVM: 199 aprovados, 1 ignorado, 0 falhas/erros. Core: 108 casos (107 aprovados, 1 ignorado); mihon: 10 aprovados; app: 82 aprovados.
+- Caso ignorado: criação de links simbólicos bloqueada pelas permissões do Windows. Teste Android StorageSafetyTest preparado para aliases de ancestral e rejeição de links de alvo/descendente.
+- core:test, mihon:testDebugUnitTest, app:testDebugUnitTest, assembleDebug, assembleDebugAndroidTest e lintDebug passaram. Instrumentação Room/Compose/links somente compilada; sem execução em dispositivo.
+- Ciclos RED/GREEN registrados para regras de busca/coleções, migração ausente, estado da biblioteca e armazenamento. Testes de arquivos temporários cobrem categorias, preservação de originais/capas, cache ausente, exclusão seletiva e falha parcial. Estado de armazenamento cobre serialização de comandos e tentativa após erro.
+- SQL real: migrações 1→3 e 2→3 preservam progresso/histórico; unicidade, FK, rollback e cascade dos vínculos passaram. Script de histórico existente também passou.
+- ABI DEX GeneratedSerializer passou. Assinatura apksigner verificada. aapt2: versão 0.11.0/code31/minSdk26.
+- SHA256 do APK: 13BA5D8B105A06915C5AAE6A7FBC0C3EA753A3D0B53295308B8EB16503150692.
 
 ## Conferência na TV
 
-ADB sem dispositivo conectado. Compatibilidade técnica projetada para Android 8+ e memória limitada, incluindo a Xiaomi TV Box S de 2ª geração; desempenho real não medido. APIs usadas não exigem Android 13. Sem emulador disponível, testes instrumentados não executados.
+ADB sem dispositivo conectado. Foco/IME e aparência não validados fisicamente. Conferir: abrir busca explicitamente e voltar; acentos/nenhum resultado; filtro Favoritos; selecionar múltiplas coleções e cancelar/salvar; criar/renomear/excluir com nomes longos; retornar ao botão de origem; favorito removido do filtro ativo; texto 130% e temas; limpeza cancelada/confirmada e reabertura de páginas/miniaturas. Conferir Room migrando uma instalação com dados reais em vez de reinstalar apagando os dados.
 
-Conferir zoom de 100% a 300%, mover, Galeria/Livro/RTL, HQ antiga com texto apagado, intensidades e comparação, abrir/fechar a linha do tempo rapidamente, avançar após antecipação e sair durante cargas da fonte. Testar também PDF e EPUB de imagens/texto. Primeira abertura e navegação rápida ainda podem mostrar carregamento; filtros não recuperam detalhes ausentes da digitalização. Formatos sem suporte a recorte nativo usam alternativa de resolução limitada.
+Os valores de armazenamento representam diretórios conhecidos, não todo o aplicativo. Bytes removidos referem-se aos arquivos; espaço livre pode variar com o Android. Cache descartável não equivale a download offline. Desempenho e segurança de links no Android ainda dependem dos testes nativos no aparelho.

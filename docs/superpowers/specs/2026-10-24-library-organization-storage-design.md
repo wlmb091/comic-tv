@@ -1,4 +1,4 @@
-# Biblioteca organizada e armazenamento — desenho para aprovação
+# Biblioteca organizada e armazenamento — desenho aprovado
 
 Data: 24/10/2026. Base: Comic TV 0.10.0.
 
@@ -6,7 +6,7 @@ Data: 24/10/2026. Base: Comic TV 0.10.0.
 
 O próximo pacote contém coleções/favoritos, busca na biblioteca e gerenciamento de armazenamento. Backup e downloads offline ficam para depois. O usuário escolheu integrar as funções às telas atuais, preservando o layout aprovado, temas customizáveis e navegação por controle remoto.
 
-Este documento detalha essa escolha. Regras descritas como proposta são decisões sugeridas pelo implementador e ainda precisam da aprovação do desenho.
+Este documento detalha essa escolha. Desenho aprovado pelo usuário em 24/10/2026. As regras descritas como proposta foram aceitas nessa aprovação; implementação e validação em docs/library-organization-storage.md e VALIDACAO.md.
 
 ## Abordagens consideradas
 
