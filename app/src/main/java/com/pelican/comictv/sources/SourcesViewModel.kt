@@ -14,10 +14,14 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     private val _state = MutableStateFlow(SourcesState(repositories = preferences.repositories()))
     val state = _state.asStateFlow()
     private var job: Job? = null
+    private var catalogJob: Job? = null
+    private var initialLoading = true
+    private var desiredLatest = false
+    private val entryGate = SourceEntryGate()
     private var page = 1
     private val previews = TitlePreviewResolver(engine::titlePreview)
 
-    init { refreshInstalled() }
+    init { task { try { refreshInstalledInternal() } finally { initialLoading = false } } }
     fun installationMessage(message: String) { _state.update { it.copy(message = message) } }
 
     private fun task(block: suspend () -> Unit) {
@@ -39,7 +43,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         require(old == null || old.fingerprint == fetched.fingerprint) { "A chave deste repositório mudou. Remova e cadastre novamente após verificar a origem." }
         val records = (_state.value.repositories.filterNot { it.baseUrl == fetched.baseUrl } + SavedRepository(fetched.baseUrl, fetched.name, fetched.fingerprint))
         withContext(Dispatchers.IO) { preferences.save(records) }
-        _state.update { it.copy(repositories = records, selectedRepository = fetched.baseUrl, extensions = fetched.extensions,
+        _state.update { it.copy(repositories = records, extensionCatalogLoaded = false, availableExtensions = emptyList(), selectedRepository = fetched.baseUrl, extensions = fetched.extensions,
             managerPage = SourceManagerPage.REPOSITORIES, details = null, message = "${fetched.extensions.size} extensões disponíveis.") }
     }
 
@@ -53,7 +57,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     fun removeRepository(base: String) = task {
         val next = _state.value.repositories.filterNot { it.baseUrl == base }
         withContext(Dispatchers.IO) { preferences.save(next) }
-        _state.update { it.copy(repositories = next, selectedRepository = null, extensions = emptyList()) }
+        _state.update { it.copy(repositories = next, extensionCatalogLoaded = false, availableExtensions = emptyList(), selectedRepository = null, extensions = emptyList()) }
         refreshInstalledInternal()
     }
     fun refreshInstalled() = task { refreshInstalledInternal() }
@@ -77,17 +81,74 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         val restored = selection?.resolve(sources)
         if (restored != null && _state.value.activeSource == null && _state.value.managerPage == null) {
             activateSourceInternal(restored, restoring = true)
+        } else if (restored != null && _state.value.activeSource == null) {
+            _state.update { it.copy(activeSource = restored) }
         } else if (restored != null && _state.value.activeSource != null) {
             _state.update { it.copy(activeSource = restored) }
         } else if (selection != null && restored == null) {
             withContext(Dispatchers.IO) { preferences.saveSelectedSource(null) }
-            _state.update { it.copy(activeSource = null, details = null, titles = emptyList(), managerPage = SourceManagerPage.SOURCES,
+            _state.update { it.copy(activeSource = null, details = null, titles = emptyList(), catalogLoaded = false, managerPage = SourceManagerPage.SOURCES,
                 message = "A fonte anterior não está disponível. Escolha outra fonte.") }
         }
     }
 
     fun openSourceManager(page: SourceManagerPage = SourceManagerPage.SOURCES) {
-        _state.update { it.copy(managerPage = page, details = null, selectedRepository = null) }
+        if (!initialLoading) job?.cancel()
+        _state.update { it.copy(managerPage = page, details = null, selectedRepository = null,
+            busy = initialLoading && it.busy) }
+    }
+    fun enterMainSection(entryId: String, route: String) {
+        if (!entryGate.enter(entryId)) return
+        when (route) {
+            "extensions" -> openExtensions()
+            "recent" -> navigateCatalog(true)
+            else -> navigateCatalog(false)
+        }
+    }
+    fun navigateCatalog(latest: Boolean) {
+        desiredLatest = latest
+        val old = _state.value
+        _state.update { it.copy(managerPage = null, details = null, selectedRepository = null) }
+        if (initialLoading) return
+        if (old.activeSource != null && (job?.isActive == true || old.latest != latest || old.query.isNotEmpty() || old.titles.isEmpty())) catalog("", latest)
+        else { job?.cancel(); _state.update { it.copy(busy = false) } }
+    }
+
+    fun openExtensions() {
+        openSourceManager(SourceManagerPage.EXTENSIONS)
+        if (!_state.value.extensionCatalogLoaded && catalogJob?.isActive != true) refreshExtensionCatalogs()
+    }
+
+    fun refreshExtensionCatalogs() {
+        catalogJob?.cancel()
+        catalogJob = viewModelScope.launch {
+            val repositories = _state.value.repositories.take(32)
+            val available = mutableListOf<AvailableExtension>()
+            val failures = mutableListOf<String>()
+            for (repo in repositories) {
+                try {
+                    val fetched = withContext(Dispatchers.IO) { runInterruptible { client.fetch(repo.baseUrl) } }
+                    require(fetched.fingerprint == repo.fingerprint) { "A assinatura do repositório mudou; atualização bloqueada." }
+                    available += fetched.extensions.map { AvailableExtension(repo, it) }
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { failures += "${repo.name}: ${e.message?.take(120)}" }
+            }
+            currentCoroutineContext().ensureActive()
+            _state.update { old ->
+                if (old.repositories != repositories) old.copy(extensionCatalogLoaded = false)
+                else old.copy(availableExtensions = available, extensionCatalogLoaded = true,
+                    message = failures.takeIf { it.isNotEmpty() }?.joinToString("\n")?.take(600))
+            }
+        }
+    }
+
+    fun prepareAvailableInstall(candidate: AvailableExtension, onReady: (File) -> Unit) = task {
+        require(candidate.isCurrentTrustedCandidate(_state.value.availableExtensions, preferences.repositories())) { "Atualize a lista de extensões e verifique a confiança do repositório." }
+        val file = installer.prepare(candidate.entry, candidate.repository.fingerprint)
+        currentCoroutineContext().ensureActive()
+        require(candidate.isCurrentTrustedCandidate(_state.value.availableExtensions, preferences.repositories())) { "O repositório da extensão não é mais confiável." }
+        _state.update { it.copy(message = "APK verificado. Confirme a instalação na TV e atualize as instaladas ao voltar.") }
+        onReady(file)
     }
     fun prepareInstall(entry: ExtensionEntry, onReady: (File) -> Unit) = task {
         val repo = _state.value.repositories.firstOrNull { it.baseUrl == _state.value.selectedRepository } ?: error("Abra o repositório da extensão.")
@@ -114,21 +175,32 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         require(source in _state.value.sources)
         withContext(Dispatchers.IO) { preferences.saveSelectedSource(source) }
         currentCoroutineContext().ensureActive()
-        if (restoring && (_state.value.activeSource != null || _state.value.managerPage != null)) return
-        _state.update { it.copy(activeSource = source, managerPage = null, selectedRepository = null, details = null, titles = emptyList(), hasNextPage = false, query = "", latest = false) }
-        val result = engine.catalog(source)
+        if (restoring && _state.value.activeSource != null) return
+        if (restoring && _state.value.managerPage != null) {
+            // Keep management on screen while remembering the source for later catalog navigation.
+            _state.update { it.copy(activeSource = source) }
+            return
+        }
+        _state.update { it.copy(activeSource = source, managerPage = null, selectedRepository = null, details = null, titles = emptyList(), catalogLoaded = false, hasNextPage = false, query = "", latest = desiredLatest) }
+        var requestedLatest = desiredLatest
+        var result = engine.catalog(source, latest = requestedLatest)
+        while (requestedLatest != desiredLatest) {
+            requestedLatest = desiredLatest
+            result = engine.catalog(source, latest = requestedLatest)
+        }
         currentCoroutineContext().ensureActive()
         page = 1
-        _state.update { it.copy(activeSource = source, selectedRepository = null, details = null, titles = result.titles,
-            hasNextPage = result.hasNextPage, latest = false, query = "") }
+        _state.update { it.copy(activeSource = source, selectedRepository = null, details = null, titles = result.titles, catalogLoaded = true,
+            hasNextPage = result.hasNextPage, latest = requestedLatest, query = "") }
     }
     fun search(query: String) = catalog(query.trim().take(200), _state.value.latest)
-    fun showCatalog(latest: Boolean) = catalog("", latest)
+    fun showCatalog(latest: Boolean) { desiredLatest = latest; catalog("", latest) }
     private fun catalog(query: String, latest: Boolean) = task {
         val source = _state.value.activeSource ?: error("Escolha uma fonte.")
         val result = engine.catalog(source, query, latest)
+        currentCoroutineContext().ensureActive()
         page = 1
-        _state.update { it.copy(titles = result.titles, details = null, query = query, latest = latest, hasNextPage = result.hasNextPage) }
+        _state.update { it.copy(titles = result.titles, catalogLoaded = true, details = null, query = query, latest = latest, hasNextPage = result.hasNextPage) }
     }
     fun loadMore() = task {
         val old = _state.value
@@ -163,6 +235,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
             old.activeSource != null -> old.copy(managerPage = null, busy = false, message = null)
             else -> return false
         }
+        if (old.details == null && old.selectedRepository == null && old.activeSource != null && !old.catalogLoaded) navigateCatalog(desiredLatest)
         return true
     }
 }

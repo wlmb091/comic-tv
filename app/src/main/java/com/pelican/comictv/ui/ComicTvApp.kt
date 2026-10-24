@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.*
@@ -39,6 +40,7 @@ import androidx.compose.ui.platform.LocalContext
 
 @Composable fun ComicTvApp(container: AppContainer) {
     val nav = rememberNavController()
+    val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
     val library: LibraryViewModel = viewModel(factory = viewModelFactory {
         initializer { LibraryViewModel(container.library, createSavedStateHandle()) }
     })
@@ -75,13 +77,29 @@ import androidx.compose.ui.platform.LocalContext
             })
             FtpTransferScreen(ftp) { nav.popBackStack() }
         }
-        composable("sources") {
-            val sources: SourcesViewModel = viewModel(factory = viewModelFactory {
-                initializer { SourcesViewModel(container.sourcePreferences, container.mihon, container.extensionInstaller, container.online) }
-            })
-            val install = rememberExtensionInstallFlow(sources)
-            TvShell("sources", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
-                SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = install)
+        listOf("sources", "recent", "extensions").forEach { sourceRoute ->
+            composable(sourceRoute) { sourceEntry ->
+                val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = viewModelFactory {
+                    initializer { SourcesViewModel(container.sourcePreferences, container.mihon, container.extensionInstaller, container.online) }
+                })
+                val sourceState by sources.state.collectAsStateWithLifecycle()
+                LaunchedEffect(sourceEntry.id) { sources.enterMainSection(sourceEntry.id, sourceRoute) }
+                val install = rememberExtensionInstallFlow(sources)
+                val selected = when (sourceState.managerPage) {
+                    SourceManagerPage.EXTENSIONS, SourceManagerPage.REPOSITORIES -> "extensions"
+                    else -> if (sourceState.latest) "recent" else "sources"
+                }
+                TvShell(selected, onNavigate = { destination ->
+                    if (destination == sourceRoute) {
+                        when (destination) {
+                            "recent" -> sources.navigateCatalog(true)
+                            "extensions" -> sources.openExtensions()
+                            else -> sources.navigateCatalog(false)
+                        }
+                    } else nav.navigate(destination) { popUpTo("library"); launchSingleTop = true }
+                }) {
+                    SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = install)
+                }
             }
         }
         composable("settings") {
@@ -123,8 +141,8 @@ import androidx.compose.ui.platform.LocalContext
 }
 
 @Composable private fun TvShell(selected: String, onNavigate: (String) -> Unit, content: @Composable () -> Unit) {
-    val routes = listOf("library" to "Biblioteca", "sources" to "Fontes", "import" to "Importar", "settings" to "Configurações")
-    val icons = listOf(R.drawable.nav_library, R.drawable.nav_sources, R.drawable.nav_import, R.drawable.nav_settings)
+    val routes = listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "settings" to "Configurações")
+    val icons = listOf(R.drawable.nav_library, R.drawable.nav_recent, R.drawable.nav_sources, R.drawable.nav_extensions, R.drawable.nav_import, R.drawable.nav_settings)
     var focusWithin by remember { mutableStateOf(false) }
     val hover = remember { MutableInteractionSource() }
     val hovered by hover.collectIsHoveredAsState()
@@ -136,14 +154,14 @@ import androidx.compose.ui.platform.LocalContext
             .background(TvColors.Panel, RoundedCornerShape(18.dp))
             .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(18.dp))
             .onFocusChanged { focusWithin = it.hasFocus }.focusGroup().hoverable(hover).padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.fillMaxWidth().height(44.dp), contentAlignment = Alignment.CenterStart) {
                 Text(if (expanded) "COMIC TV" else "TV", Modifier.padding(start = if (expanded) 8.dp else 9.dp),
                     color = TvColors.Amber, fontSize = if (expanded) 22.sp else 24.sp, maxLines = 1)
             }
             routes.forEachIndexed { index, (route, title) ->
                 androidx.tv.material3.Button(onClick = { if (route != selected) onNavigate(route) },
-                    modifier = Modifier.fillMaxWidth().height(56.dp), contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp), contentPadding = PaddingValues(0.dp),
                     shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(12.dp)),
                     scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1f),
                     colors = androidx.tv.material3.ButtonDefaults.colors(

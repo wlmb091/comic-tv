@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.7.6
+## Versão 0.7.7
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Importação de CBZ/ZIP, CBR/RAR, PDF e EPUB pelo seletor do Android ou rede local, incluindo USB quando oferecido pelo dispositivo.
@@ -14,7 +14,9 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - Tema escuro com foco âmbar, seguindo o conceito aprovado.
 - Barra lateral flutuante: recolhida em ícones e expandida com nomes ao receber foco ou ponteiro; o catálogo mantém sua largura.
 - Biblioteca com cabeçalhos roláveis e histórico completo de todas as leituras registradas, sem limite de dois itens.
-- Fontes abre o catálogo da seleção salva. Trocar fonte mostra uma grade pesquisável; Gerenciar separa repositórios/extensões e recolhe detalhes técnicos.
+- Catálogo e Novidades têm acessos próprios na lateral e usam a mesma fonte selecionada. Novidades vem da fonte (adicionados/atualizados), separado do histórico pessoal.
+- O ícone de pasta no catálogo troca a fonte. Extensões tem grade de instaladas, atualizações e disponíveis, com busca nos repositórios cadastrados e ícones pequenos.
+- A seleção de fonte permanece salva; repositórios e detalhes técnicos ficam separados do catálogo.
 - Capas ausentes na busca são consultadas nos detalhes dos itens visíveis, com cache limitado e até duas consultas simultâneas.
 - Barra para escolher página/seção pelo D-pad, com confirmação antes de carregar e salvar a nova posição.
 - Miniaturas da posição selecionada e até duas vizinhas de cada lado, geradas sob demanda em cache separado de 32 MiB.

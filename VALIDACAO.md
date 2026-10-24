@@ -1,26 +1,29 @@
-# Validação — Comic TV 0.7.6
+# Validação — Comic TV 0.7.7
 
-23/10/2026 · versionCode15 · Android8/API26 ou superior.
+23/10/2026 · versionCode16 · Android8/API26 ou superior.
 
-## Alterações solicitadas
+## Navegação aprovada
 
-1. Lateral flutuante de64dp recolhida e228dp expandida com foco/ponteiro; conteúdo mantém largura e a expansão sobrepõe a borda esquerda. Ícones alinhados em caixas fixas e seleção visual distinta do foco. Desenhos de biblioteca/configurações ajustados.
-2. Biblioteca em uma grade rolável, incluindo cabeçalhos e recentes. Espaçamentos menores, capas completas em2:3 e títulos/progresso sobre gradiente, removendo altura adicional abaixo das capas.
-3. Removido take(2) das leituras recentes. Faixa horizontal contém todas as leituras registradas e Histórico mostra todas em grade, ordenadas pela última leitura, incluindo concluídas. Sem alteração/exclusão dos registros existentes.
-4. Fontes abre o catálogo da seleção salva; Trocar fonte abre grade compacta pesquisável e Gerenciar separa repositórios/extensões. Formulário e detalhes técnicos ficam recolhidos. A seleção usa pacote+ID e só é restaurada dentre fontes carregadas e verificadas. Fonte removida/indisponível gera alternativa explícita, sem selecionar outro pacote por coincidência de nome/ID.
+- Lateral: Biblioteca, Novidades, Catálogo, Extensões, Importar e Configurações, com ícones pequenos e expansão flutuante por foco/ponteiro.
+- Catálogo usa a listagem disponibilizada pela fonte selecionada; Novidades usa suas adições/atualizações recentes, sem confundir com histórico pessoal. Respeitam a paginação e os limites da própria extensão, sem prometer enumerar obras que ela não fornece.
+- Mesma fonte preservada entre as duas categorias; pasta no canto superior troca a fonte e lupa abre a busca. Cabeçalho compacto libera espaço para capas.
+- Extensões separado: instaladas, atualizações e disponíveis, contagens, busca por nome/fonte/idioma, grades com ícones40dp. Índices dos repositórios cadastrados são agregados, até32, com falhas parciais informadas e certificados comparados com as chaves salvas.
+- Instalar/atualizar pela grade verifica pertencimento do candidato ao índice atual e repositório confiável antes e depois do download; confirmação nativa do Android preservada.
+- Mantidos biblioteca/histórico completo, lateral flutuante e gestos do leitor entregues anteriormente.
 
-Durante atualização anterior à existência dessa preferência, escolher HQ Now uma vez grava a seleção para próximas entradas/inicializações. Gerenciamento aberto explicitamente durante restauração permanece aberto. Atualizar instaladas renova handles sem perder a seleção.
+## Ciclo de vida
+
+SourcesViewModel é compartilhado pelas três seções e criado somente ao entrar nelas. Despacho por identidade da entrada de navegação evita apagar detalhes/busca ao voltar do leitor. Catálogo ainda não carregado é consultado ao sair de um gerenciamento aberto na inicialização. Trocas de seção cancelam operações pendentes, preservando a restauração inicial de fontes.
 
 ## Verificação
 
--139 testes JVM passaram sem falhas/erros (87core,10mihon,42app).
--3 novos testes verificam identidade exata de seleção, isolamento entre pacotes e retorno seguro para fonte removida/falha.
+-145 testes JVM passaram sem erros/falhas:87core,10mihon,48app.
+-6 testes novos cobrem candidatos removidos/alterados/não listados e retomada da mesma entrada, navegação explícita e recriação da instância.
 -assembleDebug, assembleDebugAndroidTest e lintDebug passaram.
--Verificador do DEX confirmou implementação padrão de serialização preservada.
--apksigner verificou assinatura; aapt2 confirmou0.7.6/code15/minSdk26.
--SHA256 APK:6073ECA75B88D5DCE40C84B3D975D028C0140E25CED1E464291E0385752F1D09.
--Revisão independente de biblioteca/lateral/seleção identificou uma corrida na restauração; corrigida com nova conferência após persistência e confirmada pelo revisor.
+-Verificador de ABI do DEX passou; assinatura APK validada por apksigner; aapt2 confirma0.7.7/code16/minSdk26.
+-SHA256:CA9B5F58F02988E79B5A066E784180610D1153D544CF121370483753C833ECDB.
+-Revisão independente identificou dois problemas de retomada/back; corrigidos e reavaliados sem novos achados.
 
-## Teste no aparelho pendente
+## Limites
 
-Sem execução em TV/emulador nesta etapa. Conferir: lateral expande/recolhe sem deslocar catálogo; histórico com três ou mais leituras; rolagem de cabeçalho e capas; sair/reentrar em Fontes mantém HQ Now; selecionar outra fonte troca catálogo; gerenciamento e Voltar preservam seleção; fonte indisponível permite escolher outra. Controles do leitor permanecem como na0.7.5.
+Sem teste em aparelho nesta etapa. Validar: Catálogo/Novidades na mesma fonte, pasta troca seleção, Extensões busca/filtra/instala com confirmação Android, voltar do leitor mantém capítulos, sair de Extensões numa inicialização fria carrega catálogo. Repositórios/ícones podem exigir rede. Não foram instaladas extensões no computador nem feitas contratações.

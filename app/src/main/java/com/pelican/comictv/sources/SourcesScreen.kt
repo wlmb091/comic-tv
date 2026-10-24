@@ -1,6 +1,8 @@
 package com.pelican.comictv.sources
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,6 +16,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.graphics.drawable.toBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.contentDescription
@@ -54,15 +64,18 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
         return
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        ScreenTitle("Fontes online", state.activeSource?.let { "${it.name} · ${it.language}" }
-            ?: "Escolha uma fonte para explorar")
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (nested) TvButton("Voltar", { viewModel.back() })
-            if (state.details == null) {
-                TvButton("Fontes", { viewModel.openSourceManager() })
-                TvButton("Repositórios / Extensões", { viewModel.openSourceManager(SourceManagerPage.REPOSITORIES) })
-                TvButton("Atualizar", { viewModel.refreshInstalled() })
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(when {
+                state.details != null -> "Detalhes"
+                state.managerPage == SourceManagerPage.EXTENSIONS -> "Extensões"
+                state.managerPage == SourceManagerPage.REPOSITORIES -> "Repositórios"
+                else -> "Escolher fonte"
+            }, Modifier.weight(1f), fontSize = 24.sp)
+            if (state.managerPage == SourceManagerPage.EXTENSIONS) {
+                SourceButton("Atualizar", !state.busy) { viewModel.refreshInstalled(); viewModel.refreshExtensionCatalogs() }
+                TvButton("Repositórios", { viewModel.openSourceManager(SourceManagerPage.REPOSITORIES) })
             }
+            if (state.managerPage == SourceManagerPage.REPOSITORIES) TvButton("Extensões", { viewModel.openExtensions() })
             if (state.selectedRepository != null) TvButton("Atualizar repositório", { viewModel.refresh() })
         }
         if (state.busy) Text("Carregando…", color = TvColors.Amber, fontSize = 18.sp)
@@ -79,6 +92,7 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
                 state.details != null -> SourceDetails(state.details!!, state.busy) { viewModel.openChapter(it, onRead) }
                 state.activeSource != null && state.managerPage == null -> SourceCatalog(state, viewModel)
                 state.selectedRepository != null -> RepositoryExtensions(state) { viewModel.prepareInstall(it, onInstall) }
+                state.managerPage == SourceManagerPage.EXTENSIONS -> ExtensionsHome(state, viewModel, onInstall)
                 state.managerPage == SourceManagerPage.REPOSITORIES -> SourcesHome(state, viewModel)
                 else -> SourcePicker(state, viewModel)
             }
@@ -93,21 +107,120 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
     val sources = state.sources.filter { filter.isBlank() || it.name.contains(filter.trim(), true) || it.language.contains(filter.trim(), true) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SourceInput(filter, { filter = it }, "Buscar fonte · "+state.sources.size+" disponíveis")
-        LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize().focusRestorer(),
+        LazyVerticalGrid(GridCells.Adaptive(128.dp), Modifier.fillMaxSize().focusRestorer(),
             contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (sources.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
-                Muted(if (state.busy) "Carregando fontes…" else if (state.sources.isEmpty()) "Instale extensões em Repositórios / Extensões para começar." else "Nenhuma fonte encontrada.")
+                Muted(if (state.busy) "Carregando fontes…" else if (state.sources.isEmpty()) "Instale extensões pela seção Extensões para começar." else "Nenhuma fonte encontrada.")
             }
             items(sources, key = { it.packageName + ":" + it.id }) { source ->
                 Card(onClick = { vm.activateSource(source) }, modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.colors(containerColor = TvColors.Panel),
                     scale = CardDefaults.scale(focusedScale = 1.04f),
                     border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {
-                    Column(Modifier.fillMaxWidth().height(100.dp).padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                        Text(source.name, fontSize = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Column(Modifier.fillMaxWidth().height(128.dp).padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        ExtensionIcon(source.packageName, null, source.name)
+                        Text(source.name, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Text(source.language + if (state.activeSource?.let { it.packageName == source.packageName && it.id == source.id } == true) " · Selecionada" else "", fontSize = 14.sp, color = TvColors.Muted)
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (File) -> Unit) {
+    var filter by rememberSaveable { mutableStateOf("") }
+    var tab by rememberSaveable { mutableStateOf("Instaladas") }
+    val installed = state.installed.associateBy { it.packageName }
+    val updates = state.availableExtensions.filter { c -> installed[c.entry.packageName]?.let { c.entry.versionCode > it.versionCode } == true }
+    val available = state.availableExtensions.filter { it.entry.packageName !in installed }
+    fun matches(name: String, extra: String = "") = filter.isBlank() || (name + " " + extra).contains(filter.trim(), true)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            listOf("Instaladas" to state.installed.size, "Atualizações" to updates.size, "Disponíveis" to available.size).forEach { (label, count) ->
+                SourceButton("$label · $count${if (tab == label) " ✓" else ""}", true) { tab = label }
+            }
+        }
+        SourceInput(filter, { filter = it }, "Buscar extensão por nome, fonte ou idioma")
+        LazyVerticalGrid(GridCells.Adaptive(128.dp), Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (tab == "Instaladas") {
+                val entries = state.installed.filter { extension -> matches(extension.name, state.sources.filter { it.packageName == extension.packageName }.joinToString { it.name + " " + it.language }) }
+                if (entries.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Muted("Nenhuma extensão instalada encontrada.") }
+                items(entries, key = { it.packageName }) { extension ->
+                    val sources = state.sources.filter { it.packageName == extension.packageName }
+                    val status = when {
+                        state.loadFailures.containsKey(extension.packageName) -> "Falha ao carregar"
+                        !extension.compatible -> "Incompatível"
+                        sources.isNotEmpty() -> "${sources.size} fonte(s) · Abrir"
+                        else -> "Sem fontes carregadas"
+                    }
+                    CompactExtensionCard(extension.packageName, null, extension.name, status) {
+                        if (sources.size == 1) vm.activateSource(sources.first()) else if (sources.isNotEmpty()) vm.openSourceManager() else vm.refreshInstalled()
+                    }
+                }
+            } else {
+                val entries = (if (tab == "Atualizações") updates else available).filter { matches(it.entry.name, (it.entry.languages + it.entry.sourceNames).joinToString()) }
+                if (entries.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
+                    Muted(when {
+                        state.busy -> "Buscando extensões…"
+                        !state.extensionCatalogLoaded -> "Atualize para carregar os repositórios."
+                        state.repositories.isEmpty() -> "Adicione um repositório para encontrar extensões."
+                        tab == "Atualizações" -> "Todas as extensões estão atualizadas."
+                        else -> "Nenhuma extensão encontrada."
+                    })
+                }
+                items(entries, key = { it.repository.baseUrl + ":" + it.entry.packageName }) { candidate ->
+                    val entry = candidate.entry
+                    CompactExtensionCard(null, entry.iconUrl, entry.name, "${if (tab == "Atualizações") "Atualizar" else "Instalar"} · ${entry.languages.joinToString().ifBlank { "Todos" }}") {
+                        if (!state.busy) vm.prepareAvailableInstall(candidate, install)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactExtensionCard(packageName: String?, iconUrl: String?, name: String, status: String, click: () -> Unit) {
+    Card(onClick = click, modifier = Modifier.fillMaxWidth(), colors = CardDefaults.colors(containerColor = TvColors.Panel),
+        scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {
+        Column(Modifier.fillMaxWidth().height(128.dp).padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            ExtensionIcon(packageName, iconUrl, name)
+            Text(name, fontSize = 16.sp, maxLines = 2, lineHeight = 18.sp, overflow = TextOverflow.Ellipsis)
+            Text(status, fontSize = 12.sp, color = TvColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun ExtensionIcon(packageName: String?, iconUrl: String?, name: String) {
+    val context = LocalContext.current
+    val bitmap by produceState<android.graphics.Bitmap?>(null, packageName) {
+        value = if (packageName == null) null else withContext(Dispatchers.IO) {
+            runCatching { context.packageManager.getApplicationIcon(packageName).toBitmap(80, 80) }.getOrNull()
+        }
+    }
+    Box(Modifier.size(40.dp).background(TvColors.Ink), contentAlignment = Alignment.Center) {
+        Text(name.take(2).uppercase(), color = TvColors.Amber, fontSize = 18.sp)
+        if (bitmap != null) Image(bitmap!!.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        else if (!iconUrl.isNullOrBlank()) AsyncImage(iconUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+    }
+}
+
+@Composable
+private fun CatalogIconButton(label: String, search: Boolean, click: () -> Unit) {
+    Button(onClick = click, modifier = Modifier.size(44.dp).semantics { contentDescription = label },
+        contentPadding = PaddingValues(10.dp), colors = ButtonDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Amber, focusedContentColor = TvColors.Ink)) {
+        val color = LocalContentColor.current
+        Canvas(Modifier.size(24.dp)) {
+            if (search) {
+                drawCircle(color, radius = size.width * .29f, center = Offset(size.width * .4f, size.height * .4f), style = Stroke(2.dp.toPx()))
+                drawLine(color, Offset(size.width * .62f, size.height * .62f), Offset(size.width * .92f, size.height * .92f), 2.dp.toPx())
+            } else {
+                drawRect(color, topLeft = Offset(0f, size.height * .28f), size = Size(size.width, size.height * .62f), style = Stroke(2.dp.toPx()))
+                drawRect(color, topLeft = Offset(0f, size.height * .12f), size = Size(size.width * .45f, size.height * .16f), style = Stroke(2.dp.toPx()))
             }
         }
     }
@@ -228,23 +341,17 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(state.activeSource?.name ?: "Fontes online", fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Fontes online · ${state.activeSource?.language.orEmpty()}", fontSize = 14.sp, color = TvColors.Muted)
+                        Text("${if (state.latest) "Novidades" else "Catálogo"} · ${state.activeSource?.language.orEmpty()}", fontSize = 14.sp, color = TvColors.Muted)
                     }
-                    TvButton("Trocar fonte", { vm.openSourceManager() })
-                    Spacer(Modifier.width(12.dp))
-                    TvButton("Gerenciar", { vm.openSourceManager(SourceManagerPage.REPOSITORIES) })
+                    CatalogIconButton("Trocar fonte", false) { vm.openSourceManager() }
+                    Spacer(Modifier.width(8.dp))
+                    CatalogIconButton(if (searchVisible) "Fechar busca" else "Buscar", true) { searchVisible = !searchVisible }
                 }
                 if (state.busy) Text("Carregando…", color = TvColors.Amber, fontSize = 16.sp)
                 state.message?.let { Text(it, color = TvColors.Amber, fontSize = 16.sp) }
             }
         }
-        item(key = "catalog-controls", span = { GridItemSpan(maxLineSpan) }) {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TvButton(if (!state.latest && state.query.isBlank()) "Populares ✓" else "Populares", { vm.showCatalog(false) })
-                TvButton(if (state.latest && state.query.isBlank()) "Recentes ✓" else "Recentes", { vm.showCatalog(true) })
-                TvButton(if (searchVisible) "Fechar busca" else "Buscar", { searchVisible = !searchVisible })
-            }
-        }
+        item(key = "catalog-controls", span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(0.dp)) }
         // Keep three header entries even while search is collapsed, so restoration has a stable offset.
         item(key = "catalog-search", span = { GridItemSpan(maxLineSpan) }) {
             if (searchVisible) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
