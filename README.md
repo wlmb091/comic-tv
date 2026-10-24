@@ -2,7 +2,7 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 0.7.9
+## Versão 0.7.10
 
 - Biblioteca local com capas e lista de leituras recentes.
 - Detalhes com título legível, progresso e resumo real salvo pela fonte; painel de informações rolável pelo controle e ações de leitura sempre acessíveis.
@@ -23,6 +23,7 @@ Leitor nativo para Android TV e Google TV, em português e operado pelo controle
 - A seleção de fonte permanece salva; repositórios e detalhes técnicos ficam separados do catálogo.
 - Capas ausentes na busca são consultadas nos detalhes dos itens visíveis, com cache limitado e até duas consultas simultâneas.
 - Barra para escolher página/seção pelo D-pad, com confirmação antes de carregar e salvar a nova posição.
+- Seletor de páginas com fundo preto, destaque amarelo, miniaturas ampliadas (194 dp na selecionada, 170 dp nas vizinhas) e barra de progresso fina.
 - Miniaturas da posição selecionada e até duas vizinhas de cada lado, geradas sob demanda em cache separado de 32 MiB.
 - Leitura automática: slides de imagens ou rolagem de texto EPUB, com 10 segundos por página/tela inicialmente e intervalos de 5,10,20,30 ou 60 segundos. Pausa com comandos manuais, ferramentas, erro ou segundo plano.
 - Transferência pela rede local (Wi-Fi/Ethernet), com URL temporária, QR code, upload pelo navegador e acompanhamento na TV.
