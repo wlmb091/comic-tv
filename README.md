@@ -168,14 +168,14 @@ As licenças de NanoHTTPD, ZXing, Junrar, SLF4J e Jsoup estão em `docs/licenses
 
 `core/` contém arquivos, cache, estado do leitor e índices de repositórios, com testes JVM. `mihon/` hospeda a API Android de extensões, preservando licenças Apache-2.0 e atribuições em seus assets. `app/` contém leitores, Room, instalação nativa, fontes e interface Compose para TV.
 
-Temas em Configurações → Acessibilidade e aparência: Comic TV, Tema Flix, Tema Prime, Tema Max e Tema Cinema. Mudam superfícies, barras, botões, progresso e foco; a logo e as capas conservam as cores originais. Presets antigos continuam disponíveis.
+Temas em Configurações → Acessibilidade e aparência: Comic TV, Tema Flix, Tema Prime, Tema Max e Tema Cinema. Mudam superfícies, barras, botões, progresso, foco e a cor do símbolo/TV na marca. Capas e páginas conservam as cores originais. Presets antigos continuam disponíveis.
 
 Cabeçalho da biblioteca em Montserrat ExtraBold: COMIC branco e TV na cor do tema. Ações do destaque inicial ficam neutras sem foco.
 
 A barra lateral expandida também usa o cabeçalho textual COMIC TV, com TV na cor do tema.
 
-Relacionados abaixo da tela de detalhes: sugestões da biblioteca e de uma amostra limitada do catálogo da fonte, com motivo verificável (mesma série ou créditos em comum). Abrir uma sugestão do catálogo permite escolher uma edição; nada é adicionado à biblioteca até essa escolha. Metadados da fonte limitam as relações disponíveis; arquivos locais sem créditos não recebem sugestões artificiais.
+Implementação preservada de Relacionados (oculta): compara série ou créditos explícitos da biblioteca e de uma amostra limitada do catálogo da fonte. Metadados ausentes limitam as relações; não usa IA nem inventa sugestões.
 
-Na 0.9.5, a seção e o atalho Relacionados estão ocultos; nenhuma consulta de recomendações é iniciada. Código preservado para futura revisão. COMIC TV centralizado no menu lateral expandido.
+Desde a 0.9.4, a seção e o atalho Relacionados estão ocultos; nenhuma consulta de recomendações é iniciada. Código preservado para futura revisão. COMIC TV centralizado no menu lateral expandido.
 
 0.9.5: catálogo com capas inteiras e títulos abaixo, tipografia e cabeçalho compactos; grades adaptadas ao tamanho do texto. Fontes, extensões e extensões por repositório usam cartões compactos; abas com contadores e estados vazios explicativos. Instalação continua confirmada pelo Android.

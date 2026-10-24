@@ -15,3 +15,7 @@ Dois testes nativos preparados: cabeçalho a130% em560dp, e navegação por toda
 Conferir texto115%/130%, D-pad, retorno entre telas, alto contraste e temas na Box. As proporções da tela principal e escolhas das0.12.2/0.12.3 também aguardam conferência visual. Manter USB e instalar como atualização sem desinstalar. Relatos dos fluxos anteriores em docs/validation/2026-10-24-mi-box-manual.md.
 
 SHA256 APK: DD31EE8C538863576512BFC26DE8C0239B91F3F9B367B3F48B24C7F90531ABDD
+
+## Fechamento técnico cumulativo
+
+Nova execução completa com --rerun-tasks em work/final-stability-0124.log:133 tarefas executadas, BUILD SUCCESSFUL,212 testes JVM aprovados/1 ignorado/0 falhas. Assinatura v2 do APK entregue, ABI DEX das extensões e SQL/migrações1→3/2→3 aprovados. Android mínimo26, Leanback e ARM32/64 verificados no APK. Sem dispositivo ADB; aceitação visual e desempenho continuam pendentes. Registro completo em docs/validation/2026-10-24-stability-closeout.md. Nenhuma nova versão do aplicativo nesta rodada.
