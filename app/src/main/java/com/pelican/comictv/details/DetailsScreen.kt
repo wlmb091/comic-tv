@@ -39,6 +39,7 @@ import kotlinx.coroutines.CancellationException
     var metadataLoading by remember(id) { mutableStateOf(id.startsWith("online-")) }
     var expandedSummary by remember(id) { mutableStateOf(false) }
     val scrollScope = rememberCoroutineScope()
+    var confirmRemoval by remember(id) { mutableStateOf(false) }
     var changingHistory by remember { mutableStateOf(false) }
     val summaryScroll = rememberLazyListState()
     var summaryFocused by remember { mutableStateOf(false) }
@@ -62,6 +63,9 @@ import kotlinx.coroutines.CancellationException
         }
     }
     LaunchedEffect(comic != null, error) { if (comic != null || error != null) first.requestFocus() }
+    if (confirmRemoval) ConfirmHistoryRemoval(comic?.title.orEmpty(),
+        onDismiss = { confirmRemoval = false },
+        onConfirm = { repository.setHistoryHidden(id, true); comic = repository.getComic(id) })
     BoxWithConstraints(Modifier.fillMaxSize().background(TvColors.Background).padding(24.dp)) {
         // The cover sets the shared height; both side panels remain independently scrollable.
         val coverWidth = minOf(maxHeight * (2f / 3f), maxWidth * .36f)
@@ -104,7 +108,8 @@ import kotlinx.coroutines.CancellationException
                         onRead, Modifier.focusRequester(first), primary = true)
                     if (item.lastRead > 0) {
                         TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
-                            if (!changingHistory) scrollScope.launch {
+                            if (!item.hiddenFromHistory) confirmRemoval = true
+                            else if (!changingHistory) scrollScope.launch {
                                 changingHistory = true
                                 try {
                                     repository.setHistoryHidden(id, !item.hiddenFromHistory)
@@ -114,7 +119,6 @@ import kotlinx.coroutines.CancellationException
                                 finally { changingHistory = false }
                             }
                         })
-                        Text("O quadrinho e a página salva são mantidos.", color = TvColors.Muted, fontSize = 13.sp)
                     }
                 }
                 TvButton("Voltar à biblioteca", onBack,
@@ -125,16 +129,8 @@ import kotlinx.coroutines.CancellationException
             LazyColumn(
                 Modifier.weight(1f).fillMaxHeight().background(TvColors.Panel)
                     .border(if (summaryFocused) 2.dp else 0.dp, TvColors.Amber)
-                    .onFocusChanged { summaryFocused = it.isFocused }
-                    .onPreviewKeyEvent { event ->
-                        val delta = when {
-                            !summaryFocused || event.type != KeyEventType.KeyDown -> 0f
-                            event.key == Key.DirectionDown && summaryScroll.canScrollForward -> 120f
-                            event.key == Key.DirectionUp && summaryScroll.canScrollBackward -> -120f
-                            else -> 0f
-                        }
-                        if (delta == 0f) false else { scrollScope.launch { summaryScroll.scrollBy(delta) }; true }
-                    }.focusable(),
+                    .onFocusChanged { summaryFocused = it.hasFocus }
+                    .textPanelScroll(summaryScroll),
                 state = summaryScroll, contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {

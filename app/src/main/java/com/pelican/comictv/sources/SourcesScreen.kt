@@ -54,6 +54,7 @@ import coil3.compose.AsyncImage
 import com.pelican.comictv.ui.ScreenTitle
 import com.pelican.comictv.ui.TvButton
 import com.pelican.comictv.ui.TvColors
+import com.pelican.comictv.ui.textPanelScroll
 import java.io.File
 import kotlinx.coroutines.flow.first
 
@@ -405,19 +406,8 @@ private fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineCh
         LazyColumn(
             Modifier.width(280.dp).fillMaxHeight()
                 .border(if (summaryFocused) 2.dp else 0.dp, TvColors.Amber)
-                .onFocusChanged { summaryFocused = it.isFocused }
-                .onPreviewKeyEvent { event ->
-                    val delta = when {
-                        !summaryFocused || event.type != KeyEventType.KeyDown -> 0f
-                        event.key == Key.DirectionDown && summaryScroll.canScrollForward -> 120f
-                        event.key == Key.DirectionUp && summaryScroll.canScrollBackward -> -120f
-                        else -> 0f
-                    }
-                    if (delta == 0f) false else {
-                        scrollScope.launch { summaryScroll.scrollBy(delta) }
-                        true
-                    }
-                }.focusable(),
+                .onFocusChanged { summaryFocused = it.hasFocus }
+                .textPanelScroll(summaryScroll),
             state = summaryScroll,
             contentPadding = PaddingValues(8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

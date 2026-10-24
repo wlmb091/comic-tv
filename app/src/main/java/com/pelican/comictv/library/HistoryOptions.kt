@@ -58,6 +58,7 @@ import kotlinx.coroutines.launch
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
     var blockRelease by remember { mutableStateOf(true) }
+    var confirmRemoval by remember { mutableStateOf(false) }
     var hidden by remember(comic.hiddenFromHistory) { mutableStateOf(comic.hiddenFromHistory) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -76,7 +77,8 @@ import kotlinx.coroutines.launch
             TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", onRead, Modifier.focusRequester(first), primary = true)
             TvButton("Abrir detalhes", onOpen)
             if (comic.lastRead > 0) TvButton(if (hidden) "Restaurar no histórico" else "Remover do histórico", {
-                if (!saving) scope.launch {
+                if (!hidden) confirmRemoval = true
+                else if (!saving) scope.launch {
                     saving = true
                     try {
                         repository.setHistoryHidden(comic.id, !hidden)
@@ -87,10 +89,13 @@ import kotlinx.coroutines.launch
                     finally { saving = false }
                 }
             })
-            Text("Esta ação mantém o quadrinho e seu progresso. Ao retomar a leitura, ele volta ao histórico.",
-                color = TvColors.Muted, fontSize = 16.sp)
             message?.let { Text(it, color = TvColors.Amber) }
             TvButton("Fechar", onDismiss)
         }
     }
+    if (confirmRemoval) ConfirmHistoryRemoval(comic.title, onDismiss = { confirmRemoval = false }, onConfirm = {
+        repository.setHistoryHidden(comic.id, true)
+        hidden = true
+        message = "Removido do histórico."
+    })
 }

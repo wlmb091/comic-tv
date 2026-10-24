@@ -12,6 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.res.painterResource
 import com.pelican.comictv.R
 import androidx.compose.ui.graphics.Color
@@ -43,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 
 @Composable fun ComicTvApp(container: AppContainer) {
     val nav = rememberNavController()
+    var sidebarFocusTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var editionPreview by remember { mutableStateOf<File?>(null) }
     val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
     val library: LibraryViewModel = viewModel(factory = viewModelFactory {
@@ -54,14 +61,16 @@ import androidx.compose.ui.platform.LocalContext
 
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
-            TvShell("library", onNavigate = { nav.navigate(it) { launchSingleTop = true } }) {
+            TvShell("library", onNavigate = { sidebarFocusTarget = it; nav.navigate(it) { launchSingleTop = true } },
+                focusSectionOnEntry = sidebarFocusTarget == "library", onSectionFocused = { sidebarFocusTarget = null }) {
                 LibraryScreen(comics, container.library, library.focusedId,
                     onFocus = { library.focusedId = it }, onOpen = { nav.navigate("details/$it") },
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") })
             }
         }
         composable("import") {
-            TvShell("import", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
+            TvShell("import", onNavigate = { sidebarFocusTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
+                focusSectionOnEntry = sidebarFocusTarget == "import", onSectionFocused = { sidebarFocusTarget = null }) {
                 ImportScreen(busy, message, onMessage = library::message,
                     onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } },
                     onLocalTransfer = { nav.navigate("local-transfer") }, onFtpTransfer = { nav.navigate("ftp-transfer") })
@@ -86,14 +95,10 @@ import androidx.compose.ui.platform.LocalContext
                 val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = viewModelFactory {
                     initializer { SourcesViewModel(container.sourcePreferences, container.mihon, container.extensionInstaller, container.online) }
                 })
-                val sourceState by sources.state.collectAsStateWithLifecycle()
                 LaunchedEffect(sourceEntry.id) { sources.enterMainSection(sourceEntry.id, sourceRoute) }
                 val install = rememberExtensionInstallFlow(sources)
-                val selected = when (sourceState.managerPage) {
-                    SourceManagerPage.EXTENSIONS, SourceManagerPage.REPOSITORIES -> "extensions"
-                    else -> if (sourceState.latest) "recent" else "sources"
-                }
-                TvShell(selected, onNavigate = { destination ->
+                TvShell(sourceRoute, onNavigate = { destination ->
+                    sidebarFocusTarget = destination
                     if (destination == sourceRoute) {
                         when (destination) {
                             "recent" -> sources.navigateCatalog(true)
@@ -101,13 +106,14 @@ import androidx.compose.ui.platform.LocalContext
                             else -> sources.navigateCatalog(false)
                         }
                     } else nav.navigate(destination) { popUpTo("library"); launchSingleTop = true }
-                }) {
+                }, focusSectionOnEntry = sidebarFocusTarget == sourceRoute, onSectionFocused = { sidebarFocusTarget = null }) {
                     SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = install)
                 }
             }
         }
         composable("settings") {
-            TvShell("settings", onNavigate = { nav.navigate(it) { popUpTo("library"); launchSingleTop = true } }) {
+            TvShell("settings", onNavigate = { sidebarFocusTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
+                focusSectionOnEntry = sidebarFocusTarget == "settings", onSectionFocused = { sidebarFocusTarget = null }) {
                 SettingsScreen(container.appearance) { nav.popBackStack("library", false) }
             }
         }
@@ -146,7 +152,12 @@ import androidx.compose.ui.platform.LocalContext
     }
 }
 
-@Composable private fun TvShell(selected: String, onNavigate: (String) -> Unit, content: @Composable () -> Unit) {
+@Composable internal fun TvShell(selected: String, onNavigate: (String) -> Unit,
+    focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, content: @Composable () -> Unit) {
+    val sectionFocus = remember { FocusRequester() }
+    LaunchedEffect(focusSectionOnEntry) {
+        if (focusSectionOnEntry) { sectionFocus.requestFocus(); onSectionFocused() }
+    }
     val routes = listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "settings" to "Configurações")
     val icons = listOf(R.drawable.nav_library, R.drawable.nav_recent, R.drawable.nav_sources, R.drawable.nav_extensions, R.drawable.nav_import, R.drawable.nav_settings)
     var focusWithin by remember { mutableStateOf(false) }
@@ -166,8 +177,11 @@ import androidx.compose.ui.platform.LocalContext
                     color = TvColors.Amber, fontSize = if (expanded) 22.sp else 24.sp, maxLines = 1)
             }
             routes.forEachIndexed { index, (route, title) ->
+                val active = route == selected
                 androidx.tv.material3.Button(onClick = { if (route != selected) onNavigate(route) },
-                    modifier = Modifier.fillMaxWidth().height(52.dp), contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp).testTag("nav-" + route)
+                        .semantics { this.selected = active }
+                        .then(if (route == selected) Modifier.focusRequester(sectionFocus) else Modifier), contentPadding = PaddingValues(0.dp),
                     shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(12.dp)),
                     scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1f),
                     colors = androidx.tv.material3.ButtonDefaults.colors(
