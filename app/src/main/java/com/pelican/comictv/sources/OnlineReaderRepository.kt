@@ -152,7 +152,7 @@ class OnlineReaderRepository(
             prefetched.remove(id)
             trusted(pin)
             val actual = loadSource(source, pin)
-            val pages = extensionOperation { engine.pages(actual, chapter) }
+            val pages = extensionOperation { engine.pages(actual, chapter, title) }
             requirePages(pages)
             val record = OnlineReadingRecord(actual, title, chapter, pin, pages)
             write(id, record)
@@ -207,7 +207,7 @@ class OnlineReaderRepository(
         val saved = sessions[id] ?: read(id)
         trusted(saved.pin)
         val source = loadSource(saved.source, saved.pin)
-        val pages = extensionOperation { engine.pages(source, saved.chapter) }
+        val pages = extensionOperation { engine.pages(source, saved.chapter, saved.title) }
         requirePages(pages)
         val refreshed = saved.copy(source = source, pages = pages)
         write(id, refreshed)

@@ -60,6 +60,7 @@ import kotlinx.coroutines.launch
     val first = remember { FocusRequester() }
     var blockRelease by remember { mutableStateOf(true) }
     var confirmRemoval by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     var hidden by remember(comic.hiddenFromHistory) { mutableStateOf(comic.hiddenFromHistory) }
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -78,6 +79,7 @@ import kotlinx.coroutines.launch
             TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", onRead, Modifier.focusRequester(first), primary = true)
             TvButton("Abrir detalhes", onOpen)
             OrganizationActions(comic, repository)
+            if (!comic.id.startsWith("online-")) TvButton("Excluir da biblioteca", { confirmDelete = true })
             if (comic.id.startsWith("online-") && onDownload != null)
                 TvButton(if (offlineAvailable) "Gerenciar download offline" else "Baixar para ler offline",onDownload)
             if (comic.lastRead > 0) TvButton(if (hidden) "Restaurar no histórico" else "Remover do histórico", {
@@ -102,4 +104,6 @@ import kotlinx.coroutines.launch
         hidden = true
         message = "Removido do histórico."
     })
+    if (confirmDelete) ConfirmImportedRemoval(comic.title, { confirmDelete = false },
+        { repository.deleteImported(comic.id) }, { confirmDelete = false; onDismiss() })
 }

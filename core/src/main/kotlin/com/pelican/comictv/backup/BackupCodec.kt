@@ -11,7 +11,13 @@ import java.math.BigDecimal
 /** Fixed schema bounds depth/types before Gson can coerce a string to a boolean/number. */
 object BackupCodec {
     const val MAX_BYTES = 32 * 1024 * 1024
-    private val gson = Gson()
+    // Extension memo is transient source state, deliberately outside the V1 backup schema.
+    private val gson = com.google.gson.GsonBuilder().registerTypeAdapter(com.pelican.comictv.sources.OnlineChapter::class.java,
+        com.google.gson.JsonSerializer<com.pelican.comictv.sources.OnlineChapter> { chapter, _, _ ->
+            com.google.gson.JsonObject().apply {
+                addProperty("key",chapter.key);addProperty("title",chapter.title);addProperty("number",chapter.number)
+            }
+        }).create()
     private data class Rule(val fields: Map<String, Rule>? = null, val element: Rule? = null,
         val limit: Int = 0, val kind: JsonToken? = null, val optional: Boolean = false, val decimal: Boolean = false, val intValue: Boolean = false)
     private fun text(max: Int, optional: Boolean = false) = Rule(limit = max, kind = JsonToken.STRING, optional = optional)

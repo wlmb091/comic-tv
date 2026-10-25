@@ -102,11 +102,13 @@ class MihonEngine(context: Context) {
         val manga = SManga.create().apply { url = title.key; this.title = title.title; thumbnail_url = title.coverUrl; description = title.description }
         // 1.6 sources override getMangaUpdate; older sources use the vendored Rx bridge.
         val update = source(source).getMangaUpdate(manga, emptyList(), true, true)
-        OnlineDetails(OnlineTitle(title.key, runCatching { update.manga.title }.getOrDefault(title.title), update.manga.thumbnail_url ?: title.coverUrl, update.manga.description ?: title.description, update.manga.author ?: title.author, update.manga.artist ?: title.artist), update.chapters.map { OnlineChapter(it.url, it.name, it.chapter_number) })
+        OnlineDetails(OnlineTitle(title.key, runCatching { update.manga.title }.getOrDefault(title.title), update.manga.thumbnail_url ?: title.coverUrl, update.manga.description ?: title.description, update.manga.author ?: title.author, update.manga.artist ?: title.artist), update.chapters.map { it.toOnlineChapter() })
     }
 
-    suspend fun pages(source: SourceHandle, chapter: OnlineChapter): List<OnlinePage> = withContext(Dispatchers.IO) {
-        val original = source(source).getPageList(SChapter.create().apply { url = chapter.key; name = chapter.title; chapter_number = chapter.number })
+    suspend fun pages(source: SourceHandle, chapter: OnlineChapter, title: OnlineTitle? = null): List<OnlinePage> = withContext(Dispatchers.IO) {
+        val api = source(source)
+        val refresh: (suspend () -> List<OnlineChapter>)? = title?.let { value -> { details(source,value).chapters } }
+        val original = readChapterPages(chapter,refresh,api::getPageList)
         require(original.isNotEmpty() && original.size <= 5000) { "Chapter must contain between 1 and 5000 pages" }
         original.mapIndexed { index, page ->
             OnlinePage(index, page.url, page.imageUrl).also { mapped -> synchronized(originalPages) { originalPages[source to mapped] = page } }

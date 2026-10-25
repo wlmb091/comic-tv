@@ -6,7 +6,8 @@ data class InstalledExtension(val packageName: String, val name: String, val ver
 data class OnlineTitle(val key: String, val title: String, val coverUrl: String? = null, val description: String? = null,
     val author: String? = null, val artist: String? = null, val publisher: String? = null,
     val characters: String? = null, val director: String? = null)
-data class OnlineChapter(val key: String, val title: String, val number: Float = 0f)
+data class OnlineChapter(val key: String, val title: String, val number: Float = 0f,
+    val memo: String? = null, val scanlator: String? = null, val uploadedAt: Long = 0)
 data class OnlinePage(val index: Int, val pageUrl: String, val imageUrl: String? = null)
 data class OnlineDetails(val title: OnlineTitle, val chapters: List<OnlineChapter>)
 data class CatalogResult(val titles: List<OnlineTitle>, val hasNextPage: Boolean)

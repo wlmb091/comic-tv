@@ -47,6 +47,7 @@ import com.pelican.comictv.ui.*
                 onNarrate?.let { TvButton("Ouvir livro e traduzir", it) }
                 Text("Página ${state.page + 1} · ${(state.zoom * 100).toInt()}%", color = TvColors.Muted, fontSize = 16.sp)
                 TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) })
+                Text("Direção salva nesta edição. Mangás podem usar direita → esquerda; sua escolha manual é preservada.", color = TvColors.Muted, fontSize = 16.sp)
                 Text("Imagem", fontSize = 20.sp)
                 TvButton("Filtro: " + imageOptions.preset.label, onCycleImagePreset)
                 if (imageOptions.preset != ImagePreset.Original) {

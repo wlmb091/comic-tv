@@ -67,6 +67,7 @@ import kotlinx.coroutines.CancellationException
         scrollScope.launch { relatedJob?.cancelAndJoin(); action() }
     }
     var confirmRemoval by remember(id) { mutableStateOf(false) }
+    var confirmDelete by remember(id) { mutableStateOf(false) }
     var changingHistory by remember { mutableStateOf(false) }
     val summaryScroll = rememberLazyListState()
     var summaryFocused by remember { mutableStateOf(false) }
@@ -93,6 +94,8 @@ import kotlinx.coroutines.CancellationException
     if (confirmRemoval) ConfirmHistoryRemoval(comic?.title.orEmpty(),
         onDismiss = { confirmRemoval = false },
         onConfirm = { repository.setHistoryHidden(id, true); comic = repository.getComic(id) })
+    if (confirmDelete) ConfirmImportedRemoval(comic?.title.orEmpty(), { confirmDelete = false },
+        { repository.deleteImported(id) }, { confirmDelete = false; onBack() })
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
         BrandedBackground(repository.cover(id), Modifier.matchParentSize())
     BoxWithConstraints(Modifier.fillMaxSize().padding(24.dp)) {
@@ -141,6 +144,7 @@ import kotlinx.coroutines.CancellationException
                         TvButton("Escolher capítulo / edição", { afterDiscoveryStopped(onEditions) })
                     }
                     OrganizationActions(item, repository)
+                    if (!isOnline) TvButton("Excluir da biblioteca", { confirmDelete = true })
                     if (isOnline && onDownload != null) {
                         if (offlineAvailable) Text("✓ Disponível offline",color = TvColors.Amber)
                         TvButton(if (offlineAvailable) "Gerenciar download offline" else "Baixar para ler offline",onDownload)

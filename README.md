@@ -2,7 +2,11 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 1.1.0
+## Versão 1.1.1
+
+Exclusão confirmada de importados pelo OK longo/detalhes (preserva o arquivo externo), filtro de idioma nas fontes e preservação de metadados de capítulos exigidos pela All Manga. Direção manual de leitura continua salva por edição. Veja [notas 1.1.1](docs/releases/1.1.1.md). Teste da fonte real ainda depende da Box/extensão.
+
+## Narração e tradução · 1.1.0
 
 Narração de EPUB e PDF com texto usando vozes offline do Android, destaque do trecho, velocidade e retomada. Tradução opcional por computador na rede local, sem serviço de nuvem, com original preservado e antecipação de duas páginas. Configuração do servidor e limitações em [Ouvir livros e traduzir](docs/reader-narration-translation.md). Não inclui OCR; vozes reais e desempenho na Box precisam de teste manual. Notas em [1.1.0](docs/releases/1.1.0.md).
 

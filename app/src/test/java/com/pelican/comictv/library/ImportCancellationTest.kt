@@ -26,6 +26,7 @@ class ImportCancellationTest {
             override suspend fun get(id: String) = rows[id]
             override suspend fun ids() = rows.keys.toList()
             override suspend fun insert(comic: ComicEntity) { rows[comic.id] = comic }
+            override suspend fun delete(id: String) { rows.remove(id) }
             override suspend fun setHistoryHidden(id: String, hidden: Boolean) = Unit
             override suspend fun setFavorite(id: String, favorite: Boolean) = Unit
             override suspend fun updatePageCount(id: String, count: Int) = Unit

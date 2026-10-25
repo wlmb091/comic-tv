@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BackupCodecTest {
+    @Test fun extensionChapterMemoIsNeverExportedInBackupV1() {
+        val source=com.pelican.comictv.sources.SourceHandle("pkg",1,"Source","en","https://example.com")
+        val title=com.pelican.comictv.sources.OnlineTitle("title","Title")
+        val chapter=com.pelican.comictv.sources.OnlineChapter("chapter","Chapter",1f,"{\"mangaId\":\"internal\"}","group",123)
+        val online=BackupOnline(source,title,chapter,"a".repeat(64))
+        val id=com.pelican.comictv.sources.OnlineIdentity.id(source,title,chapter)
+        val doc=BackupDocument(createdAt=1,comics=listOf(BackupComic(id,"Title",1,online=online)))
+        val bytes=BackupCodec.encode(doc)
+        assertFalse(bytes.toString(Charsets.UTF_8).contains("internal"))
+        val restored=BackupCodec.decode(bytes.inputStream()).comics.single().online!!.chapter
+        assertEquals(chapter.key,restored.key)
+        assertNull(restored.memo)
+    }
     @Test fun optionalPercentagePreservesLegacyBackupsAndAllNewSteps() {
         val legacy = BackupCodec.encode(document())
         assertFalse(legacy.toString(Charsets.UTF_8).contains("textPercent"))

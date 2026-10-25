@@ -50,6 +50,33 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     }
 
     suspend fun setHistoryHidden(id: String, hidden: Boolean) = dao.setHistoryHidden(id, hidden)
+    /** Confirmed local removal. External import URI/source is never retained or touched. */
+    suspend fun deleteImported(id: String): Boolean = withContext(Dispatchers.IO) {
+        require(!id.startsWith("online-") && id.matches(Regex("[A-Za-z0-9-]+")))
+        mutex.withLock {
+            initialize()
+            currentCoroutineContext().ensureActive()
+            withContext(NonCancellable) {
+                store.stageRemoval(id)
+                try { dao.delete(id) } catch (e: Exception) { store.rollbackRemoval(id); throw e }
+                var cleaned = runCatching { store.finishRemoval(id) }.getOrDefault(false)
+                val owned = listOf(cover(id)) + listOf(pageDirectory, thumbnailDirectory).flatMap { root ->
+                    root.listFiles().orEmpty().filter { it.name.matches(Regex(Regex.escape(id) + "-[0-9]+(?:\\..*)?")) }
+                }
+                for (file in owned) {
+                    val parent = file.parentFile ?: continue
+                    val removed = runCatching {
+                        file.canonicalFile.parentFile == parent.canonicalFile && !file.isDirectory && (!file.exists() || file.delete())
+                    }.getOrDefault(false)
+                    if (!removed) cleaned = false
+                }
+                protectedPage = protectedPage?.takeUnless { it.startsWith("$id-") }
+                if (!runCatching { context.getSharedPreferences("reader-image", Context.MODE_PRIVATE).edit().remove("$id:preset").remove("$id:intensity").commit() }.getOrDefault(false)) cleaned = false
+                runCatching { coil3.SingletonImageLoader.get(context).memoryCache?.clear() }
+                cleaned
+            }
+        }
+    }
     fun observeComics() = dao.observe()
     fun observeCollections() = collectionDao?.observe() ?: kotlinx.coroutines.flow.flowOf(emptyList<CollectionEntity>())
     fun observeMemberships() = collectionDao?.observeMemberships() ?: kotlinx.coroutines.flow.flowOf(emptyList<CollectionMembership>())

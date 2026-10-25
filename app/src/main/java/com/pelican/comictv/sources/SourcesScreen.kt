@@ -113,9 +113,17 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
 @Composable
 private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
     var filter by rememberSaveable { mutableStateOf("") }
-    val sources = state.sources.filter { filter.isBlank() || it.name.contains(filter.trim(), true) || it.language.contains(filter.trim(), true) }
+    var language by rememberSaveable { mutableStateOf("") }
+    var choosingLanguage by remember { mutableStateOf(false) }
+    val sources = filterSources(state.sources,filter,language)
+    if (choosingLanguage) com.pelican.comictv.library.LibraryDialog("Filtrar fontes por idioma", {choosingLanguage=false}) {
+        for (code in listOf("") + sourceLanguages(state.sources)) {
+            com.pelican.comictv.ui.TvChoice(sourceLanguageLabel(code),language == code, {language=code;choosingLanguage=false})
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SourceInput(filter, { filter = it }, "Buscar fonte · "+state.sources.size+" disponíveis")
+        TvButton("Idioma: " + sourceLanguageLabel(language) + " · ${sources.size} fonte(s)", {choosingLanguage=true})
         LazyVerticalGrid(GridCells.Adaptive(120.dp * TvColors.options.textScale), Modifier.fillMaxSize().focusRestorer(),
             contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (sources.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
