@@ -24,6 +24,53 @@ import com.pelican.comictv.library.ConfirmHistoryRemoval
 
 @OptIn(ExperimentalTestApi::class)
 class NavigationAndSummaryTest {
+    @Test fun returningToSidebarDuringSourceSwitchCancelsLateTitleFocus() {
+        val page = mutableIntStateOf(0)
+        compose.setContent { ComicTvTheme {
+            TvShell("recent", {}) {
+                val navigate = LocalContentNavigation.current
+                key(page.intValue) {
+                    val first = preferredContentEntryModifier(enabled = page.intValue != 1)
+                    if (page.intValue == 0) TvButton("Fonte A", { navigate { page.intValue = 1 } }, first)
+                    else if (page.intValue == 2) TvButton("Primeiro título", {}, first)
+                    else Text("Carregando fonte")
+                }
+            }
+        } }
+        compose.onNodeWithText("Fonte A").performClick()
+        compose.onNodeWithTag("content-entry").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithTag("nav-recent").assertIsFocused()
+        compose.runOnIdle { page.intValue = 2 }
+        compose.onNodeWithTag("nav-recent").assertIsFocused()
+        compose.onNodeWithText("Primeiro título").assertIsNotFocused()
+    }
+
+    @Test fun folderAndAsynchronousSourceChangeKeepSidebarCollapsed() {
+        val page = mutableIntStateOf(0)
+        val loading = mutableStateOf(false)
+        compose.setContent { ComicTvTheme {
+            TvShell("sources", {}) {
+                val navigate = LocalContentNavigation.current
+                key(page.intValue) {
+                    val first = preferredContentEntryModifier(enabled = !loading.value)
+                    when (page.intValue) {
+                        0 -> TvButton("Trocar fonte", { navigate { page.intValue = 1 } }, first)
+                        1 -> TvButton("Fonte A", { navigate { loading.value = true } }, first)
+                        else -> TvButton("Primeiro título", {}, first)
+                    }
+                }
+            }
+        } }
+        compose.onNodeWithText("Trocar fonte").performClick()
+        compose.onNodeWithText("Fonte A").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.onNodeWithText("Fonte A").performClick()
+        compose.onNodeWithTag("content-entry").assertIsFocused()
+        compose.runOnIdle { page.intValue = 2; loading.value = false }
+        compose.onNodeWithText("Primeiro título").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+    }
+
     @Test fun confirmingLibraryRevealsAllWhenCollectionsWereScrolledHorizontally() {
         var filter = "favorites"
         compose.setContent { ComicTvTheme {

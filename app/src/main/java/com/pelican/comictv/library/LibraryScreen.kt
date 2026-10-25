@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
     var featuredId by remember { mutableStateOf(focusedId) }
     fun focusComic(id: String) { featuredId = id; onFocus(id) }
     val featured = featuredComic(comics, featuredId)
-    val recent = comics.filter { it.lastRead > 0 && !it.hiddenFromHistory }.sortedByDescending { it.lastRead }
+    val recent = remember(comics) { comics.filter { it.lastRead > 0 && !it.hiddenFromHistory }.sortedByDescending { it.lastRead } }
     var optionsFor by remember { mutableStateOf<ComicEntity?>(null) }
     val menuScope = rememberCoroutineScope()
     val headerFocus = remember { FocusRequester() }
@@ -90,8 +90,9 @@ import kotlinx.coroutines.launch
                 headerFocus.requestFocus()
             } })
     }
-    val visible = (if (history) recent else comics).filter { it.id in matching }
-    WarmGridCovers(grid,visible.map {CoverWarmEntry(it.id,repository.cover(it.id))})
+    val visible = remember(history, recent, comics, matching) { (if (history) recent else comics).filter { it.id in matching } }
+    val warmEntries = remember(visible, repository) { visible.map {CoverWarmEntry(it.id,repository.cover(it.id))} }
+    WarmGridCovers(grid, warmEntries)
     // Capture the entry target once: database emissions must not take focus from navigation.
     val entryId = remember { focusedId }
     var restored by remember { mutableStateOf(false) }

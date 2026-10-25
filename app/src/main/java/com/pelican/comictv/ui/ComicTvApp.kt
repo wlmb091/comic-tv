@@ -235,8 +235,24 @@ import kotlinx.coroutines.launch
     val sectionFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val preferredEntry = remember { ContentEntryTarget() }
+    var atContentEntry by remember { mutableStateOf(false) }
+    var internalEntry by remember { mutableStateOf(false) }
+    var internalNavigationVersion by remember { mutableIntStateOf(0) }
     fun returnToContent(resetToFirst: Boolean = false) {
         if (!preferredEntry.requestFocus(resetToFirst)) contentFocus.requestFocus()
+    }
+    fun navigateWithinContent(change: () -> Unit) {
+        preferredEntry.cancel()
+        contentFocus.requestFocus() // Park before the focused folder/source card is removed.
+        internalEntry = true
+        change()
+        internalNavigationVersion++
+    }
+    LaunchedEffect(internalNavigationVersion) {
+        if (internalNavigationVersion > 0) {
+            withFrameNanos { }
+            if (atContentEntry) returnToContent(true) else internalEntry = false
+        }
     }
     LaunchedEffect(focusContentOnEntry) {
         if (focusContentOnEntry) { withFrameNanos { }; returnToContent(true); onSectionFocused() }
@@ -254,9 +270,11 @@ import kotlinx.coroutines.launch
     Box(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
         // The content keeps its full width while the drawer floats above its left edge.
         CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry,
-            LocalSectionContentEntry provides focusContentOnEntry) {
-            TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().padding(start = 80.dp),
-                onEntryLeft = { preferredEntry.cancel() }, content = content)
+            LocalSectionContentEntry provides (focusContentOnEntry || internalEntry),
+            LocalContentNavigation provides ::navigateWithinContent) {
+            TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().padding(start = 80.dp)
+                .onFocusChanged { atContentEntry = it.isFocused },
+                onEntryLeft = { preferredEntry.cancel(); internalEntry = false }, content = content)
         }
         Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
             .background(TvColors.Panel, RoundedCornerShape(18.dp))

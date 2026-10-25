@@ -14,6 +14,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.pelican.comictv.performance.AppTimings
+import com.pelican.comictv.performance.LoadStage
 import java.io.File
 import java.io.IOException
 
@@ -162,7 +164,7 @@ class OnlineReaderRepository(
             prefetched.remove(id)
             trusted(pin)
             val actual = loadSource(source, pin)
-            val pages = extensionOperation { engine.pages(actual, chapter, title) }
+            val pages = AppTimings.measure(LoadStage.PageList) { extensionOperation { engine.pages(actual, chapter, title) } }
             requirePages(pages)
             val record = OnlineReadingRecord(actual, title, chapter, pin, pages)
             write(id, record)
@@ -194,10 +196,11 @@ class OnlineReaderRepository(
             current
         }
         trusted(record.pin)
-        val result = library.externalImage(id, page.index, thumbnail, foreground) { target ->
+        val stage = if (thumbnail) LoadStage.Thumbnail else if (foreground) LoadStage.PageMaterialize else LoadStage.PagePrefetch
+        val result = AppTimings.measure(stage) { library.externalImage(id, page.index, thumbnail, foreground) { target ->
             trusted(record.pin)
             extensionOperation { engine.download(record.source, record.pages[page.index], target) }
-        }
+        } }
         if (!thumbnail && page.index == 0) {
             // An optional cover failure must not hide an already validated reading page.
             try { library.writeOnlineCover(id, result) } catch (_: IOException) { }
@@ -217,7 +220,7 @@ class OnlineReaderRepository(
         val saved = sessions[id] ?: read(id)
         trusted(saved.pin)
         val source = loadSource(saved.source, saved.pin)
-        val pages = extensionOperation { engine.pages(source, saved.chapter, saved.title) }
+        val pages = AppTimings.measure(LoadStage.PageList) { extensionOperation { engine.pages(source, saved.chapter, saved.title) } }
         requirePages(pages)
         val refreshed = saved.copy(source = source, pages = pages)
         write(id, refreshed)

@@ -40,6 +40,7 @@ internal class ContentEntryTarget {
 
 internal val LocalPreferredContentEntry = staticCompositionLocalOf<ContentEntryTarget?> { null }
 internal val LocalSectionContentEntry = staticCompositionLocalOf { false }
+internal val LocalContentNavigation = staticCompositionLocalOf<((() -> Unit) -> Unit)> { { change -> change() } }
 
 /** Register only real, visible controls; a loading/offscreen control keeps the stable fallback. */
 @Composable internal fun PreferredContentEntry(prepare: suspend () -> Unit = {}, request: () -> Boolean) {

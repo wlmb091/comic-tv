@@ -6,7 +6,46 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TitlePreviewResolverTest {
+    @Test fun refreshInvalidatesPositiveCacheAndOlderInFlightCompletion() = runTest {
+        var calls = 0
+        val released = CompletableDeferred<Unit>()
+        val resolver = TitlePreviewResolver { _, title ->
+            val call = ++calls
+            if (call == 1) released.await()
+            title.copy(coverUrl = "cover-$call")
+        }
+        val pending = async { resolver.resolve(source, OnlineTitle("same", "HQ")) }
+        yield()
+        resolver.clear()
+        released.complete(Unit)
+        pending.await()
+        assertEquals("cover-2", resolver.resolve(source, OnlineTitle("same", "HQ")).coverUrl)
+        resolver.clear()
+        assertEquals("cover-3", resolver.resolve(source, OnlineTitle("same", "HQ")).coverUrl)
+    }
     private val source = SourceHandle("extension", 1, "Fonte", "pt", "https://example.com")
+    @Test fun concurrentSameTitleMakesOneRemoteCall() = runTest {
+        var calls = 0
+        val resolver = TitlePreviewResolver { _, title -> calls++; delay(100); title.copy(coverUrl = "cover") }
+        val results = (1..8).map { async { resolver.resolve(source, OnlineTitle("same", "HQ")) } }.awaitAll()
+        assertTrue(results.all { it.coverUrl == "cover" })
+        assertEquals(1, calls)
+    }
+    @Test fun cancelledLeaderDoesNotStrandFollowerOrFutureRetry() = runTest {
+        var calls = 0
+        val started = CompletableDeferred<Unit>()
+        val resolver = TitlePreviewResolver { _, title ->
+            if (++calls == 1) { started.complete(Unit); awaitCancellation() }
+            title.copy(coverUrl = "cover")
+        }
+        val first = launch { resolver.resolve(source, OnlineTitle("same", "HQ")) }
+        started.await()
+        val follower = async { resolver.resolve(source, OnlineTitle("same", "HQ")) }
+        first.cancelAndJoin()
+        assertEquals("cover", follower.await().coverUrl)
+        assertEquals("cover", resolver.resolve(source, OnlineTitle("same", "HQ")).coverUrl)
+        assertEquals(2, calls)
+    }
     @Test fun fillsMissingCoverAndReusesCachedDetails() = runTest {
         var calls = 0
         val resolver = TitlePreviewResolver { _, title -> calls++; title.copy(coverUrl = "https://example.com/cover.jpg") }

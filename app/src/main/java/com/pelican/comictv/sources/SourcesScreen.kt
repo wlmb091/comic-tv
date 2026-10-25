@@ -59,6 +59,11 @@ import com.pelican.comictv.ui.TvColors
 import com.pelican.comictv.ui.textPanelScroll
 import java.io.File
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.coroutineScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import com.pelican.comictv.ui.LocalContentNavigation
 
 @Composable
 fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInstall: (File) -> Unit) {
@@ -120,6 +125,7 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
 
 @Composable
 private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
+    val navigate = LocalContentNavigation.current
     var filter by rememberSaveable { mutableStateOf("") }
     var language by rememberSaveable { mutableStateOf("") }
     var choosingLanguage by remember { mutableStateOf(false) }
@@ -142,7 +148,7 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
             items(sources, key = { it.packageName + ":" + it.id }) { source ->
                 CompactExtensionCard(source.packageName, null, source.name, source.language,
                     selected = state.activeSource?.let { it.packageName == source.packageName && it.id == source.id } == true) {
-                    vm.activateSource(source)
+                    navigate { vm.activateSource(source) }
                 }
             }
         }
@@ -152,13 +158,22 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
 @Composable
 private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (File) -> Unit) {
     val transfers by vm.extensionDownloads.collectAsStateWithLifecycle()
+    val navigate = LocalContentNavigation.current
     var filter by rememberSaveable { mutableStateOf("") }
     var tab by rememberSaveable { mutableStateOf("Instaladas") }
-    val installed = state.installed.associateBy { it.packageName }
-    val updates = state.availableExtensions.filter { c -> installed[c.entry.packageName]?.let { c.entry.versionCode > it.versionCode } == true }
-    val available = state.availableExtensions.filter { it.entry.packageName !in installed }
+    val installed = remember(state.installed) { state.installed.associateBy { it.packageName } }
+    val sourceIndex = remember(state.sources) { state.sources.groupBy { it.packageName } }
+    val updates = remember(state.availableExtensions, installed) { state.availableExtensions.filter { c -> installed[c.entry.packageName]?.let { c.entry.versionCode > it.versionCode } == true } }
+    val available = remember(state.availableExtensions, installed) { state.availableExtensions.filter { it.entry.packageName !in installed } }
     val firstTab = com.pelican.comictv.ui.preferredContentEntryModifier()
     fun matches(name: String, extra: String = "") = filter.isBlank() || (name + " " + extra).contains(filter.trim(), true)
+    val filteredInstalled = remember(state.installed, sourceIndex, filter) {
+        state.installed.filter { extension -> matches(extension.name,
+            sourceIndex[extension.packageName].orEmpty().joinToString { it.name + " " + it.language }) }
+    }
+    val filteredCandidates = remember(tab, updates, available, filter) {
+        (if (tab == "Atualizações") updates else available).filter { matches(it.entry.name, (it.entry.languages + it.entry.sourceNames).joinToString()) }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ExtensionQueueSummary(vm)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -170,13 +185,13 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
         LazyVerticalGrid(GridCells.Adaptive(120.dp * TvColors.options.textScale), Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (tab == "Instaladas") {
-                val entries = state.installed.filter { extension -> matches(extension.name, state.sources.filter { it.packageName == extension.packageName }.joinToString { it.name + " " + it.language }) }
+                val entries = filteredInstalled
                 if (entries.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
                     SourceEmptyState(if (state.busy) "Carregando extensões" else "Nenhuma extensão instalada encontrada",
                         if (state.busy) "Consultando as extensões instaladas…" else "Use a aba Disponíveis para instalar ou tente outra busca.")
                 }
                 items(entries, key = { it.packageName }) { extension ->
-                    val sources = state.sources.filter { it.packageName == extension.packageName }
+                    val sources = sourceIndex[extension.packageName].orEmpty()
                     val status = when {
                         state.loadFailures.containsKey(extension.packageName) -> "Falha ao carregar"
                         !extension.compatible -> "Incompatível"
@@ -184,11 +199,12 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
                         else -> "Sem fontes carregadas"
                     }
                     CompactExtensionCard(extension.packageName, null, extension.name, status) {
-                        if (sources.size == 1) vm.activateSource(sources.first()) else if (sources.isNotEmpty()) vm.openSourceManager() else vm.refreshInstalled()
+                        if (sources.size == 1) navigate { vm.activateSource(sources.first()) }
+                        else if (sources.isNotEmpty()) navigate { vm.openSourceManager() } else vm.refreshInstalled()
                     }
                 }
             } else {
-                val entries = (if (tab == "Atualizações") updates else available).filter { matches(it.entry.name, (it.entry.languages + it.entry.sourceNames).joinToString()) }
+                val entries = filteredCandidates
                 if (entries.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
                     SourceEmptyState(if (tab == "Atualizações") "Atualizações" else "Extensões disponíveis", when {
                         state.busy -> "Buscando extensões…"
@@ -395,6 +411,7 @@ internal fun extensionTransferProgress(candidate: AvailableExtension, transfers:
 
 @Composable
 private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
+    val navigate = LocalContentNavigation.current
     var query by rememberSaveable(state.activeSource?.packageName, state.activeSource?.id) { mutableStateOf(state.query) }
     val searchOwner = remember { Any() }
     DisposableEffect(vm, searchOwner) { onDispose { vm.stopLiveSearch(searchOwner) } }
@@ -404,7 +421,23 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
     val sectionEntry = remember { enteringSection }
     val firstTitle = com.pelican.comictv.ui.preferredContentEntryModifier(enabled = !state.busy,
         prepare = { grid.scrollToItem(0) })
-    com.pelican.comictv.ui.WarmGridCovers(grid,state.titles.map {com.pelican.comictv.ui.CoverWarmEntry(it.key,it.coverUrl)})
+    val warmEntries = remember(state.titles) { state.titles.map {com.pelican.comictv.ui.CoverWarmEntry(it.key,it.coverUrl)} }
+    com.pelican.comictv.ui.WarmGridCovers(grid, warmEntries)
+    val titleIndex = remember(state.titles) { state.titles.associateBy { it.key } }
+    val currentTitleIndex by rememberUpdatedState(titleIndex)
+    val previewsEnabled by rememberUpdatedState(!state.sourcesRefreshing)
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(state.activeSource, state.sourceRevision, grid, vm, lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { coroutineScope {
+        val previews = VisibleTitlePreviews(this) { vm.resolveTitlePreview(it) }
+        try {
+            snapshotFlow {
+                val titles = currentTitleIndex
+                if (!previewsEnabled) emptyList() else grid.layoutInfo.visibleItemsInfo
+                    .filter { it.offset.y + it.size.height > grid.layoutInfo.viewportStartOffset && it.offset.y < grid.layoutInfo.viewportEndOffset }
+                    .mapNotNull { titles[it.key] }
+            }.collect { previews.submit(it) }
+        } finally { previews.close() }
+    } } }
     val restore = remember { FocusRequester() }
     var focusedTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var restoreTarget by remember { mutableStateOf<String?>(null) }
@@ -441,7 +474,7 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
                         Text("${if (state.latest) "Novidades" else "Catálogo"} · ${state.activeSource?.language.orEmpty()} · ${state.titles.size} títulos carregados",
                             fontSize = 14.sp, color = TvColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    CatalogIconButton("Trocar fonte", false, if (state.titles.isEmpty()) firstTitle else Modifier) { vm.openSourceManager() }
+                    CatalogIconButton("Trocar fonte", false, if (state.titles.isEmpty()) firstTitle else Modifier) { navigate { vm.openSourceManager() } }
                     Spacer(Modifier.width(8.dp))
                     CatalogIconButton(if (searchVisible) "Fechar busca" else "Buscar", true) { searchVisible = !searchVisible }
                 }
@@ -462,9 +495,6 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
                 if (state.busy) "Carregando o catálogo da fonte…" else "Tente outra busca ou escolha uma fonte pelo ícone de pasta.")
         }
         items(state.titles, key = { it.key }) { title ->
-            LaunchedEffect(state.activeSource, title.key) {
-                if (title.coverUrl.isNullOrBlank()) vm.resolveTitlePreview(title)
-            }
             val label = title.title.ifBlank { "Título não informado" }
             var loaded by remember(title.coverUrl) { mutableStateOf(false) }
             var failed by remember(title.coverUrl) { mutableStateOf(false) }

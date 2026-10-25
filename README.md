@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.12
+
+Catálogos recentes reutilizados, capas consultadas por janela visível e sem duplicação simultânea, menos cálculos ao navegar e fundo estático compartilhado. Correção da barra ao usar Trocar fonte/escolher fonte. Diagnóstico local em Configurações → Controle remoto. Veja [limites e validação](docs/releases/1.1.12.md).
+
 ## Versão 1.1.11
 
 Entrada de foco definida para todas as seções da barra: Todas, primeiro título de Catálogo/Novidades, Instaladas, Escolher arquivo e Acessibilidade e aparência. Aguarda carregamento sem puxar foco de quem voltou à barra. Veja [destinos e limites](docs/releases/1.1.11.md).

@@ -27,6 +27,11 @@ import androidx.compose.ui.res.painterResource
 import coil3.compose.AsyncImage
 import com.pelican.comictv.R
 import java.io.File
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+private val identityBackdropLock = Mutex()
+private var identityBackdropBitmap: Bitmap? = null // One static nodpi asset, 96x54; theme tint stays outside.
 
 @Composable internal fun ComicSignature(modifier: Modifier = Modifier) {
     Box(modifier.clipToBounds(), contentAlignment = Alignment.Center) {
@@ -51,7 +56,7 @@ import java.io.File
 @Composable private fun IdentityBackdrop(modifier: Modifier = Modifier) {
     val resources = LocalContext.current.resources
     val bitmap by produceState<Bitmap?>(null, resources) {
-        value = withContext(Dispatchers.IO) {
+        value = identityBackdropLock.withLock { identityBackdropBitmap ?: withContext(Dispatchers.IO) {
             val decoded = BitmapFactory.decodeResource(resources, R.drawable.brand_wordmark,
                 BitmapFactory.Options().apply { inSampleSize = 4 }) ?: return@withContext null
             val small = Bitmap.createScaledBitmap(decoded, 96, 54, true)
@@ -60,7 +65,7 @@ import java.io.File
             if (small !== decoded) decoded.recycle()
             small.recycle()
             Bitmap.createBitmap(blurBackdropPixels(pixels, 96, 54), 96, 54, Bitmap.Config.ARGB_8888)
-        }
+        }.also { identityBackdropBitmap = it } }
     }
     Box(modifier.background(TvColors.Background)) {
         bitmap?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }

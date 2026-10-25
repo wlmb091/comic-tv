@@ -31,6 +31,21 @@ import kotlinx.coroutines.sync.withLock
     var backupOpen by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var diagnostics by remember { mutableStateOf(false) }
+    if (diagnostics) {
+        var revision by remember { mutableIntStateOf(0) }
+        com.pelican.comictv.library.LibraryDialog("Diagnóstico de carregamento", { diagnostics = false }) {
+            Text("Medições desta execução. Tempos incluem espera e rede; não representam FPS. Nenhum título ou endereço é registrado.", color = TvColors.Muted)
+            val samples = remember(revision) { com.pelican.comictv.performance.AppTimings.snapshot() }
+            if (samples.isEmpty()) Text("Abra um catálogo ou capítulo para registrar tempos.")
+            samples.forEach { (stage, sample) ->
+                Text("${stage.label}: ${sample.count} operação(ões) · média ${sample.averageMillis} ms · maior ${sample.maxMillis} ms · ${sample.failed} falha(s) · ${sample.cancelled} cancelada(s)")
+            }
+            TvButton("Atualizar medições", { revision++ })
+            TvButton("Zerar medições", { com.pelican.comictv.performance.AppTimings.clear(); revision++ })
+            TvButton("Fechar", { diagnostics = false })
+        }
+    }
     val changes = remember { Mutex() }
     fun save(change: (AppearanceOptions) -> AppearanceOptions) {
         scope.launch(start = CoroutineStart.UNDISPATCHED) { changes.withLock {
@@ -100,6 +115,7 @@ Mover página  Deslocar com as quatro setas
 Voltar  Sair do modo ativo e retornar""",
                     fontSize = 20.sp, lineHeight = 32.sp) }
                 settingsRow("remote-library") { Text("Na biblioteca: segure OK por 1 segundo sobre uma capa ou leitura recente para abrir as opções.", color = TvColors.Muted) }
+                settingsRow("diagnostics") { TvButton("Diagnóstico de carregamento", { diagnostics = true }) }
             }
             settingsRow("back") { TvButton("Voltar à biblioteca", onBack) }
         }

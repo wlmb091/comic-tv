@@ -32,4 +32,6 @@ data class SourcesState(
     val hasNextPage: Boolean = false,
     val busy: Boolean = false,
     val message: String? = null,
+    val sourceRevision: Long = 0,
+    val sourcesRefreshing: Boolean = false,
 )
