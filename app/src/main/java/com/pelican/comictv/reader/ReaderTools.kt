@@ -2,6 +2,8 @@ package com.pelican.comictv.reader
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -22,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Text
+import androidx.tv.material3.Border
+import androidx.tv.material3.LocalContentColor
 import com.pelican.comictv.ui.*
 
 @Composable fun ReaderTools(state: ReaderState, hasError: Boolean, onAction: (ReaderAction) -> Unit,
@@ -32,18 +37,21 @@ import com.pelican.comictv.ui.*
     imageOptions: ReaderImageOptions = ReaderImageOptions(), compareOriginal: Boolean = false,
     onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}, onNarrate: (() -> Unit)? = null) {
     val first = remember { FocusRequester() }
+    val more = remember { FocusRequester() }
     var settings by remember { mutableStateOf(false) }
-    LaunchedEffect(settings) { if (!settings) first.requestFocus() }
-    BackHandler(settings) { settings = false }
+    var returning by remember { mutableStateOf(false) }
+    fun closeSettings() { returning = true; settings = false }
+    LaunchedEffect(settings) { if (!settings) { if (returning) more.requestFocus() else first.requestFocus(); returning = false } }
+    BackHandler(settings) { closeSettings() }
     Box(modifier.fillMaxHeight().widthIn(max = 480.dp)) {
         if (settings) {
             val settingsFocus = remember { FocusRequester() }
             LaunchedEffect(Unit) { settingsFocus.requestFocus() }
             Column(Modifier.align(Alignment.CenterEnd).width(360.dp).fillMaxHeight()
                 .background(TvColors.Panel).verticalScroll(rememberScrollState()).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Mais opções", fontSize = 25.sp)
-                TvButton("Voltar ao menu", { settings = false }, Modifier.focusRequester(settingsFocus))
+                TvButton("Voltar ao menu", ::closeSettings, Modifier.focusRequester(settingsFocus))
                 onNarrate?.let { TvButton("Ouvir livro e traduzir", it) }
                 Text("Página ${state.page + 1} · ${(state.zoom * 100).toInt()}%", color = TvColors.Muted, fontSize = 16.sp)
                 TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) })
@@ -62,43 +70,70 @@ import com.pelican.comictv.ui.*
                 Text("↑ ↓ ajustam o zoom. Em Mover página, as quatro setas deslocam a imagem. OK alterna Mover e Zoom; segure OK por 1s para abrir o menu.", color = TvColors.Muted, fontSize = 16.sp)
             }
         } else {
-            Column(Modifier.align(Alignment.CenterEnd).fillMaxHeight().verticalScroll(rememberScrollState())
-                .padding(vertical = 20.dp, horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
-                horizontalAlignment = Alignment.End) {
-                RailButton("Continuar", RailIcon.Play, { onAction(ReaderAction.Back) }, Modifier.focusRequester(first))
-                if (state.pageCount > 0) RailButton("Escolher página", RailIcon.Pages, { onAction(ReaderAction.StartTimeline) })
-                onPreviousChapter?.let { RailButton("Capítulo anterior", RailIcon.Previous, it) }
-                onNextChapter?.let { RailButton("Próximo capítulo", RailIcon.Next, it) }
-                onEditions?.let { RailButton("Capítulos / edições", RailIcon.Chapters, it) }
-                RailButton("Visualização: " + layout.label, when (layout) {
+            val actions = buildList {
+                add(Tool(ToolId.Continue, "Continuar", RailIcon.Play) { onAction(ReaderAction.Back) })
+                if (state.pageCount > 0) add(Tool(ToolId.Pages, "Escolher página", RailIcon.Pages) { onAction(ReaderAction.StartTimeline) })
+                onPreviousChapter?.let { add(Tool(ToolId.Previous, "Capítulo anterior", RailIcon.Previous, it)) }
+                onNextChapter?.let { add(Tool(ToolId.Next, "Próximo capítulo", RailIcon.Next, it)) }
+                onEditions?.let { add(Tool(ToolId.Chapters, "Capítulos / edições", RailIcon.Chapters, it)) }
+                add(Tool(ToolId.Layout, "Visualização: " + layout.label, when (layout) {
                     ReaderLayout.Normal -> RailIcon.Normal
                     ReaderLayout.Gallery -> RailIcon.Gallery
                     ReaderLayout.Book -> RailIcon.Book
-                }, onCycleLayout)
-                RailButton("Ajuste: " + when (state.fit) { FitMode.Page -> "Página"; FitMode.Width -> "Largura"; FitMode.Height -> "Altura" }, RailIcon.Fit, { onAction(ReaderAction.ToggleFit) })
-                RailButton("Imagem e mais opções", RailIcon.More, { settings = true })
-                onNarrate?.let { RailButton("Ouvir livro e traduzir", RailIcon.Book, it) }
-                if (hasError) RailButton("Tentar novamente", RailIcon.Retry, { onRetry(); onAction(ReaderAction.Back) })
-                RailButton("Sair da leitura", RailIcon.Exit, onExit)
+                }, onCycleLayout))
+                add(Tool(ToolId.Fit, "Ajuste: " + when (state.fit) { FitMode.Page -> "Página"; FitMode.Width -> "Largura"; FitMode.Height -> "Altura" }, RailIcon.Fit) { onAction(ReaderAction.ToggleFit) })
+                add(Tool(ToolId.More, "Imagem e mais opções", RailIcon.More) { settings = true })
+                onNarrate?.let { add(Tool(ToolId.Narration, "Ouvir livro e traduzir", RailIcon.Book, it)) }
+                if (hasError) add(Tool(ToolId.Retry, "Tentar novamente", RailIcon.Retry) { onRetry(); onAction(ReaderAction.Back) })
+                add(Tool(ToolId.Exit, "Sair da leitura", RailIcon.Exit, onExit))
+            }
+            val ids = actions.map { it.id }
+            val requesters = remember(ids) { ids.associateWith { id -> when (id) { ToolId.Continue -> first; ToolId.More -> more; else -> FocusRequester() } } }
+            var focused by remember { mutableStateOf(ToolId.Continue) }
+            val scale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+            val width = maxOf(188.dp, 144.dp * scale).coerceAtMost(360.dp)
+            Column(Modifier.align(Alignment.CenterEnd).width(width).fillMaxHeight().padding(12.dp)
+                .background(TvColors.Background.copy(alpha = .94f), RoundedCornerShape(16.dp))
+                .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(16.dp)).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.fillMaxWidth().height(66.dp * scale), contentAlignment = Alignment.Center) {
+                    Text(actions.firstOrNull { it.id == focused }?.label ?: "Controles de leitura", color = TvColors.Amber,
+                        fontSize = 17.sp, lineHeight = 22.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
+                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    actions.chunked(2).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)) {
+                            row.forEach { tool ->
+                                val index = actions.indexOf(tool)
+                                fun neighbor(direction: ToolDirection) = readerToolNeighbor(index, actions.size, direction)
+                                    ?.let { requesters.getValue(actions[it].id) } ?: FocusRequester.Cancel
+                                RailButton(tool.label, tool.icon, tool.action, Modifier.focusRequester(requesters.getValue(tool.id))
+                                    .onFocusChanged { if (it.isFocused) focused = tool.id }
+                                    .focusProperties { left = neighbor(ToolDirection.Left); right = neighbor(ToolDirection.Right)
+                                        up = neighbor(ToolDirection.Up); down = neighbor(ToolDirection.Down) })
+                            }
+                            if (row.size == 1) Spacer(Modifier.size(52.dp))
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 private enum class RailIcon { Play, Pages, Normal, Gallery, Book, Previous, Next, Chapters, Pan, Fit, More, Retry, Exit }
+private enum class ToolId { Continue, Pages, Previous, Next, Chapters, Layout, Fit, More, Narration, Retry, Exit }
+private data class Tool(val id: ToolId, val label: String, val icon: RailIcon, val action: () -> Unit)
 
 @Composable private fun RailButton(label: String, icon: RailIcon, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    var focused by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        if (focused) Text(label, Modifier.background(TvColors.Panel, RoundedCornerShape(6.dp)).padding(horizontal = 14.dp, vertical = 10.dp), fontSize = 17.sp)
-        Button(onClick, modifier.size(48.dp).onFocusChanged { focused = it.isFocused }.semantics { contentDescription = label },
+        Button(onClick, modifier.size(52.dp).semantics { contentDescription = label },
             contentPadding = PaddingValues(12.dp),
             colors = ButtonDefaults.colors(containerColor = TvColors.Panel, contentColor = Color.White,
                 focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
-            scale = ButtonDefaults.scale(focusedScale = 1.08f)) {
-            RailGlyph(icon, if (focused) TvColors.OnAction else Color.White)
+            scale = ButtonDefaults.scale(focusedScale = 1.08f),
+            border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber)))) {
+            RailGlyph(icon, LocalContentColor.current)
         }
-    }
 }
 
 @Composable private fun RailGlyph(icon: RailIcon, tint: Color) {

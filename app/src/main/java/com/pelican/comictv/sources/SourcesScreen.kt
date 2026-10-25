@@ -101,7 +101,8 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
             if (state.selectedRepository != null) TvButton("Atualizar repositório", { viewModel.refresh() })
         }
         if (state.busy) Text("Carregando…", color = TvColors.Amber, fontSize = 18.sp)
-        state.message?.let { Text(it, color = TvColors.Amber, fontSize = 17.sp) }
+        state.message?.takeUnless { it == "${state.sources.size} fontes disponíveis." && state.loadFailures.isEmpty() }
+            ?.let { Text(it, color = TvColors.Amber, fontSize = 17.sp) }
         Box(Modifier.weight(1f)) {
             val page = when {
                 state.details != null -> "details:${state.activeSource?.id}:${state.details!!.title.key}"
@@ -136,9 +137,10 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SourceInput(filter, { filter = it }, "Buscar fonte · "+state.sources.size+" disponíveis",
-            com.pelican.comictv.ui.preferredContentEntryModifier(enabled = !state.busy))
-        TvButton("Idioma: " + sourceLanguageLabel(language) + " · ${sources.size} fonte(s)", {choosingLanguage=true})
+        SourceSearchControls(filter, { filter = it }, "Buscar fonte · ${state.sources.size} disponíveis",
+            com.pelican.comictv.ui.preferredContentEntryModifier(enabled = !state.busy)) {
+            TvButton("Idioma: " + sourceLanguageLabel(language) + " · ${sources.size} fonte(s)", { choosingLanguage = true })
+        }
         LazyVerticalGrid(GridCells.Adaptive(120.dp * TvColors.options.textScale), Modifier.fillMaxSize().focusRestorer(),
             contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (sources.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
@@ -165,7 +167,14 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
     val sourceIndex = remember(state.sources) { state.sources.groupBy { it.packageName } }
     val updates = remember(state.availableExtensions, installed) { state.availableExtensions.filter { c -> installed[c.entry.packageName]?.let { c.entry.versionCode > it.versionCode } == true } }
     val available = remember(state.availableExtensions, installed) { state.availableExtensions.filter { it.entry.packageName !in installed } }
-    val firstTab = com.pelican.comictv.ui.preferredContentEntryModifier()
+    val firstTabFocus = remember { FocusRequester() }
+    val firstTab = com.pelican.comictv.ui.preferredContentEntryModifier().focusRequester(firstTabFocus)
+    var help by remember { mutableStateOf(false) }
+    if (help) com.pelican.comictv.library.LibraryDialog("Como usar as extensões", { help = false }) {
+        Text("OK baixa ou adiciona à fila. Outro OK cancela antes de concluir. Quando ficar pronta, OK inicia a instalação com a confirmação do Android.", color = TvColors.Muted)
+        Text("A busca filtra nome, fonte ou idioma. A fila pausa quando você sai desta tela.", color = TvColors.Muted)
+        TvButton("Fechar ajuda", { help = false })
+    }
     fun matches(name: String, extra: String = "") = filter.isBlank() || (name + " " + extra).contains(filter.trim(), true)
     val filteredInstalled = remember(state.installed, sourceIndex, filter) {
         state.installed.filter { extension -> matches(extension.name,
@@ -175,13 +184,15 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
         (if (tab == "Atualizações") updates else available).filter { matches(it.entry.name, (it.entry.languages + it.entry.sourceNames).joinToString()) }
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        ExtensionQueueSummary(vm)
+        ExtensionQueueSummary(vm) { firstTabFocus.requestFocus() }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf("Instaladas" to state.installed.size, "Atualizações" to updates.size, "Disponíveis" to available.size).forEach { (label, count) ->
                 SourceModeTab(label, count, tab == label, if (label == "Instaladas") firstTab else Modifier) { tab = label }
             }
         }
-        SourceInput(filter, { filter = it }, "Buscar extensão por nome, fonte ou idioma")
+        SourceSearchControls(filter, { filter = it }, "Buscar extensão por nome, fonte ou idioma") {
+            TvButton("Ajuda", { help = true })
+        }
         LazyVerticalGrid(GridCells.Adaptive(120.dp * TvColors.options.textScale), Modifier.fillMaxSize().focusRestorer(), contentPadding = PaddingValues(8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (tab == "Instaladas") {
@@ -397,13 +408,12 @@ internal fun extensionTransferProgress(candidate: AvailableExtension, transfers:
     }
 }
 
-@Composable private fun ExtensionQueueSummary(vm: SourcesViewModel) {
+@Composable private fun ExtensionQueueSummary(vm: SourcesViewModel, beforeClear: () -> Unit = {}) {
     val transfers by vm.extensionDownloads.collectAsStateWithLifecycle()
-    Text("OK baixa ou cancela · Quando terminar, OK instala com confirmação do Android",color=TvColors.Muted,fontSize=14.sp)
     if(transfers.isNotEmpty()) {
-        Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+        FlowRow(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
             Text("Fila: ${transfers.count{it.status==ExtensionTransferStatus.Queued}} · Baixando: ${transfers.count{it.status==ExtensionTransferStatus.Downloading}} · Prontas: ${transfers.count{it.status==ExtensionTransferStatus.Ready}}",fontSize=16.sp)
-            TvButton("Limpar fila",vm::clearExtensionDownloads)
+            TvButton("Limpar fila", { beforeClear(); vm.clearExtensionDownloads() })
         }
         transfers.lastOrNull{it.error!=null}?.error?.let {Text(it,color=TvColors.Amber,fontSize=15.sp)}
     }
@@ -589,7 +599,7 @@ internal fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineC
                 Modifier.weight(1f).fillMaxWidth().focusRestorer(),
                 state = chapterScroll,
                 contentPadding = PaddingValues(8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 if (chapters.isEmpty()) item { Muted("Esta fonte não retornou capítulos.") }
                 items(chapters, key = { it.key }) { chapter ->
@@ -606,7 +616,7 @@ internal fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineC
     }
 }
 @Composable
-private fun SourceInput(value: String, change: (String) -> Unit, label: String, modifier: Modifier = Modifier, urlInput: Boolean = false, maxLength: Int? = null, submit: () -> Unit = {}) {
+internal fun SourceInput(value: String, change: (String) -> Unit, label: String, modifier: Modifier = Modifier, urlInput: Boolean = false, maxLength: Int? = null, submit: () -> Unit = {}) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, color = TvColors.Muted, fontSize = 14.sp)

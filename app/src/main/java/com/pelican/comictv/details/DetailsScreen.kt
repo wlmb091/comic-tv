@@ -74,6 +74,24 @@ import kotlinx.coroutines.CancellationException
     var summaryFocused by remember { mutableStateOf(false) }
     val first = remember(id) { FocusRequester() }
     val isOnline = id.startsWith("online-")
+    var moreOptions by remember(id) { mutableStateOf(false) }
+    val moreFocus = remember(id) { FocusRequester() }
+    val historyFocus = remember(id) { FocusRequester() }
+    val deleteFocus = remember(id) { FocusRequester() }
+    var restoreMore by remember { mutableIntStateOf(0) }
+    var restoreOption by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    fun clearPendingFocus() { restoreMore = 0; restoreOption = null }
+    fun closeMore() { restoreOption = null; moreOptions = false; restoreMore++ }
+    LaunchedEffect(restoreMore, moreOptions) {
+        if (restoreMore > 0 && !moreOptions) { withFrameNanos { }; moreFocus.requestFocus(); restoreMore = 0 }
+    }
+    LaunchedEffect(restoreOption, moreOptions, confirmRemoval, confirmDelete) {
+        if (moreOptions && restoreOption != null && !confirmRemoval && !confirmDelete) {
+            withFrameNanos { }
+            if (restoreOption?.second == "delete") deleteFocus.requestFocus() else historyFocus.requestFocus()
+            restoreOption = null
+        }
+    }
     LaunchedEffect(id) {
         try {
             comic = repository.getComic(id)
@@ -91,11 +109,42 @@ import kotlinx.coroutines.CancellationException
             finally { metadataLoading = false }
         }
     }
-    LaunchedEffect(comic != null, error) { if (comic != null || error != null) first.requestFocus() }
+    LaunchedEffect(comic != null, error) {
+        if (!moreOptions && !confirmRemoval && !confirmDelete && (comic != null || error != null)) first.requestFocus()
+    }
+    if (moreOptions) comic?.let { item ->
+        val menuFirst = remember { FocusRequester() }
+        LibraryDialog("Mais opções", ::closeMore) {
+            Text(item.title, color = TvColors.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            TvButton("Voltar aos detalhes", ::closeMore, Modifier.focusRequester(menuFirst))
+            OrganizationActions(item, repository, showFavorite = false)
+            if (isOnline && onDownload != null) {
+                if (offlineAvailable) Text("✓ Disponível offline", color = TvColors.Amber)
+                TvButton(if (offlineAvailable) "Gerenciar download offline" else "Baixar para ler offline", {
+                    clearPendingFocus()
+                    moreOptions = false
+                    afterDiscoveryStopped(onDownload)
+                })
+            }
+            if (item.lastRead > 0) TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
+                if (!item.hiddenFromHistory) confirmRemoval = true
+                else if (!changingHistory) scrollScope.launch {
+                    changingHistory = true
+                    try { repository.setHistoryHidden(id, false); comic = repository.getComic(id) }
+                    catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { error = "Não foi possível alterar o histórico." }
+                    finally { changingHistory = false }
+                }
+            }, Modifier.focusRequester(historyFocus))
+            if (!isOnline || onDeleteOnline != null) TvButton("Excluir da biblioteca", { confirmDelete = true }, Modifier.focusRequester(deleteFocus))
+            error?.let { Text(it, color = TvColors.Amber) }
+        }
+        LaunchedEffect(Unit) { menuFirst.requestFocus() }
+    }
     if (confirmRemoval) ConfirmHistoryRemoval(comic?.title.orEmpty(),
-        onDismiss = { confirmRemoval = false },
+        onDismiss = { confirmRemoval = false; restoreOption = ((restoreOption?.first ?: 0) + 1) to "history" },
         onConfirm = { repository.setHistoryHidden(id, true); comic = repository.getComic(id) })
-    if (confirmDelete) ConfirmImportedRemoval(comic?.title.orEmpty(), { confirmDelete = false },
+    if (confirmDelete) ConfirmImportedRemoval(comic?.title.orEmpty(), { confirmDelete = false; restoreOption = ((restoreOption?.first ?: 0) + 1) to "delete" },
         { if (isOnline) requireNotNull(onDeleteOnline)(id) else repository.deleteImported(id) },
         { confirmDelete = false; onBack() }, online = isOnline)
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
@@ -131,7 +180,7 @@ import kotlinx.coroutines.CancellationException
                         count > 0 && read >= count -> "Concluída"
                         else -> "Em andamento"
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(status + " • " + (progress * 100).toInt() + "% lido", fontSize = 18.sp)
                         Text(if (read > 0) "Página " + read + " de " + count else count.toString() + " páginas",
                             color = TvColors.Muted, fontSize = 16.sp)
@@ -141,32 +190,17 @@ import kotlinx.coroutines.CancellationException
                 error?.let { Text(it, color = TvColors.Amber, fontSize = 16.sp) }
                 comic?.let { item ->
                     TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
-                        { afterDiscoveryStopped(onRead) }, Modifier.focusRequester(first), primary = true)
+                        { clearPendingFocus(); afterDiscoveryStopped(onRead) }, Modifier.focusRequester(first), primary = true)
                     if (isOnline && onEditions != null) {
-                        TvButton("Escolher capítulo / edição", { afterDiscoveryStopped(onEditions) })
+                        TvButton("Capítulos / edições", { clearPendingFocus(); afterDiscoveryStopped(onEditions) })
                     }
-                    OrganizationActions(item, repository)
-                    if (!isOnline || onDeleteOnline != null) TvButton("Excluir da biblioteca", { confirmDelete = true })
-                    if (isOnline && onDownload != null) {
-                        if (offlineAvailable) Text("✓ Disponível offline",color = TvColors.Amber)
-                        TvButton(if (offlineAvailable) "Gerenciar download offline" else "Baixar para ler offline",onDownload)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OrganizationActions(item, repository, showCollections = false, compactFavorite = true)
+                        TvButton("Mais opções", { clearPendingFocus(); moreOptions = true }, Modifier.focusRequester(moreFocus))
                     }
-                    if (item.lastRead > 0) {
-                        TvButton(if (item.hiddenFromHistory) "Restaurar no histórico" else "Remover do histórico", {
-                            if (!item.hiddenFromHistory) confirmRemoval = true
-                            else if (!changingHistory) scrollScope.launch {
-                                changingHistory = true
-                                try {
-                                    repository.setHistoryHidden(id, !item.hiddenFromHistory)
-                                    comic = repository.getComic(id)
-                                } catch (e: CancellationException) { throw e }
-                                catch (_: Exception) { error = "Não foi possível alterar o histórico." }
-                                finally { changingHistory = false }
-                            }
-                        })
-                    }
+                    if (offlineAvailable) Text("✓ Disponível offline", color = TvColors.Amber, fontSize = 15.sp)
                 }
-                TvButton("Voltar à biblioteca", onBack,
+                TvButton("Voltar à biblioteca", { clearPendingFocus(); onBack() },
                     if (comic == null) Modifier.focusRequester(first) else Modifier)
                 if (showRelated) TvButton("Relacionados ↓", { scrollScope.launch {
                     pageScroll.animateScrollToItem(1)

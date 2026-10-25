@@ -15,6 +15,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import androidx.tv.material3.Border
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import com.pelican.comictv.BuildConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -32,6 +38,11 @@ import kotlinx.coroutines.sync.withLock
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var diagnostics by remember { mutableStateOf(false) }
+    var themeHelp by remember { mutableStateOf(false) }
+    if (themeHelp) com.pelican.comictv.library.LibraryDialog("Sobre os temas", { themeHelp = false }) {
+        Text("O tema muda fundos, barras, cartões, botões, foco e a cor da marca. Capas e páginas mantêm suas cores originais.", color = TvColors.Muted)
+        TvButton("Fechar", { themeHelp = false })
+    }
     if (diagnostics) {
         var revision by remember { mutableIntStateOf(0) }
         com.pelican.comictv.library.LibraryDialog("Diagnóstico de carregamento", { diagnostics = false }) {
@@ -81,14 +92,16 @@ import kotlinx.coroutines.sync.withLock
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             error?.let { message -> settingsRow("error") { Text(message, color = TvColors.Amber) } }
             if (accessibility) {
-                settingsRow("themes-title") { Text("Temas da interface", fontSize = 23.sp) }
-                settingsRow("themes-description") { Text("O tema muda fundos, barras, cartões, botões, foco e a cor da marca. Capas e páginas mantêm suas cores originais.", color = TvColors.Muted) }
-                ColorPreset.entries.forEach { preset -> item(key = "theme-${preset.name}") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        ThemeSwatches(preset)
-                        TvChoice((if (options.preset == preset) "✓ " else "") + preset.label, options.preset == preset,
-                            { save { it.copy(preset = preset) } }, Modifier.fillMaxWidth())
+                settingsRow("themes-title") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.heightIn(min = 48.dp), contentAlignment = androidx.compose.ui.Alignment.CenterStart) {
+                            Text("Temas da interface", fontSize = 23.sp)
+                        }
+                        TvButton("Sobre os temas", { themeHelp = true })
                     }
+                }
+                ColorPreset.entries.forEach { preset -> item(key = "theme-${preset.name}") {
+                    ThemePresetCard(preset, options.preset == preset, { save { it.copy(preset = preset) } })
                 } }
                 settingsRow("background-title") { Text("Fundo dos detalhes", fontSize = 23.sp) }
                 settingsRow("background-toggle") { TvButton(if (options.coverBackground) "Fundo: capa desfocada" else "Fundo: identidade Comic TV",
@@ -118,6 +131,21 @@ Voltar  Sair do modo ativo e retornar""",
                 settingsRow("diagnostics") { TvButton("Diagnóstico de carregamento", { diagnostics = true }) }
             }
             settingsRow("back") { TvButton("Voltar à biblioteca", onBack) }
+        }
+    }
+}
+
+@Composable internal fun ThemePresetCard(preset: ColorPreset, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(onClick, modifier.fillMaxWidth().heightIn(min = 84.dp).semantics { this.selected = selected },
+        contentPadding = PaddingValues(12.dp), scale = ButtonDefaults.scale(focusedScale = 1f),
+        colors = ButtonDefaults.colors(containerColor = TvColors.Panel,
+            contentColor = if (selected) TvColors.Amber else Color.White,
+            focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
+        border = ButtonDefaults.border(border = if (selected) Border(BorderStroke(1.dp, TvColors.Amber)) else Border.None,
+            focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber)))) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeSwatches(preset)
+            Text((if (selected) "✓ " else "") + preset.label, fontSize = 17.sp)
         }
     }
 }

@@ -168,7 +168,8 @@ import kotlinx.coroutines.launch
     }
 }
 
-@Composable internal fun OrganizationActions(comic: ComicEntity, repository: LibraryRepository) {
+@Composable internal fun OrganizationActions(comic: ComicEntity, repository: LibraryRepository,
+    showFavorite: Boolean = true, showCollections: Boolean = true, compactFavorite: Boolean = false) {
     var favorite by remember(comic.id, comic.favorite) { mutableStateOf(comic.favorite) }
     var busy by remember { mutableStateOf(false) }
     var picker by remember { mutableStateOf(false) }
@@ -176,7 +177,7 @@ import kotlinx.coroutines.launch
     val scope = rememberCoroutineScope()
     val collectionsFocus = remember { FocusRequester() }
     var restore by remember { mutableIntStateOf(0) }
-    TvButton(if (favorite) "★ Remover dos favoritos" else "☆ Favoritar", {
+    if (showFavorite) TvButton(if (favorite) { if (compactFavorite) "★ Favoritado" else "★ Remover dos favoritos" } else "☆ Favoritar", {
         if (!busy) scope.launch {
             busy = true; error = null
             try { repository.setFavorite(comic.id, !favorite); favorite = !favorite }
@@ -185,7 +186,7 @@ import kotlinx.coroutines.launch
             finally { busy = false }
         }
     }, enabled = !busy)
-    TvButton("Organizar em coleções", { picker = true }, Modifier.focusRequester(collectionsFocus), enabled = !busy)
+    if (showCollections) TvButton("Organizar em coleções", { picker = true }, Modifier.focusRequester(collectionsFocus), enabled = !busy)
     error?.let { Text(it, color = TvColors.Amber) }
     if (picker) CollectionPicker(comic, repository) { picker = false; restore++ }
     LaunchedEffect(restore) { if (restore > 0) collectionsFocus.requestFocus() }
