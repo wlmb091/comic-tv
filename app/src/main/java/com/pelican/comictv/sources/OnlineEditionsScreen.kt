@@ -55,6 +55,23 @@ import kotlinx.coroutines.launch
             viewModel.openNeighbor(initialStep, read)
         }
     }
+    if (initialStep != 0) {
+        // Rail shortcuts use the existing neighbor resolver without presenting the chapter picker.
+        Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+            (previewFile ?: fallbackCover)?.let { preview ->
+                AsyncImage(preview, previewDescription, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            }
+            Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().background(TvColors.Background).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(if (initialStep > 0) "Abrindo próximo capítulo…" else "Abrindo capítulo anterior…", fontSize = 23.sp)
+                Text(state.message ?: "Consultando a fonte…", color = if (state.message != null) TvColors.Amber else TvColors.Muted, fontSize = 17.sp)
+                if (!state.busy) TvButton("Tentar novamente", { attempted = false; viewModel.retry() })
+                TvButton(backLabel, exit, Modifier.focusRequester(first))
+            }
+        }
+        LaunchedEffect(Unit) { first.requestFocus() }
+        return
+    }
     Row(Modifier.fillMaxSize().background(Color.Black)) {
         LazyColumn(
             Modifier.width(300.dp).fillMaxHeight().background(TvColors.Background),
