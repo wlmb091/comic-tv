@@ -30,6 +30,8 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val thumbnailCache = PageCache(thumbnailDirectory, 32L * 1024 * 1024)
     private val thumbnailGenerator = BitmapCoverGenerator(240, 360)
     private val mutex = Mutex()
+    private val batchMutex = Mutex()
+    private val importScratch = File(context.cacheDir, "collection-imports")
     private var protectedPage: String? = null
     private var ready = false
     suspend fun <T> exclusiveStorage(block: suspend () -> T): T = mutex.withLock { block() }
@@ -187,6 +189,81 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     }
 
     suspend fun importComic(file: File, name: String): ComicEntity = importComic(name) { file.inputStream() }
+
+    suspend fun importReceived(uri: Uri, progress: (String) -> Unit): ImportBatchResult = withContext(Dispatchers.IO) {
+        val name = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        } ?: "Quadrinho"
+        val staging = File(context.cacheDir, "collection-input-${UUID.randomUUID()}")
+        try {
+            progress("Recebendo arquivo…")
+            runInterruptible {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    var total = 0L
+                    staging.outputStream().use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            if (Thread.currentThread().isInterrupted) throw IOException("Importação cancelada.")
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            if (total > ArchiveLimits().maxArchiveBytes) throw ComicArchiveException("O arquivo excede o limite de 1 GiB.")
+                            checkImportSpace(buffer.size.toLong() + CollectionImportRunner.RESERVE)
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                } ?: throw IOException("Não foi possível abrir o arquivo selecionado.")
+            }
+            importReceived(staging, name, progress)
+        } finally { staging.delete() }
+    }
+
+    suspend fun importReceived(file: File, name: String, progress: (String) -> Unit): ImportBatchResult = withContext(Dispatchers.IO) {
+        batchMutex.withLock {
+            progress("Conferindo arquivos já importados…")
+            // Originals are immutable. Rebuild once per batch to include pre-feature imports and restored IDs.
+            val known = mutableMapOf<String, String>()
+            mutex.withLock {
+                initialize()
+                for (id in dao.ids().filterNot { it.startsWith("online-") }) {
+                    currentCoroutineContext().ensureActive()
+                    val original = store.original(id)
+                    if (original.isFile) known[importDigest(original)] = id
+                }
+            }
+            CollectionImportRunner(importScratch, ::checkImportSpace) { input, title ->
+                val digest = importDigest(input)
+                val existing = known[digest]?.let { id -> mutex.withLock {
+                    dao.get(id)?.takeIf { store.original(id).isFile }
+                } }
+                if (existing != null) ImportedEdition(existing.id, true)
+                else {
+                    val comic = importComic(input, title)
+                    known[digest] = comic.id
+                    ImportedEdition(comic.id, false)
+                }
+            }.run(file, name, progress)
+        }
+    }
+
+    private suspend fun importDigest(file: File): String = runInterruptible {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val bytes = ByteArray(64 * 1024)
+            while (true) {
+                if (Thread.currentThread().isInterrupted) throw IOException("Importação cancelada.")
+                val count = input.read(bytes)
+                if (count < 0) break
+                digest.update(bytes, 0, count)
+            }
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun checkImportSpace(required: Long) {
+        if (minOf(context.filesDir.usableSpace, context.cacheDir.usableSpace) < required)
+            throw IOException("Espaço insuficiente para importar. Libere armazenamento e tente novamente.")
+    }
 
     private suspend fun importComic(name: String, openInput: () -> InputStream): ComicEntity = withContext(Dispatchers.IO) {
         mutex.withLock {

@@ -13,6 +13,10 @@ import java.io.IOException
 import java.io.OutputStream
 
 class RarComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : ComicArchiveReader {
+    internal fun collectionEntries(file: File): List<CollectionEntry> = guarded {
+        open(file).use { archive -> headers(archive).filterNot { it.isDirectory }
+            .map { CollectionEntry(it.fileName, it.fullUnpackSize) } }
+    }
     private fun open(file: File): Archive {
         if (file.length() > limits.maxArchiveBytes) throw ComicArchiveException("O arquivo excede o limite de 1 GiB.")
         preflightRar(file, limits)

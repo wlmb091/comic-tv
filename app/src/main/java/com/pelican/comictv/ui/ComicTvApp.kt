@@ -116,7 +116,8 @@ import kotlinx.coroutines.launch
                 focusContentOnEntry = navigationContentTarget == "import", onSectionFocused = { navigationContentTarget = null }) {
                 ImportScreen(busy, message, onMessage = library::message,
                     onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } },
-                    onLocalTransfer = { nav.navigate("local-transfer") }, onFtpTransfer = { nav.navigate("ftp-transfer") })
+                    onLocalTransfer = { nav.navigate("local-transfer") }, onFtpTransfer = { nav.navigate("ftp-transfer") },
+                    onCancelImport = library::cancelImport)
             }
         }
         composable("local-transfer") {

@@ -13,7 +13,7 @@ progress{width:100%;height:10px;accent-color:#ffbd59;margin-top:24px}#status{whi
 </style></head><body><main><small>COMIC TV</small><h1>Enviar quadrinhos</h1>
 <p>Adicione arquivos à biblioteca da sua TV. Mantenha a tela de transferência aberta na TV durante o envio.</p>
 <form id="form"><label>Escolha CBZ, ZIP, CBR, RAR, PDF ou EPUB<input id="files" type="file" multiple required></label>
-<p>Selecione o arquivo original, sem compactá-lo novamente. O formato é reconhecido pelo conteúdo. EPUB aceita imagens e texto; arquivos protegidos por senha ou DRM não são suportados.</p>
+<p>Envie HQs individuais ou uma coleção ZIP/RAR com até 100 HQs em arquivos separados. A TV importa cada edição e mostra o resumo. O formato é reconhecido pelo conteúdo. Arquivos protegidos por senha ou DRM não são suportados.</p>
 <p>Até 1 GiB por arquivo. Os arquivos selecionados serão enviados um de cada vez.</p><button id="send">Enviar para a TV</button></form>
 <progress id="progress" max="100" value="0" aria-label="Progresso do envio"></progress><p id="status" role="status" aria-live="polite">Pronto para enviar.</p>
 <script>
@@ -25,7 +25,7 @@ xhr.onload=()=>xhr.status===200?resolve():reject(new Error(xhr.responseText||'A 
 form.addEventListener('submit',async e=>{e.preventDefault();if(active)return;const selected=Array.from(files.files);if(!selected.length)return;
 if(selected.some(f=>!(/\.(cbz|zip|cbr|rar|pdf|epub)$/i.test(f.name))||f.size===0||f.size>1073741824)){status.textContent='Selecione CBZ, ZIP, CBR, RAR, PDF ou EPUB de até 1 GiB, com conteúdo.';return;}
 active=true;button.disabled=true;files.disabled=true;let completed=0;
-try{for(const file of selected){progress.value=0;status.textContent='Preparando '+file.name+'…';await upload(file);completed++;}status.textContent=completed+' arquivo(s) adicionado(s) à biblioteca da TV.';}
+try{for(const file of selected){progress.value=0;status.textContent='Preparando '+file.name+'…';await upload(file);completed++;}status.textContent=completed+' envio(s) processado(s). Confira o resumo da importação na TV.';}
 catch(error){status.textContent=error.message+'\nArquivos concluídos neste envio: '+completed;}
 finally{active=false;button.disabled=false;files.disabled=false;}});
 setInterval(async()=>{try{const response=await fetch(base+'/status',{cache:'no-store'});if(response.ok&&!active){button.disabled=false;}else if(!response.ok&&!active){button.disabled=true;status.textContent='Sessão encerrada. Inicie uma nova sessão na TV e abra o novo endereço.';}}catch{if(!active){button.disabled=true;status.textContent='TV indisponível. Confira a rede e reabra o endereço mostrado na TV.';}}},3000);

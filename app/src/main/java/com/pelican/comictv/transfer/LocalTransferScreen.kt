@@ -37,9 +37,9 @@ import com.pelican.comictv.ui.*
                 Text(if (state.status.running) "Sessão ativa" else "Uma conexão direta com sua TV", fontSize = 22.sp, color = TvColors.Amber)
                 state.url?.let { Text(it, fontSize = 16.sp, lineHeight = 22.sp) }
                 Text(state.message ?: if (state.starting) "Preparando transferência…" else state.status.message,
-                    fontSize = 17.sp, lineHeight = 23.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    fontSize = 17.sp, lineHeight = 23.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
                 if (state.status.running) {
-                    Text("Dispositivos ativos: ${state.status.clients} · Importados: ${state.status.completed}", color = TvColors.Muted, fontSize = 15.sp)
+                    Text("Dispositivos ativos: ${state.status.clients} · Envios processados: ${state.status.completed}", color = TvColors.Muted, fontSize = 15.sp)
                     if (state.status.totalBytes > 0) ProgressTrack(state.status.receivedBytes.toFloat() / state.status.totalBytes, Modifier.fillMaxWidth())
                 }
                 Text("Escaneie o QR ou digite o endereço completo. A sessão dura até 15 minutos e termina ao sair desta tela.", color = TvColors.Muted, fontSize = 15.sp, lineHeight = 21.sp)

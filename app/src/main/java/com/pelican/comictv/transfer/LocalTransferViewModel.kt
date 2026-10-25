@@ -42,11 +42,20 @@ class LocalTransferViewModel(private val context: Context, private val library: 
                 val directory = File(context.cacheDir, "uploads").apply { mkdirs() }
                 val instance = LocalUploadServer(host, directory, clock = SystemClock::elapsedRealtime,
                     onStatus = { status -> _state.update {
-                        if (generation.get() == sessionGeneration) it.copy(status = status) else it
+                        if (generation.get() == sessionGeneration) it.copy(status = status,
+                            message = transferImportMessage(it.status, status, it.message)) else it
                     } },
                     onReceived = { file, name ->
-                        try { runBlocking { withContext(job) { library.importComic(file, name) } } }
+                        try { runBlocking { withContext(job) {
+                            ensureActive()
+                            if (generation.get() != sessionGeneration) throw CancellationException("Sessão encerrada")
+                            val result = library.importReceived(file, name) { text -> _state.update {
+                                if (generation.get() == sessionGeneration) it.copy(message = text) else it
+                            } }
+                            _state.update { if (generation.get() == sessionGeneration) it.copy(message = result.summary()) else it }
+                        } } }
                         catch (e: Exception) {
+                            _state.update { if (generation.get() == sessionGeneration) it.copy(message = null) else it }
                             if (e !is CancellationException) Log.e("ComicTvTransfer", "Falha ao importar quadrinho recebido.", e)
                             throw e
                         }

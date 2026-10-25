@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.5
+
+Importação automática de coleções ZIP/RAR: cada HQ interna aparece separadamente na biblioteca, com progresso, resumo e reconhecimento de arquivos repetidos. Funciona pelo seletor local, rede local e FTP. Veja [formatos, limites e instalação](docs/releases/1.1.5.md).
+
 ## Versão 1.1.4
 
 Cache com menos varreduras, miniatura atual priorizada, antecipação limitada de capas e memória adaptada ao aparelho. Qualidade dos originais preservada. Veja [notas 1.1.4](docs/releases/1.1.4.md) e [validação](docs/validation/1.1.4.md).

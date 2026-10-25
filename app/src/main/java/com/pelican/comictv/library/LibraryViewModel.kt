@@ -21,16 +21,21 @@ class LibraryViewModel(private val repository: LibraryRepository, private val sa
         get() = saved["focusedId"]
         set(value) { saved["focusedId"] = value }
     fun message(text: String?) { _message.value = text }
+    private var importJob: Job? = null
+    fun cancelImport() { importJob?.cancel() }
     fun importComic(uri: Uri, onImported: (String) -> Unit) {
         if (_busy.value) return
-        viewModelScope.launch {
+        importJob = viewModelScope.launch {
             _busy.value = true
             _message.value = null
             try {
-                val comic = repository.importComic(uri)
-                focusedId = comic.id
-                onImported(comic.id)
-            } catch (e: CancellationException) { throw e }
+                val result = repository.importReceived(uri) { _message.value = it }
+                _message.value = result.summary()
+                result.singleId?.let { id -> focusedId = id; onImported(id) }
+            } catch (e: CancellationException) {
+                _message.value = "Importação interrompida. As HQs já concluídas foram mantidas."
+                throw e
+            }
             catch (e: Exception) { _message.value = e.message ?: "Não foi possível importar este arquivo." }
             finally { _busy.value = false }
         }
