@@ -33,10 +33,66 @@ class NavigationAndSummaryTest {
             }
         }}
         compose.onNodeWithTag("nav-sources").performClick()
-        compose.onNodeWithTag("content-action").assertIsFocused()
+        compose.onNodeWithTag("content-entry").assertIsFocused()
         compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
-        compose.onNodeWithTag("content-action").performKeyInput {pressKey(Key.DirectionLeft)}
+        compose.onNodeWithTag("content-entry").performKeyInput {pressKey(Key.DirectionDown)}
+        compose.onNodeWithTag("content-action").assertIsFocused().performKeyInput {pressKey(Key.DirectionLeft)}
         compose.onNodeWithTag("sidebar-expanded").assertExists()
+    }
+    @Test fun leavingLowerSidebarItemKeepsPageAtTopUntilDownIsPressed() {
+        lateinit var list: LazyListState
+        val initial = FocusRequester()
+        compose.setContent { ComicTvTheme {
+            list = rememberLazyListState()
+            TvShell("library", {}) {
+                LazyColumn(Modifier.fillMaxSize(), state = list) {
+                    item { TvButton("Top", {}, Modifier.focusRequester(initial).testTag("top")) }
+                    item { Spacer(Modifier.height(600.dp)) }
+                    item { TvButton("Below", {}, Modifier.testTag("below")) }
+                }
+            }
+            LaunchedEffect(Unit) { initial.requestFocus() }
+        } }
+        compose.onNodeWithTag("nav-settings").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus) { it() }
+        compose.onNodeWithTag("nav-settings").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithTag("content-entry").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(0, list.firstVisibleItemIndex); assertEquals(0, list.firstVisibleItemScrollOffset) }
+        compose.onNodeWithTag("content-entry").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithTag("top").assertIsFocused()
+        compose.onNodeWithTag("top").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithTag("below").assertIsFocused()
+        compose.runOnIdle { assertTrue(list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > 0) }
+    }
+    @Test fun lateContentReplacementDoesNotMoveFocusBackToSidebar() {
+        val loaded = mutableStateOf(false)
+        compose.setContent { ComicTvTheme {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("sources", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                if (loaded.value) TvButton("Loaded catalog", {}, Modifier.testTag("loaded")) else Text("Loading…")
+            }
+        } }
+        compose.onNodeWithTag("content-entry").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.runOnIdle { loaded.value = true }
+        compose.onNodeWithTag("content-entry").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.onNodeWithTag("content-entry").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithTag("loaded").assertIsFocused()
+    }
+    @Test fun firstOkOnlyEntersContentAndSecondOkActivatesChild() {
+        var activated = 0
+        compose.setContent { ComicTvTheme {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("library", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                TvButton("Activate", { activated++ }, Modifier.testTag("activate"))
+            }
+        } }
+        compose.onNodeWithTag("content-entry").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.onNodeWithTag("activate").assertIsFocused()
+        compose.runOnIdle { assertEquals(0, activated) }
+        compose.onNodeWithTag("activate").performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertEquals(1, activated) }
     }
     @get:Rule val compose = createComposeRule()
 

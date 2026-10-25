@@ -14,6 +14,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
@@ -248,11 +249,16 @@ import kotlinx.coroutines.launch
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
     Box(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
         // The content keeps its full width while the drawer floats above its left edge.
-        Box(Modifier.fillMaxSize().padding(start = 80.dp).focusRequester(contentFocus).focusGroup()) { content() }
+        TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().padding(start = 80.dp), content)
         Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
             .background(TvColors.Panel, RoundedCornerShape(18.dp))
             .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(18.dp))
-            .onFocusChanged { focusWithin = it.hasFocus }.focusGroup()
+            .onFocusChanged { focusWithin = it.hasFocus }.onPreviewKeyEvent { event ->
+                if (event.key == Key.DirectionRight) {
+                    if (event.type == KeyEventType.KeyDown) contentFocus.requestFocus()
+                    true
+                } else false
+            }.focusGroup()
             .verticalScroll(rememberScrollState()).padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
