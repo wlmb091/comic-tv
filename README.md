@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.13
+
+Página atual tem preferência sobre antecipações na fila; rede separada do bloqueio de armazenamento, reaproveitamento de extensões validadas e capa opcional fora da entrega da página. Cancelamento/limpeza/exclusão protegem contra gravação tardia. Veja [notas e teste na Box](docs/releases/1.1.13.md).
+
 ## Versão 1.1.12
 
 Catálogos recentes reutilizados, capas consultadas por janela visível e sem duplicação simultânea, menos cálculos ao navegar e fundo estático compartilhado. Correção da barra ao usar Trocar fonte/escolher fonte. Diagnóstico local em Configurações → Controle remoto. Veja [limites e validação](docs/releases/1.1.12.md).

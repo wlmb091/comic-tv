@@ -26,10 +26,15 @@ import java.util.concurrent.ConcurrentHashMap
 /** Executes explicitly trusted, Android-installed extension code in the host process. */
 class MihonEngine(context: Context) {
     private val context = context.applicationContext
-    private data class Loaded(val source: CatalogueSource, val version: Long, val pins: Set<String>)
+    private data class Loaded(val source: CatalogueSource, val stamp: VerifiedPackageStamp)
     private val loaded = ConcurrentHashMap<SourceHandle, Loaded>()
     private val originalPages = object : LinkedHashMap<Pair<SourceHandle, OnlinePage>, Page>(32, .75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<SourceHandle, OnlinePage>, Page>?) = size > 5000
+    }
+    private val packages = VerifiedPackageCache<List<SourceHandle>>(::invalidatePackageState)
+    private fun invalidatePackageState(packageName: String) {
+        loaded.keys.filter { it.packageName == packageName }.forEach(loaded::remove)
+        synchronized(originalPages) { originalPages.keys.removeAll { it.first.packageName == packageName } }
     }
     init { MihonRuntime.init(this.context as Application) }
 
@@ -43,43 +48,58 @@ class MihonEngine(context: Context) {
     }.sortedBy { it.name }
 
     @Suppress("DEPRECATION")
-    @Synchronized fun load(packageName: String, expectedFingerprint: String): List<SourceHandle> {
-        // Do not retain an older trusted instance if replacement/update fails verification.
-        loaded.keys.filter { it.packageName == packageName }.forEach(loaded::remove)
-        synchronized(originalPages) { originalPages.keys.removeAll { it.first.packageName == packageName } }
-        val info = context.packageManager.getPackageInfo(packageName, flags())
-        require(isExtension(info)) { "Package is not a Mihon extension" }
-        val pins = signatures(info)
-        ExtensionPolicy.requireTrusted(pins, expectedFingerprint)
-        require(ExtensionPolicy.supported(lib(info))) { "Unsupported extension API: ${lib(info)}" }
-        val app = requireNotNull(info.applicationInfo)
-        val classes = ExtensionPolicy.classNames(packageName, app.metaData?.getString("tachiyomi.extension.class"))
-        require(classes.isNotEmpty()) { "Missing extension source classes" }
-        val path = (listOf(app.sourceDir) + app.splitSourceDirs.orEmpty()).joinToString(File.pathSeparator)
-        val loader = if (Build.VERSION.SDK_INT >= 27) DelegateLastClassLoader(path, context.classLoader)
-            else DexClassLoader(path, context.codeCacheDir.absolutePath, null, context.classLoader)
-        val sources = classes.flatMap { name ->
-            when (val instance = Class.forName(name, true, loader).getDeclaredConstructor().newInstance()) {
-                is SourceFactory -> instance.createSources()
-                is CatalogueSource -> listOf(instance)
-                else -> error("Unsupported extension source class: $name")
-            }
-        }.filterIsInstance<CatalogueSource>()
-        val entries = sources.map { source ->
-            val handle = SourceHandle(packageName, source.id, source.name, source.lang, (source as? HttpSource)?.baseUrl.orEmpty())
-            handle to Loaded(source, version(info), pins)
-        }
-        require(entries.isNotEmpty()) { "Extension has no catalogue sources" }
-        entries.forEach { (handle, value) -> loaded[handle] = value }
-        return entries.map { it.first }
+    @Synchronized fun reload(packageName: String, expectedFingerprint: String): List<SourceHandle> {
+        packages.evict(packageName)
+        return load(packageName, expectedFingerprint)
     }
 
     @Suppress("DEPRECATION")
-    private fun source(handle: SourceHandle): CatalogueSource {
+    @Synchronized fun load(packageName: String, expectedFingerprint: String): List<SourceHandle> {
+        try {
+            val info = context.packageManager.getPackageInfo(packageName, flags())
+            require(isExtension(info)) { "Package is not a Mihon extension" }
+            val pins = signatures(info)
+            ExtensionPolicy.requireTrusted(pins, expectedFingerprint)
+            require(ExtensionPolicy.supported(lib(info))) { "Unsupported extension API: ${lib(info)}" }
+            val app = requireNotNull(info.applicationInfo)
+            val classes = ExtensionPolicy.classNames(packageName, app.metaData?.getString("tachiyomi.extension.class"))
+            require(classes.isNotEmpty()) { "Missing extension source classes" }
+            val stamp = stamp(info)
+            return packages.load(packageName, stamp, expectedFingerprint) {
+                val path = (listOf(app.sourceDir) + app.splitSourceDirs.orEmpty()).joinToString(File.pathSeparator)
+                val loader = if (Build.VERSION.SDK_INT >= 27) DelegateLastClassLoader(path, context.classLoader)
+                    else DexClassLoader(path, context.codeCacheDir.absolutePath, null, context.classLoader)
+                val sources = classes.flatMap { name ->
+                    when (val instance = Class.forName(name, true, loader).getDeclaredConstructor().newInstance()) {
+                        is SourceFactory -> instance.createSources()
+                        is CatalogueSource -> listOf(instance)
+                        else -> error("Unsupported extension source class: $name")
+                    }
+                }.filterIsInstance<CatalogueSource>()
+                val entries = sources.map { source ->
+                    val handle = SourceHandle(packageName, source.id, source.name, source.lang, (source as? HttpSource)?.baseUrl.orEmpty())
+                    handle to Loaded(source, stamp)
+                }
+                require(entries.isNotEmpty()) { "Extension has no catalogue sources" }
+                entries.forEach { (handle, value) -> loaded[handle] = value }
+                entries.map { it.first }
+            }
+        } catch (failure: Throwable) { packages.evict(packageName); throw failure }
+    }
+
+    @Suppress("DEPRECATION")
+    @Synchronized private fun source(handle: SourceHandle): CatalogueSource = packages.read(handle.packageName) {
         val item = loaded[handle] ?: error("Source must be loaded with a trusted certificate first")
         val current = context.packageManager.getPackageInfo(handle.packageName, flags())
-        check(version(current) == item.version && signatures(current) == item.pins) { "Extension changed; reload and verify its certificate" }
-        return item.source
+        check(stamp(current) == item.stamp) { "Extension changed; reload and verify its certificate" }
+        item.source
+    }
+
+    private fun stamp(info: PackageInfo): VerifiedPackageStamp {
+        val app = requireNotNull(info.applicationInfo)
+        return VerifiedPackageStamp(version(info), signatures(info), info.lastUpdateTime,
+            listOf(app.sourceDir) + app.splitSourceDirs.orEmpty(),
+            ExtensionPolicy.classNames(info.packageName, app.metaData?.getString("tachiyomi.extension.class")), lib(info).orEmpty())
     }
 
     suspend fun catalog(source: SourceHandle, query: String = "", latest: Boolean = false, page: Int = 1): CatalogResult = withContext(Dispatchers.IO) {

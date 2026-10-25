@@ -201,9 +201,9 @@ class OnlineReaderRepository(
             trusted(record.pin)
             extensionOperation { engine.download(record.source, record.pages[page.index], target) }
         } }
+        trusted(record.pin)
         if (!thumbnail && page.index == 0) {
-            // An optional cover failure must not hide an already validated reading page.
-            try { library.writeOnlineCover(id, result) } catch (_: IOException) { }
+            library.queueOnlineCover(id, result)
         }
         result
     }

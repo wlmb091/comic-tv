@@ -138,7 +138,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
             for (extension in installed.take(100)) {
                 currentCoroutineContext().ensureActive()
                 val pin = records.firstOrNull { it.fingerprint in extension.fingerprints }?.fingerprint ?: continue
-                try { sources += withContext(Dispatchers.IO) { engine.load(extension.packageName, pin) } }
+                try { sources += withContext(Dispatchers.IO) { engine.reload(extension.packageName, pin) } }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) { failures[extension.packageName] = extensionLoadDiagnostic(e); Log.e("ComicTV-Sources", "Extension load failed: ${extension.packageName}", e) }
                 catch (e: LinkageError) { failures[extension.packageName] = extensionLoadDiagnostic(e); Log.e("ComicTV-Sources", "Extension linkage failed: ${extension.packageName}", e) }

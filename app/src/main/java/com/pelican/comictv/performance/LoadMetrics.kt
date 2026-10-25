@@ -5,7 +5,7 @@ import kotlinx.coroutines.CancellationException
 internal enum class LoadStage(val label: String) {
     Catalog("Consulta do catálogo"), CatalogMemory("Catálogo reaproveitado"), CoverMetadata("Informações de capa"),
     OpenChapter("Abertura do capítulo"), PageList("Lista de páginas"), PageMaterialize("Página atual"),
-    PagePrefetch("Antecipação de página"), Thumbnail("Miniatura de página")
+    PagePrefetch("Antecipação de página"), Thumbnail("Miniatura de página"), CoverCreation("Geração opcional da capa")
 }
 internal data class LoadSample(val count: Long = 0, val failed: Long = 0, val cancelled: Long = 0,
     val totalNanos: Long = 0, val maxNanos: Long = 0) {

@@ -32,9 +32,16 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val mutex = Mutex()
     private val batchMutex = Mutex()
     private val importScratch = File(context.cacheDir, "collection-imports")
+    private val onlineScratch = File(context.cacheDir, "online-fetches").apply { mkdirs() }
+    private val transfers = PageTransferScheduler()
+    private val imageRequests = ImageRequestTickets()
+    private val coverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val coverQueue = BackgroundCoverQueue(coverScope) { id, file ->
+        com.pelican.comictv.performance.AppTimings.measure(com.pelican.comictv.performance.LoadStage.CoverCreation) { writeOnlineCover(id, file) }
+    }
     private var protectedPage: String? = null
     private var ready = false
-    suspend fun <T> exclusiveStorage(block: suspend () -> T): T = mutex.withLock { block() }
+    suspend fun <T> exclusiveStorage(block: suspend () -> T): T = mutex.withLock { imageRequests.invalidateAll(); block() }
     fun originalFile(id: String): File = store.original(id)
     suspend fun updatePageCount(id: String, count: Int) = dao.updatePageCount(id,count)
 
@@ -44,6 +51,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     }
     suspend fun clearReaderCaches(selection: CacheSelection): CacheCleanup = withContext(Dispatchers.IO) {
         mutex.withLock {
+            imageRequests.invalidateAll()
             val result = runInterruptible { storage().clear(selection) }
             if (selection != CacheSelection.Thumbnails) protectedPage = null
             coil3.SingletonImageLoader.get(context).memoryCache?.clear()
@@ -70,7 +78,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
         require(com.pelican.comictv.sources.OnlineIdentity.isOnline(id))
         mutex.withLock {
             currentCoroutineContext().ensureActive()
-            withContext(NonCancellable) { dao.delete(id); cleanupEditionAssets(id) }
+            withContext(NonCancellable) { imageRequests.invalidate(id); dao.delete(id); cleanupEditionAssets(id) }
         }
     }
     private fun cleanupEditionAssets(id: String): Boolean = runCatching {
@@ -113,60 +121,75 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     fun cover(id: String) = File(covers, "$id.jpg")
 
     internal suspend fun writeOnlineCover(id: String, source: File) = withContext(Dispatchers.IO) {
-        val target = cover(id)
-        if (!target.isFile) {
-            val temporary = File(covers, "$id.jpg.part")
-            try {
-                coverGenerator.generate(source, temporary)
-                currentCoroutineContext().ensureActive()
-                if (!temporary.renameTo(target)) throw IOException("Não foi possível salvar a capa.")
-            } finally { temporary.delete() }
+        mutex.withLock {
+            if (dao.get(id) == null) return@withLock
+            val target = cover(id)
+            if (!target.isFile) {
+                val temporary = File.createTempFile("$id-cover-", ".part", covers)
+                try {
+                    coverGenerator.generate(source, temporary)
+                    currentCoroutineContext().ensureActive()
+                    if (!temporary.renameTo(target)) throw IOException("Não foi possível salvar a capa.")
+                } finally { temporary.delete() }
+            }
         }
     }
+    internal fun queueOnlineCover(id: String, source: File) { coverQueue.enqueue(id, source) }
+    internal fun closeBackgroundWork() { coverQueue.close(); coverScope.cancel() }
 
-    /** Remote and local pages share quotas, serialization and the visible-page protection. */
+    /** Network waits are outside storage serialization; only bounded transfers may stage a file. */
     internal suspend fun externalImage(id: String, index: Int, thumbnail: Boolean, foreground: Boolean = true,
         fetch: suspend (File) -> Unit): File = withContext(Dispatchers.IO) {
         require(id.matches(Regex("online-[a-f0-9]{64}")) && index in 0 until 5000)
-        mutex.withLock {
+        val ticket = mutex.withLock {
             initialize()
-            val directory = if (thumbnail) thumbnailDirectory else pageDirectory
-            val selectedCache = if (thumbnail) thumbnailCache else cache
-            val name = "$id-$index"
-            val temporarySource = File(directory, "$name.remote.part")
-            val cachedFull = File(pageDirectory, name)
-            val source = if (thumbnail && cachedFull.isFile) cachedFull else temporarySource
-            val target = File(directory, name)
-            try {
-                if (!target.isFile) {
-                    if (source === temporarySource) fetch(source)
-                }
-                currentCoroutineContext().ensureActive()
-                val result = runInterruptible {
-                    selectedCache.materialize(name, if (thumbnail) emptySet() else setOfNotNull(protectedPage),
-                        write = { destination ->
-                            validateDimensions(source)
-                            if (thumbnail) {
-                                val temporary = File(directory, "$name.part")
-                                try {
-                                    thumbnailGenerator.generate(source, temporary)
-                                    if (Thread.currentThread().isInterrupted) throw IOException("Prévia cancelada.")
-                                    if (!temporary.renameTo(destination)) throw IOException("Não foi possível salvar a miniatura.")
-                                } finally { temporary.delete() }
-                            } else if (!source.renameTo(destination)) throw IOException("Não foi possível salvar a página.")
-                        }, validate = { validateDimensions(it) })
-                }
-                if (thumbnail && source.isFile) {
-                    try { cache.materialize(name, setOfNotNull(protectedPage),
-                        write = { source.copyTo(it, overwrite = true) }, validate = { validateDimensions(it) }) } catch (_: IOException) { }
-                }
-                if (!thumbnail && foreground) {
-                    protectedPage = result.name
-                    cache.trimIfNeeded(setOf(result.name))
-                }
-                result
-            } finally { temporarySource.delete(); File(temporarySource.path + ".part").delete() }
+            if (dao.get(id) == null) throw IOException("Esta edição não está mais na biblioteca.")
+            imageRequests.begin(id, currentCoroutineContext()[Job])
         }
+        val name = "$id-$index"
+        try {
+            transfers.load(name, foreground && !thumbnail, cached = {
+                mutex.withLock { imageRequests.check(ticket); runInterruptible { materializeExternal(name, thumbnail, foreground, null) } }
+            }, fetch = {
+                val temporary = File.createTempFile("$name-", ".part", onlineScratch)
+                try {
+                    currentCoroutineContext().ensureActive()
+                    fetch(temporary)
+                    currentCoroutineContext().ensureActive()
+                    mutex.withLock {
+                        imageRequests.check(ticket)
+                        runInterruptible { materializeExternal(name, thumbnail, foreground, temporary)
+                            ?: throw IOException("Não foi possível preparar a página.") }
+                    }
+                } finally { temporary.delete(); File(temporary.path + ".part").delete() }
+            })
+        } finally { withContext(NonCancellable) { mutex.withLock { imageRequests.finish(ticket) } } }
+    }
+
+    /** Storage mutex held. Cache hits and thumbnail generation never wait for network permits. */
+    private fun materializeExternal(name: String, thumbnail: Boolean, foreground: Boolean, downloaded: File?): File? {
+        val full = File(pageDirectory, name)
+        val target = File(if (thumbnail) thumbnailDirectory else pageDirectory, name)
+        if (!target.isFile && downloaded == null && (!thumbnail || !full.isFile)) return null
+        val selected = if (thumbnail) thumbnailCache else cache
+        val result = selected.materialize(name, if (thumbnail) emptySet() else setOfNotNull(protectedPage), write = { destination ->
+            if (thumbnail) {
+                cache.materialize(name, setOfNotNull(protectedPage), write = { adoptDownloaded(downloaded, it) }, validate = { validateDimensions(it) })
+                val temporary = File(thumbnailDirectory, "$name.part")
+                try {
+                    thumbnailGenerator.generate(full, temporary)
+                    if (Thread.currentThread().isInterrupted) throw IOException("Prévia cancelada.")
+                    if (!temporary.renameTo(destination)) throw IOException("Não foi possível salvar a miniatura.")
+                } finally { temporary.delete() }
+            } else adoptDownloaded(downloaded, destination)
+        }, validate = { validateDimensions(it) })
+        if (!thumbnail && foreground) { protectedPage = result.name; cache.trimIfNeeded(setOf(result.name)) }
+        return result
+    }
+    private fun adoptDownloaded(source: File?, destination: File) {
+        if (source == null) throw IOException("A imagem em cache não está mais disponível.")
+        validateDimensions(source)
+        if (!source.renameTo(destination)) throw IOException("Não foi possível salvar a página.")
     }
 
     private suspend fun initialize() {
@@ -174,6 +197,8 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
             store.reconcile(dao.ids().toSet())
             pageDirectory.listFiles()?.filter { it.name.endsWith(".part") }?.forEach { it.delete() }
             thumbnailDirectory.listFiles()?.filter { it.name.endsWith(".part") || it.name.endsWith(".source") }?.forEach { it.delete() }
+            onlineScratch.listFiles()?.filter { it.isFile && it.name.endsWith(".part") }?.forEach { it.delete() }
+            covers.listFiles()?.filter { it.isFile && it.name.matches(Regex("online-[a-f0-9]{64}-cover-.*\\.part")) }?.forEach { it.delete() }
             thumbnailCache.trim()
             cache.trim(setOfNotNull(protectedPage))
             ready = true
