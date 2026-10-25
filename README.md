@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.4
+
+Cache com menos varreduras, miniatura atual priorizada, antecipação limitada de capas e memória adaptada ao aparelho. Qualidade dos originais preservada. Veja [notas 1.1.4](docs/releases/1.1.4.md) e [validação](docs/validation/1.1.4.md).
+
 ## Versão 1.1.3
 
 Fila de extensões por clique: OK baixa/adiciona, outro OK cancela enquanto aguarda/baixa; várias podem ser escolhidas. Barra sob o ícone com porcentagem. Quando pronta, OK instala com confirmação do Android. Downloads sequenciais e APKs independentes, sem apagar outras extensões baixadas. Veja [notas 1.1.3](docs/releases/1.1.3.md).

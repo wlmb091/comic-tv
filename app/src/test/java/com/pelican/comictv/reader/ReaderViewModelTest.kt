@@ -14,6 +14,17 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReaderViewModelTest {
+    @Test fun currentThumbnailWarmsBeforeSlowNextPagePrefetch() = runTest(dispatcher) {
+        val repo=FakeRepository().apply{count=5}
+        val vm=ReaderViewModel(repo,"thumb-priority",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})
+        try {
+            advanceUntilIdle();repo.thumbnailCalls.clear();repo.pageDelay=5000
+            vm.imageDisplayed(vm.image.value!!.file)
+            advanceTimeBy(151);runCurrent()
+            assertTrue("Current thumbnail waited for future pages",1 in repo.thumbnailCalls)
+            assertTrue(vm.anticipated.value.isEmpty())
+        } finally {vm.close{};advanceUntilIdle()}
+    }
     @Test fun narratedNavigationPausesAutomaticReadingAndDefersVisualLoadsUntilReturn() = runTest(dispatcher) {
         val file = File.createTempFile("narration", ".txt").apply { writeText("Texto para ouvir.") }
         try {

@@ -397,6 +397,7 @@ internal fun extensionTransferProgress(candidate: AvailableExtension, transfers:
 private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
     var query by rememberSaveable(state.activeSource?.id) { mutableStateOf(state.query) }
     val grid = rememberLazyGridState()
+    com.pelican.comictv.ui.WarmGridCovers(grid,state.titles.map {com.pelican.comictv.ui.CoverWarmEntry(it.key,it.coverUrl)})
     val restore = remember { FocusRequester() }
     var focusedTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var restoreTarget by remember { mutableStateOf<String?>(null) }

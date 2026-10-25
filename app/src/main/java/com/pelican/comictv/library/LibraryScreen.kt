@@ -81,6 +81,7 @@ import kotlinx.coroutines.launch
             } })
     }
     val visible = (if (history) recent else comics).filter { it.id in matching }
+    WarmGridCovers(grid,visible.map {CoverWarmEntry(it.id,repository.cover(it.id))})
     // Capture the entry target once: database emissions must not take focus from navigation.
     val entryId = remember { focusedId }
     var restored by remember { mutableStateOf(false) }

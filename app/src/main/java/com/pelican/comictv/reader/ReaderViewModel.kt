@@ -276,6 +276,9 @@ class ReaderViewModel(
         val next = expected + if (_layout.value == ReaderLayout.Book && hasBookPartner(expected)) 2 else 1
         prefetchJob = launchLoad {
             delay(150)
+            val warmed = mutableSetOf<Int>()
+            // The visible page is already local: its timeline thumbnail must not wait for remote future pages.
+            try { thumbnail(expected); warmed += expected } catch (e: CancellationException) { throw e } catch (_: Exception) { }
             for (index in next..next + 1) {
                 if (index !in pages.indices || pages[index].key.startsWith("epub:text:")) continue
                 try {
@@ -284,9 +287,10 @@ class ReaderViewModel(
                     ensureActive()
                     if (_state.value.page != expected) return@launchLoad
                     _anticipated.value = (_anticipated.value.filterNot { it.file == file } + PageImage(file, dimensions.first, dimensions.second)).takeLast(2)
+                    try {thumbnail(index); warmed += index} catch(e: CancellationException) {throw e} catch(_: Exception) { }
                 } catch (e: CancellationException) { throw e } catch (_: Exception) { }
             }
-            for (index in (expected - 2..expected + 4).filter { it in pages.indices }.sortedBy { kotlin.math.abs(it - expected) }) {
+            for (index in (expected - 2..expected + 4).filter { it in pages.indices && it !in warmed }.sortedBy { kotlin.math.abs(it - expected) }) {
                 try { thumbnail(index) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
             }
         }

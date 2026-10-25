@@ -18,9 +18,12 @@ import coil3.memory.MemoryCache
 
 class ComicTvApplication : Application(), SingletonImageLoader.Factory {
     val container by lazy { AppContainer(this) }
-    override fun newImageLoader(context: Context): ImageLoader = ImageLoader.Builder(context)
-        .memoryCache { MemoryCache.Builder().maxSizeBytes(32L * 1024 * 1024).build() }
-        .build()
+    override fun newImageLoader(context: Context): ImageLoader {
+        val manager=context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+        val budget=com.pelican.comictv.reader.imageMemoryMiB(manager?.memoryClass ?: 192,manager?.isLowRamDevice ?: false)
+        return ImageLoader.Builder(context)
+            .memoryCache {MemoryCache.Builder().maxSizeBytes(budget.toLong()*1024*1024).build()}.build()
+    }
 }
 
 class MainActivity : ComponentActivity() {

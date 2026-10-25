@@ -160,7 +160,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
                 }
                 if (!thumbnail && foreground) {
                     protectedPage = result.name
-                    cache.trim(setOf(result.name))
+                    cache.trimIfNeeded(setOf(result.name))
                 }
                 result
             } finally { temporarySource.delete(); File(temporarySource.path + ".part").delete() }
@@ -257,7 +257,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
                     write = { archive.extract(original, page, it) }, validate = { if (!page.key.startsWith("epub:text:")) validateDimensions(it) })
             }
             protectedPage = target.name
-            cache.trim(setOf(target.name))
+            cache.trimIfNeeded(setOf(target.name))
             target
         }
     }
