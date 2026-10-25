@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.BorderStroke
@@ -64,6 +65,15 @@ import kotlinx.coroutines.flow.first
 @Composable
 fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInstall: (File) -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val visibilityOwner = remember {Any()}
+    val downloadsVisible = state.details == null && (state.managerPage == SourceManagerPage.EXTENSIONS || state.selectedRepository != null)
+    DisposableEffect(lifecycleOwner,viewModel,downloadsVisible) {
+        fun update() { viewModel.extensionDownloadsVisible(visibilityOwner,downloadsVisible && lifecycleOwner.lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) }
+        val observer=androidx.lifecycle.LifecycleEventObserver {_,_->update()}
+        lifecycleOwner.lifecycle.addObserver(observer);update()
+        onDispose {lifecycleOwner.lifecycle.removeObserver(observer);viewModel.extensionDownloadsVisible(visibilityOwner,false)}
+    }
     val pages = rememberSaveableStateHolder()
     val nested = state.details != null || state.selectedRepository != null || (state.managerPage != null && state.activeSource != null)
     BackHandler(enabled = nested) { viewModel.back() }
@@ -100,7 +110,7 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
             when {
                 state.details != null -> SourceDetails(state.details!!, state.busy) { viewModel.openChapter(it, onRead) }
                 state.activeSource != null && state.managerPage == null -> SourceCatalog(state, viewModel)
-                state.selectedRepository != null -> RepositoryExtensions(state, viewModel) { viewModel.prepareInstall(it, onInstall) }
+                state.selectedRepository != null -> RepositoryExtensions(state, viewModel, onInstall)
                 state.managerPage == SourceManagerPage.EXTENSIONS -> ExtensionsHome(state, viewModel, onInstall)
                 state.managerPage == SourceManagerPage.REPOSITORIES -> SourcesHome(state, viewModel)
                 else -> SourcePicker(state, viewModel)
@@ -142,6 +152,7 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
 
 @Composable
 private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (File) -> Unit) {
+    val transfers by vm.extensionDownloads.collectAsStateWithLifecycle()
     var filter by rememberSaveable { mutableStateOf("") }
     var tab by rememberSaveable { mutableStateOf("Instaladas") }
     val installed = state.installed.associateBy { it.packageName }
@@ -149,6 +160,7 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
     val available = state.availableExtensions.filter { it.entry.packageName !in installed }
     fun matches(name: String, extra: String = "") = filter.isBlank() || (name + " " + extra).contains(filter.trim(), true)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        ExtensionQueueSummary(vm)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf("Instaladas" to state.installed.size, "Atualizações" to updates.size, "Disponíveis" to available.size).forEach { (label, count) ->
                 SourceModeTab(label, count, tab == label) { tab = label }
@@ -188,8 +200,9 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
                 }
                 items(entries, key = { it.repository.baseUrl + ":" + it.entry.packageName }) { candidate ->
                     val entry = candidate.entry
-                    CompactExtensionCard(null, entry.iconUrl, entry.name, "${if (tab == "Atualizações") "Atualizar" else "Instalar"} · ${entry.languages.joinToString().ifBlank { "Todos" }}") {
-                        if (!state.busy) vm.prepareAvailableInstall(candidate, install)
+                    CompactExtensionCard(null, entry.iconUrl, entry.name, extensionTransferLabel(candidate,transfers) + " · ${entry.languages.joinToString().ifBlank { "Todos" }}",
+                        downloadProgress = extensionTransferProgress(candidate,transfers)) {
+                        vm.toggleExtensionDownload(candidate, install)
                     }
                 }
             }
@@ -198,13 +211,16 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
 }
 
 @Composable
-private fun CompactExtensionCard(packageName: String?, iconUrl: String?, name: String, status: String, selected: Boolean = false, click: () -> Unit) {
+private fun CompactExtensionCard(packageName: String?, iconUrl: String?, name: String, status: String, selected: Boolean = false, downloadProgress: Float? = null, click: () -> Unit) {
     val active = selected
     Card(onClick = click, modifier = Modifier.fillMaxWidth().semantics { this.selected = active; contentDescription = name + ", " + status }, colors = CardDefaults.colors(containerColor = TvColors.Panel),
         scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {
         Column(Modifier.fillMaxWidth().heightIn(min = 124.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                ExtensionIcon(packageName, iconUrl, name)
+                Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    ExtensionIcon(packageName, iconUrl, name)
+                    downloadProgress?.let {ExtensionTransferProgress(it)}
+                }
                 if (selected) Text("Ativa", color = TvColors.Amber, fontSize = 12.sp)
             }
             Text(name.removePrefix("Tachiyomi: ").removePrefix("Mihon: "), fontSize = 16.sp,
@@ -297,13 +313,15 @@ private fun SourcesHome(state: SourcesState, vm: SourcesViewModel) {
 }
 
 @Composable
-private fun RepositoryExtensions(state: SourcesState, vm: SourcesViewModel, install: (ExtensionEntry) -> Unit) {
+private fun RepositoryExtensions(state: SourcesState, vm: SourcesViewModel, install: (File) -> Unit) {
+    val transfers by vm.extensionDownloads.collectAsStateWithLifecycle()
     var filter by rememberSaveable(state.selectedRepository) { mutableStateOf("") }
     val repository = state.repositories.firstOrNull { it.baseUrl == state.selectedRepository }
     val entries = state.extensions.filter { entry ->
         filter.isBlank() || (listOf(entry.name) + entry.languages + entry.sourceNames).any { it.contains(filter.trim(), ignoreCase = true) }
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ExtensionQueueSummary(vm)
         SourceInput(filter, { filter = it }, "Buscar em " + (repository?.name ?: "repositório") + " · " + entries.size + " extensões")
         LazyVerticalGrid(GridCells.Adaptive(120.dp * TvColors.options.textScale), Modifier.fillMaxSize().focusRestorer(),
             contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -315,20 +333,63 @@ private fun RepositoryExtensions(state: SourcesState, vm: SourcesViewModel, inst
                 val installed = state.installed.firstOrNull { it.packageName == entry.packageName }
                 val newer = installed != null && entry.versionCode > installed.versionCode
                 val action = when { newer -> "Atualizar"; installed != null -> "Instalada"; else -> "Instalar" }
+                val transferAction = if (repository != null && (installed == null || newer))
+                    extensionTransferLabel(AvailableExtension(repository,entry),transfers) else action
                 CompactExtensionCard(installed?.packageName, entry.iconUrl, entry.name,
-                    action + " · " + entry.versionName + "\n" + entry.languages.joinToString().ifBlank { "Todos os idiomas" }) {
-                    if (!state.busy) {
-                        if (installed == null || newer) install(entry)
-                        else {
+                    transferAction + " · " + entry.versionName + "\n" + entry.languages.joinToString().ifBlank { "Todos os idiomas" },
+                    downloadProgress = repository?.let {extensionTransferProgress(AvailableExtension(it,entry),transfers)}) {
+                    if (installed == null || newer) vm.toggleRepositoryExtension(entry,install)
+                    else if (!state.busy) {
                             val sources = state.sources.filter { it.packageName == entry.packageName }
                             if (sources.size == 1) vm.activateSource(sources.first())
                             else if (sources.isNotEmpty()) vm.openSourceManager()
                             else vm.refreshInstalled()
-                        }
                     }
                 }
             }
         }
+    }
+}
+
+internal fun extensionTransferLabel(candidate: AvailableExtension, transfers: List<ExtensionTransfer>): String {
+    val row=transfers.firstOrNull {it.candidate.entry.packageName == candidate.entry.packageName} ?: return "Baixar · OK adiciona à fila"
+    if (row.candidate != candidate) return "Outra versão na fila · OK troca/cancela"
+    return when(row.status) {
+        ExtensionTransferStatus.Queued -> "Na fila · OK cancela"
+        ExtensionTransferStatus.Downloading -> "Baixando " + (if(row.total > 0) "${(row.bytes*100/row.total).coerceIn(0,100)}%" else "${row.bytes/1024} KB") + " · OK cancela"
+        ExtensionTransferStatus.Ready -> "Baixada · OK instalar"
+        ExtensionTransferStatus.Failed -> "Falha · OK tentar novamente"
+    }
+}
+
+internal fun extensionTransferProgress(candidate: AvailableExtension, transfers: List<ExtensionTransfer>): Float? {
+    val row=transfers.firstOrNull {it.candidate == candidate} ?: return null
+    return when(row.status) {
+        ExtensionTransferStatus.Ready -> 1f
+        ExtensionTransferStatus.Queued -> 0f
+        ExtensionTransferStatus.Downloading -> if(row.total>0) (row.bytes.toDouble()/row.total).toFloat().coerceIn(0f,1f) else null
+        ExtensionTransferStatus.Failed -> null
+    }
+}
+
+@Composable internal fun ExtensionTransferProgress(progress: Float) {
+    val fraction=progress.coerceIn(0f,1f)
+    Row(horizontalArrangement=Arrangement.spacedBy(5.dp),verticalAlignment=Alignment.CenterVertically,
+        modifier=Modifier.semantics {progressBarRangeInfo=androidx.compose.ui.semantics.ProgressBarRangeInfo(fraction,0f..1f)}) {
+        com.pelican.comictv.ui.ProgressTrack(fraction,Modifier.width(44.dp).height(3.dp))
+        Text("${(fraction*100).toInt()}%",color=TvColors.Amber,fontSize=11.sp)
+    }
+}
+
+@Composable private fun ExtensionQueueSummary(vm: SourcesViewModel) {
+    val transfers by vm.extensionDownloads.collectAsStateWithLifecycle()
+    Text("OK baixa ou cancela · Quando terminar, OK instala com confirmação do Android",color=TvColors.Muted,fontSize=14.sp)
+    if(transfers.isNotEmpty()) {
+        Row(horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
+            Text("Fila: ${transfers.count{it.status==ExtensionTransferStatus.Queued}} · Baixando: ${transfers.count{it.status==ExtensionTransferStatus.Downloading}} · Prontas: ${transfers.count{it.status==ExtensionTransferStatus.Ready}}",fontSize=16.sp)
+            TvButton("Limpar fila",vm::clearExtensionDownloads)
+        }
+        transfers.lastOrNull{it.error!=null}?.error?.let {Text(it,color=TvColors.Amber,fontSize=15.sp)}
     }
 }
 
@@ -421,9 +482,13 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
 }
 
 @Composable
-private fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineChapter) -> Unit) {
+internal fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineChapter) -> Unit) {
     val summaryScroll = rememberLazyListState()
+    val chapterScroll = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
+    var orderName by rememberSaveable(details.title.key) {mutableStateOf(ChapterOrder.Source.name)}
+    val order=ChapterOrder.entries.firstOrNull {it.name == orderName} ?: ChapterOrder.Source
+    val chapters=remember(details.chapters,order) {orderedChapters(details.chapters,order)}
     var summaryFocused by remember { mutableStateOf(false) }
     var expandedSummary by rememberSaveable(details.title.key) { mutableStateOf(false) }
     var summaryOverflows by remember(details.title.key, details.title.description) { mutableStateOf(false) }
@@ -469,20 +534,35 @@ private fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineCh
         }
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Capítulos · ${details.chapters.size}", fontSize = 23.sp, lineHeight = 30.sp)
-                Muted("Na sequência fornecida pela fonte")
+                Text("Capítulos · ${chapters.size}", fontSize = 23.sp, lineHeight = 30.sp)
+                Muted(when(order) {
+                    ChapterOrder.Source -> "Na sequência fornecida pela fonte"
+                    ChapterOrder.Ascending -> "Numeração crescente"
+                    ChapterOrder.Descending -> "Numeração decrescente"
+                })
+                ChapterOrderControls(order) { next ->
+                    orderName=next.name
+                    scrollScope.launch {chapterScroll.scrollToItem(0)}
+                }
             }
             LazyColumn(
                 Modifier.weight(1f).fillMaxWidth().focusRestorer(),
+                state = chapterScroll,
                 contentPadding = PaddingValues(8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (details.chapters.isEmpty()) item { Muted("Esta fonte não retornou capítulos.") }
-                items(details.chapters, key = { it.key }) { chapter ->
+                if (chapters.isEmpty()) item { Muted("Esta fonte não retornou capítulos.") }
+                items(chapters, key = { it.key }) { chapter ->
                     SourceButton(chapter.title, !busy, Modifier.fillMaxWidth()) { if (!busy) open(chapter) }
                 }
             }
         }
+    }
+}
+@OptIn(ExperimentalLayoutApi::class)
+@Composable internal fun ChapterOrderControls(order: ChapterOrder, onChange: (ChapterOrder) -> Unit) {
+    FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+        for (choice in ChapterOrder.entries) com.pelican.comictv.ui.TvChoice(choice.label,order==choice,{if(order!=choice) onChange(choice)})
     }
 }
 @Composable

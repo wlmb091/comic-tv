@@ -79,6 +79,12 @@ import kotlinx.coroutines.launch
     var relatedTitle by remember { mutableStateOf<RelatedComic?>(null) }
     var editionPreview by remember { mutableStateOf<File?>(null) }
     val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
+    val sourcesFactory = remember(container) { viewModelFactory {
+        initializer {SourcesViewModel(container.sourcePreferences,container.mihon,container.extensionInstaller,container.online)}
+    } }
+    val sourcesProvider = remember(sourcesOwner,sourcesFactory) {androidx.lifecycle.ViewModelProvider(sourcesOwner,sourcesFactory)}
+    // One activity-scoped launcher survives section changes; source VM is still created lazily.
+    val installExtension = rememberExtensionInstallFlow {sourcesProvider.get("online-sources",SourcesViewModel::class.java)}
     val library: LibraryViewModel = viewModel(factory = viewModelFactory {
         initializer { LibraryViewModel(container.library, createSavedStateHandle()) }
     })
@@ -129,11 +135,8 @@ import kotlinx.coroutines.launch
         }
         listOf("sources", "recent", "extensions").forEach { sourceRoute ->
             composable(sourceRoute) { sourceEntry ->
-                val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = viewModelFactory {
-                    initializer { SourcesViewModel(container.sourcePreferences, container.mihon, container.extensionInstaller, container.online) }
-                })
+                val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory)
                 LaunchedEffect(sourceEntry.id) { sources.enterMainSection(sourceEntry.id, sourceRoute) }
-                val install = rememberExtensionInstallFlow(sources)
                 TvShell(sourceRoute, onNavigate = { destination ->
                     startupFocusPending = false
                     navigationContentTarget = destination
@@ -145,7 +148,7 @@ import kotlinx.coroutines.launch
                         }
                     } else nav.navigate(destination) { popUpTo("library"); launchSingleTop = true }
                 }, focusContentOnEntry = navigationContentTarget == sourceRoute, onSectionFocused = { navigationContentTarget = null }) {
-                    SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = install)
+                    SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = installExtension)
                 }
             }
         }

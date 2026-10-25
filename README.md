@@ -2,7 +2,13 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 1.1.2
+## Versão 1.1.3
+
+Fila de extensões por clique: OK baixa/adiciona, outro OK cancela enquanto aguarda/baixa; várias podem ser escolhidas. Barra sob o ícone com porcentagem. Quando pronta, OK instala com confirmação do Android. Downloads sequenciais e APKs independentes, sem apagar outras extensões baixadas. Veja [notas 1.1.3](docs/releases/1.1.3.md).
+
+Detalhes dos títulos nas fontes também oferecem Do início, Do final e Ordem da fonte para escolher capítulos sem começar sempre pelo último.
+
+## Biblioteca e navegação · 1.1.2
 
 Exclusão de edições de fontes também pelo OK longo/detalhes, incluindo pacote offline e fila com confirmação. Barra lateral recolhe ao confirmar uma seção e leva o foco ao conteúdo. Veja [notas 1.1.2](docs/releases/1.1.2.md). Instalar como atualização; validação física pendente.
 

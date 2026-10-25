@@ -17,13 +17,16 @@ class ExtensionInstaller(private val context: Context) {
     private val client = OkHttpClient.Builder().followRedirects(false).followSslRedirects(false)
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).callTimeout(90, TimeUnit.SECONDS).build()
 
-    suspend fun prepare(entry: ExtensionEntry, fingerprint: String): File = withContext(Dispatchers.IO) {
+    suspend fun prepare(entry: ExtensionEntry, fingerprint: String, progress: (Long,Long) -> Unit = {_,_->}): File = withContext(Dispatchers.IO) {
         require(entry.packageName.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+")))
         require(fingerprint.matches(Regex("[a-f0-9]{64}")))
         val directory = File(context.cacheDir, "extensions").apply { mkdirs() }
-        // Keep only one completed installer package; old provider URIs are no longer offered.
-        directory.listFiles()?.filter { it.isFile }?.forEach { it.delete() }
-        val target = File(directory, "${entry.packageName}-${entry.versionCode}.apk")
+        require(directory.listFiles().orEmpty().filter {it.isFile}.sumOf {it.length()} <= 192L * 1024 * 1024) {
+            "Cache de APKs limitado a 256 MiB. Instale ou limpe as baixadas; para arquivos antigos, limpe o cache do Comic TV nas configurações do Android."
+        }
+        require(directory.usableSpace >= 128L * 1024 * 1024) { "Espaço insuficiente. Libere espaço para manter 64 MiB de reserva durante o download." }
+        // Unique files: another finished package may already be open in Android's installer.
+        val target = File(directory, "${entry.packageName}-${entry.versionCode}-${java.util.UUID.randomUUID()}.apk")
         var url = entry.apkUrl
         try {
             var downloaded = false
@@ -43,7 +46,22 @@ class ExtensionInstaller(private val context: Context) {
                         check(response.isSuccessful) { "Falha ao baixar extensão: HTTP ${response.code}" }
                         val body = response.body ?: error("APK vazio.")
                         require(body.contentLength() <= 64L * 1024 * 1024) { "A extensão excede 64 MiB." }
-                        body.byteStream().use { copyLimited(it, target, 64L * 1024 * 1024) }
+                        val expected = body.contentLength()
+                        progress(0,expected)
+                        var bytes = 0L
+                        var last = System.nanoTime()
+                        body.byteStream().use { input -> target.outputStream().use { output ->
+                            val buffer = ByteArray(16*1024)
+                            while (true) {
+                                currentCoroutineContext().ensureActive()
+                                val count = input.read(buffer); if (count < 0) break
+                                bytes += count; require(bytes <= 64L*1024*1024) { "A extensão excede 64 MiB." }
+                                output.write(buffer,0,count)
+                                val now = System.nanoTime()
+                                if (now-last >= 100_000_000) { progress(bytes,expected); last=now }
+                            }
+                        } }
+                        progress(bytes,expected)
                         downloaded = true
                     }
                 } } finally { cancelCall.cancel() }
@@ -54,6 +72,11 @@ class ExtensionInstaller(private val context: Context) {
             verify(target, entry, fingerprint)
             target
         } catch (e: Exception) { target.delete(); throw e }
+    }
+
+    internal suspend fun revalidate(file: File, entry: ExtensionEntry, fingerprint: String) = withContext(Dispatchers.IO) {
+        require(file.canonicalFile.parentFile == File(context.cacheDir,"extensions").canonicalFile && file.isFile && file.length() <= 64L*1024*1024)
+        verify(file,entry,fingerprint)
     }
 
     @Suppress("DEPRECATION")

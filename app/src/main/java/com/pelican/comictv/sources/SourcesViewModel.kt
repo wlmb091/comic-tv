@@ -20,6 +20,45 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     private val entryGate = SourceEntryGate()
     private var page = 1
     private val previews = TitlePreviewResolver(engine::titlePreview)
+    private val extensionQueue = ExtensionDownloadQueue(viewModelScope) { candidate, progress ->
+        requireExtensionTrust(candidate)
+        val file = installer.prepare(candidate.entry,candidate.repository.fingerprint,progress)
+        try { currentCoroutineContext().ensureActive(); requireExtensionTrust(candidate); file }
+        catch (e: Exception) { file.delete(); throw e }
+    }
+    val extensionDownloads = extensionQueue.state
+    private fun requireExtensionTrust(candidate: AvailableExtension) {
+        require(preferences.repositories().any {it.baseUrl == candidate.repository.baseUrl && it.fingerprint == candidate.repository.fingerprint}) {
+            "O repositório da extensão não é mais confiável. Atualize a lista."
+        }
+    }
+    fun extensionDownloadsVisible(owner: Any, value: Boolean) = extensionQueue.setVisible(owner,value)
+    fun clearExtensionDownloads() = extensionQueue.clear()
+    fun extensionInstallationReturned(file: File?, remove: Boolean) { if (file != null) extensionQueue.installationReturned(file,remove) }
+    fun toggleExtensionDownload(candidate: AvailableExtension, install: (File) -> Unit) {
+        val current = extensionDownloads.value.firstOrNull {it.candidate.entry.packageName == candidate.entry.packageName}
+        if (current?.status == ExtensionTransferStatus.Queued || current?.status == ExtensionTransferStatus.Downloading) {
+            extensionQueue.toggle(candidate); return
+        }
+        if (current?.status == ExtensionTransferStatus.Ready && current.candidate == candidate) {
+            extensionQueue.requestInstall(candidate, { file ->
+                    requireExtensionTrust(candidate)
+                    installer.revalidate(file,candidate.entry,candidate.repository.fingerprint)
+                    currentCoroutineContext().ensureActive(); requireExtensionTrust(candidate)
+            },install,::installationMessage)
+        } else try {
+            val state=_state.value
+            require(candidate in state.availableExtensions || (candidate.repository.baseUrl == state.selectedRepository && candidate.entry in state.extensions)) {
+                "Atualize o índice do repositório antes de baixar."
+            }
+            requireExtensionTrust(candidate); extensionQueue.toggle(candidate)
+        } catch (e: Exception) { installationMessage(e.message ?: "Não foi possível adicionar à fila.") }
+    }
+    fun toggleRepositoryExtension(entry: ExtensionEntry, install: (File) -> Unit) {
+        val repo=_state.value.repositories.firstOrNull {it.baseUrl == _state.value.selectedRepository} ?: return
+        toggleExtensionDownload(AvailableExtension(repo,entry),install)
+    }
+    override fun onCleared() { extensionQueue.close(); super.onCleared() }
 
     init { task { try { refreshInstalledInternal() } finally { initialLoading = false } } }
     fun installationMessage(message: String) { _state.update { it.copy(message = message) } }
