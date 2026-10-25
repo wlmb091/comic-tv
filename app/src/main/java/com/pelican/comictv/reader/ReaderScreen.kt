@@ -78,6 +78,8 @@ import kotlinx.coroutines.launch
     var renderError by remember(image?.file) { mutableStateOf(false) }
     val displayedError = error ?: if (renderError) "Não foi possível decodificar esta página." else null
     val focus = remember { FocusRequester() }
+    val endShortcutFocus = remember { FocusRequester() }
+    var endShortcutFocused by remember { mutableStateOf(false) }
     val centerPress = remember { CenterPressController() }
     val gestureScope = rememberCoroutineScope()
     var holdJob by remember { mutableStateOf<Job?>(null) }
@@ -115,12 +117,20 @@ import kotlinx.coroutines.launch
         showPosition = false
     }
     val exit = { viewModel.close(onExit) }
+    val lastVisiblePage = state.page + if (layout == ReaderLayout.Book && viewModel.hasBookPartner(state.page) && bookPartner?.displayed == true) 1 else 0
+    val showEndShortcut = chapterEndShortcutVisible(state, onChapterStep != null,
+        !loading && displayedError == null && image?.displayed == true, lastVisiblePage)
+    LaunchedEffect(showEndShortcut) {
+        if (!showEndShortcut && endShortcutFocused) { endShortcutFocused = false; focus.requestFocus() }
+    }
     BackHandler {
-        if (state.mode != ReaderMode.Reading) viewModel.action(ReaderAction.Back) else exit()
+        if (showEndShortcut && endShortcutFocused) focus.requestFocus()
+        else if (state.mode != ReaderMode.Reading) viewModel.action(ReaderAction.Back) else exit()
     }
     LaunchedEffect(state.mode) { if (state.mode != ReaderMode.Tools) focus.requestFocus() }
     Box(Modifier.fillMaxSize().background(Color.Black).clipToBounds().onSizeChanged { size = it }
         .onPreviewKeyEvent { event ->
+            if (showEndShortcut && endShortcutFocused) return@onPreviewKeyEvent false
             val isCenter = event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter
             if (isCenter && (state.mode != ReaderMode.Tools || centerPress.isPressed)) {
                 if (event.type == KeyEventType.KeyDown) {
@@ -146,7 +156,10 @@ import kotlinx.coroutines.launch
                     else -> null
                 }
                 if (action == null) false else {
-                    if (event.type == KeyEventType.KeyDown) viewModel.action(action)
+                    if (event.type == KeyEventType.KeyDown) {
+                        if (viewModel.state.value == state && focusChapterEndShortcut(state, action, showEndShortcut)) endShortcutFocus.requestFocus()
+                        else viewModel.action(action)
+                    }
                     true
                 }
             }
@@ -168,6 +181,12 @@ import kotlinx.coroutines.launch
                 fontSize = 14.sp, color = Color.White)
         }
         if (loading) Text("Carregando página…", Modifier.align(Alignment.Center), fontSize = 20.sp)
+        if (showEndShortcut) ChapterEndShortcut(endShortcutFocus, { focused ->
+            endShortcutFocused = focused
+            if (focused) { cancelCenter(); viewModel.pauseAutomaticReading() }
+        }, {
+            if (viewModel.state.value == state) viewModel.close { onChapterStep?.invoke(1) }
+        }, { focus.requestFocus() }, Modifier.align(Alignment.BottomEnd).padding(24.dp))
         displayedError?.let { text ->
             Column(Modifier.align(Alignment.Center).widthIn(max = 540.dp).background(TvColors.Panel, RoundedCornerShape(12.dp)).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)) {

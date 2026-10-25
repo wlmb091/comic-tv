@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
     onDeleteOnline: (suspend (String) -> Boolean)? = null,
 ) {
     val grid = rememberLazyGridState()
+    val pageAtTop by remember(grid) { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
     val restore = remember { FocusRequester() }
     var history by rememberSaveable { mutableStateOf(false) }
     var target by remember { mutableStateOf<String?>(null) }
@@ -120,7 +121,7 @@ import kotlinx.coroutines.launch
                 LibraryHeader(comics.size, recent.size, history, searching || query.isNotBlank(),
                     { searching = true }, { history = false }, { history = true },
                     Modifier.focusRequester(headerFocus), Modifier.focusRequester(searchFocus))
-                LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage)
+                LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage, returnFocusEnabled = pageAtTop)
                 if (!history) LibraryHero(featured, repository,
                     onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport)
             }

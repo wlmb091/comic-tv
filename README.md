@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.10
+
+Atalho de próximo capítulo na última página, sem foco automático e preservando zoom/mover. Retorno da barra na biblioteca no topo foca Todas sem selecionar o filtro. Veja [notas](docs/releases/1.1.10.md).
+
 ## Versão 1.1.9
 
 Saída da barra mantém a posição da página; ↓ entra nos controles. Catálogo/Novidades não devem expandir a barra ao substituir carregamento por resultados. Veja [notas e teste na Box](docs/releases/1.1.9.md).

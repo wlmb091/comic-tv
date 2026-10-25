@@ -94,6 +94,21 @@ class NavigationAndSummaryTest {
         compose.onNodeWithTag("activate").performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, activated) }
     }
+    @Test fun sidebarReturnFocusesVisibleAllWithoutSelectingItOrExtraDown() {
+        var filter by mutableStateOf("favorites")
+        compose.setContent { ComicTvTheme {
+            TvShell("library", {}) {
+                com.pelican.comictv.library.LibraryFilters(emptyList(), filter, { filter = it }, {})
+            }
+        } }
+        compose.onNodeWithTag("nav-settings").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus) { it() }
+        compose.onNodeWithTag("nav-settings").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Todas").assertIsFocused().assertIsNotSelected()
+        compose.runOnIdle { assertEquals("favorites", filter) }
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.onNodeWithText("Todas").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("★ Favoritos").assertIsFocused()
+    }
     @get:Rule val compose = createComposeRule()
 
     @Test fun sidebarFocusFollowsRequestedSectionAndIgnoresCatalogUpdates() {
