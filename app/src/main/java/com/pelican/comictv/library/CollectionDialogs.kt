@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
@@ -37,14 +35,14 @@ import kotlinx.coroutines.launch
 }
 
 @Composable internal fun LibraryTextInput(value: String, onChange: (String) -> Unit, label: String,
-    modifier: Modifier = Modifier, onDone: () -> Unit = {}) {
+    modifier: Modifier = Modifier, maxLength: Int = 200, onDone: () -> Unit = {}) {
     var focused by remember { mutableStateOf(false) }
-    BasicTextField(value, onChange, modifier.fillMaxWidth().heightIn(min = 48.dp)
+    TvTextInput(value, onChange, modifier.fillMaxWidth().heightIn(min = 48.dp)
         .onFocusChanged { focused = it.hasFocus }.semantics { contentDescription = label }
         .background(TvColors.Panel).border(if (focused) 2.dp else 1.dp, if (focused) TvColors.Amber else TvColors.Muted)
-        .padding(12.dp), textStyle = TextStyle(color = Color.White, fontSize = 18.sp), singleLine = true,
+        .padding(12.dp), textStyle = TextStyle(color = Color.White, fontSize = 18.sp),
         cursorBrush = SolidColor(TvColors.Amber), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { onDone() }))
+        onSubmit = onDone, maxLength = maxLength)
 }
 
 @Composable internal fun CollectionNameDialog(repository: LibraryRepository, editing: CollectionEntity? = null,
@@ -70,12 +68,12 @@ import kotlinx.coroutines.launch
     }
     LibraryDialog(if (editing == null) "Criar coleção" else "Renomear coleção", { if (!busy) onDismiss() }) {
         Text("Nome · até 40 caracteres", color = TvColors.Muted)
-        LibraryTextInput(value, { value = it.take(100) }, "Nome da coleção", Modifier.focusRequester(focus), ::save)
+        LibraryTextInput(value, { value = it.take(100) }, "Nome da coleção", Modifier.focusRequester(focus), maxLength = 100, onDone = ::save)
         error?.let { Text(it, color = TvColors.Amber) }
         TvButton(if (busy) "Salvando…" else "Salvar", ::save, enabled = !busy)
         TvButton("Cancelar", { keyboard?.hide(); onDismiss() }, enabled = !busy)
     }
-    LaunchedEffect(Unit) { focus.requestFocus(); keyboard?.show() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 @Composable internal fun CollectionPicker(comic: ComicEntity, repository: LibraryRepository, onDismiss: () -> Unit) {

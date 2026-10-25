@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.*
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -395,7 +393,10 @@ internal fun extensionTransferProgress(candidate: AvailableExtension, transfers:
 
 @Composable
 private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
-    var query by rememberSaveable(state.activeSource?.id) { mutableStateOf(state.query) }
+    var query by rememberSaveable(state.activeSource?.packageName, state.activeSource?.id) { mutableStateOf(state.query) }
+    val searchOwner = remember { Any() }
+    DisposableEffect(vm, searchOwner) { onDispose { vm.stopLiveSearch(searchOwner) } }
+    LaunchedEffect(state.activeSource, state.latest) { query = state.query }
     val grid = rememberLazyGridState()
     com.pelican.comictv.ui.WarmGridCovers(grid,state.titles.map {com.pelican.comictv.ui.CoverWarmEntry(it.key,it.coverUrl)})
     val restore = remember { FocusRequester() }
@@ -445,8 +446,8 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
         // Keep three header entries even while search is collapsed, so restoration has a stable offset.
         item(key = "catalog-search", span = { GridItemSpan(maxLineSpan) }) {
             if (searchVisible) Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
-                SourceInput(query, { query = it }, "Buscar nesta fonte", Modifier.weight(1f)) { if (!state.busy) vm.search(query.trim()) }
-                SourceButton("Buscar", !state.busy && query.isNotBlank()) { vm.search(query.trim()) }
+                SourceInput(query, { query = it.take(200); vm.searchWhileTyping(query, searchOwner) }, "Buscar nesta fonte · automático", Modifier.weight(1f), maxLength = 200) { vm.search(query.trim(), searchOwner) }
+                SourceButton("Buscar agora", true) { vm.search(query.trim(), searchOwner) }
             }
         }
         if (state.titles.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
@@ -567,17 +568,17 @@ internal fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineC
     }
 }
 @Composable
-private fun SourceInput(value: String, change: (String) -> Unit, label: String, modifier: Modifier = Modifier, urlInput: Boolean = false, submit: () -> Unit = {}) {
+private fun SourceInput(value: String, change: (String) -> Unit, label: String, modifier: Modifier = Modifier, urlInput: Boolean = false, maxLength: Int? = null, submit: () -> Unit = {}) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, color = TvColors.Muted, fontSize = 14.sp)
-        BasicTextField(value, change, Modifier.fillMaxWidth().heightIn(min = 44.dp)
+        com.pelican.comictv.ui.TvTextInput(value, change, Modifier.fillMaxWidth().heightIn(min = 44.dp)
             .onFocusChanged { focused = it.hasFocus }
             .background(TvColors.Panel, RoundedCornerShape(8.dp))
             .border(if (focused) 2.dp else 1.dp, if (focused) TvColors.Amber else TvColors.Muted.copy(alpha = if (TvColors.options.highContrast) 1f else .45f), RoundedCornerShape(8.dp)).padding(12.dp),
-            textStyle = TextStyle(color = Color.White, fontSize = 18.sp), singleLine = true,
+            textStyle = TextStyle(color = Color.White, fontSize = 18.sp),
             cursorBrush = SolidColor(TvColors.Amber), keyboardOptions = KeyboardOptions(keyboardType = if (urlInput) KeyboardType.Uri else KeyboardType.Text, imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { submit() }))
+            onSubmit = submit, maxLength = maxLength)
     }
 }
 

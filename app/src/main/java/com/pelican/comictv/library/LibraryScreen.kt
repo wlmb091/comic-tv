@@ -55,7 +55,10 @@ import kotlinx.coroutines.launch
     val searchEntries = remember(comics) { comics.map { LibrarySearchEntry(it.id, it.title, it.favorite) } }
     val memberIndex = remember(memberships) { memberships.groupBy { it.collectionId }.mapValues { (_, rows) -> rows.map { it.comicId }.toSet() } }
     val matching = remember(searchEntries, query, filter, memberIndex) { filterLibrary(searchEntries, query, filter, memberIndex).toSet() }
-    if (searching) LibrarySearchDialog(query, onQuery) { searching = false; restoreControl++ }
+    if (searching) LibrarySearchDialog(query, onQuery,
+        results = (if (history) recent else comics).filter { it.id in matching }.map { LibrarySearchEntry(it.id, it.title, it.favorite) }) {
+        searching = false; restoreControl++
+    }
     if (managing) ManageCollections(repository) {
         managing = false
         menuScope.launch { grid.scrollToItem(0); withFrameNanos { }; restoreManage++ }

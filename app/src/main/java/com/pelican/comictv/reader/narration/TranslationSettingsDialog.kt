@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -15,7 +14,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -54,13 +52,13 @@ data class LocalTranslationSettings(val address: String = "", val language: Stri
     LibraryDialog("Tradução pelo computador", onDismiss) {
         Text("Use um servidor LibreTranslate na mesma rede. A página atual e até duas seguintes serão enviadas somente ao endereço local cadastrado. O computador precisa ficar ligado.", color = TvColors.Muted, fontSize = 16.sp)
         Text("Endereço · exemplo http://192.168.0.10:5000", fontSize = 16.sp)
-        LibraryTextInput(address, { address = it.take(512) }, "Endereço do tradutor local", Modifier.focusRequester(first))
+        LibraryTextInput(address, { address = it.take(512) }, "Endereço do tradutor local", Modifier.focusRequester(first), maxLength = 512)
         Text("Chave de acesso do seu servidor (opcional)", fontSize = 16.sp)
         var focused by remember { mutableStateOf(false) }
-        BasicTextField(key, { key = it.take(300) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        com.pelican.comictv.ui.TvTextInput(key, { key = it.take(300) }, Modifier.fillMaxWidth().heightIn(min = 48.dp)
             .onFocusChanged { focused = it.isFocused }.semantics { contentDescription = "Chave do tradutor local" }
             .background(TvColors.Panel).border(if (focused) 2.dp else 1.dp, if (focused) TvColors.Amber else TvColors.Muted).padding(12.dp),
-            singleLine = true, visualTransformation = PasswordVisualTransformation(), cursorBrush = SolidColor(TvColors.Amber),
+            password = true, maxLength = 300, cursorBrush = SolidColor(TvColors.Amber),
             textStyle = TextStyle(color = Color.White, fontSize = 18.sp), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password))
         TvButton("Idioma de origem: " + (languages.firstOrNull { it.code == language }?.label ?: language), {
             val index = languages.indexOfFirst { it.code == language }

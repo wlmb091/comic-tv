@@ -38,14 +38,18 @@ import kotlinx.coroutines.flow.first
     TvChoice(label, filter == key, { onFilter(key) })
 }
 
-@Composable internal fun LibrarySearchDialog(query: String, onQuery: (String) -> Unit, onDismiss: () -> Unit) {
+@Composable internal fun LibrarySearchDialog(query: String, onQuery: (String) -> Unit,
+    results: List<LibrarySearchEntry> = emptyList(), onDismiss: () -> Unit) {
     val first = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LibraryDialog("Buscar na biblioteca", { keyboard?.hide(); onDismiss() }) {
         Text("Busca por título na lista de capas. O filtro selecionado é mantido.", color = TvColors.Muted)
         LibraryTextInput(query, onQuery, "Título do quadrinho", Modifier.focusRequester(first)) { keyboard?.hide(); onDismiss() }
+        Text(if (results.isEmpty()) "Nenhum título combina com a busca." else "${results.size} título(s) encontrado(s)", color = TvColors.Amber)
+        results.take(4).forEach { Text(it.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
+        if (results.size > 4) Text("Mais ${results.size - 4} na lista de capas", color = TvColors.Muted)
         TvButton("Ver resultados", { keyboard?.hide(); onDismiss() })
         TvButton("Limpar busca", { onQuery("") })
     }
-    LaunchedEffect(Unit) { first.requestFocus(); keyboard?.show() }
+    LaunchedEffect(Unit) { first.requestFocus() }
 }

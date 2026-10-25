@@ -16,10 +16,25 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     private var job: Job? = null
     private var catalogJob: Job? = null
     private var initialLoading = true
-    private var desiredLatest = false
+    private val catalogIntent = CatalogSearchIntent()
+    private var desiredLatest: Boolean
+        get() = catalogIntent.latest
+        set(value) { catalogIntent.latest = value }
     private val entryGate = SourceEntryGate()
     private var page = 1
     private val previews = TitlePreviewResolver(engine::titlePreview)
+    private val liveSearch = LatestSearch<CatalogSearchQuery, CatalogResult>(viewModelScope,
+        fetch = { engine.catalog(it.source, it.text, it.latest) },
+        publish = { query, result ->
+            page = 1
+            _state.update { old -> if (old.activeSource != query.source) old else old.copy(
+                titles = result.titles, catalogLoaded = true, details = null, query = query.text,
+                latest = query.latest, hasNextPage = result.hasNextPage, busy = false) }
+        },
+        failed = { error ->
+            Log.w("ComicTV-Sources", "Search unavailable", error)
+            _state.update { it.copy(busy = false, message = error.message?.take(350) ?: "Não foi possível buscar nesta fonte.") }
+        })
     private val extensionQueue = ExtensionDownloadQueue(viewModelScope) { candidate, progress ->
         requireExtensionTrust(candidate)
         val file = installer.prepare(candidate.entry,candidate.repository.fingerprint,progress)
@@ -64,6 +79,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     fun installationMessage(message: String) { _state.update { it.copy(message = message) } }
 
     private fun task(block: suspend () -> Unit) {
+        liveSearch.cancel()
         job?.cancel()
         _state.update { it.copy(busy = true, message = null) }
         job = viewModelScope.launch {
@@ -132,6 +148,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     }
 
     fun openSourceManager(page: SourceManagerPage = SourceManagerPage.SOURCES) {
+        liveSearch.cancel()
         if (!initialLoading) job?.cancel()
         _state.update { it.copy(managerPage = page, details = null, selectedRepository = null,
             busy = initialLoading && it.busy) }
@@ -145,9 +162,10 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         }
     }
     fun navigateCatalog(latest: Boolean) {
+        liveSearch.cancel()
         desiredLatest = latest
         val old = _state.value
-        _state.update { it.copy(managerPage = null, details = null, selectedRepository = null) }
+        _state.update { it.copy(managerPage = null, details = null, selectedRepository = null, latest = latest, query = "") }
         if (initialLoading) return
         if (old.activeSource != null && (job?.isActive == true || old.latest != latest || old.query.isNotEmpty() || old.titles.isEmpty())) catalog("", latest)
         else { job?.cancel(); _state.update { it.copy(busy = false) } }
@@ -232,7 +250,17 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         _state.update { it.copy(activeSource = source, selectedRepository = null, details = null, titles = result.titles, catalogLoaded = true,
             hasNextPage = result.hasNextPage, latest = requestedLatest, query = "") }
     }
-    fun search(query: String) = catalog(query.trim().take(200), _state.value.latest)
+    fun search(query: String, owner: Any? = null) = submitSearch(query, immediate = true, owner = owner)
+    fun searchWhileTyping(query: String, owner: Any) = submitSearch(query, immediate = false, owner = owner)
+    private fun submitSearch(query: String, immediate: Boolean, owner: Any?) {
+        val source = _state.value.activeSource ?: return
+        job?.cancel()
+        _state.update { it.copy(busy = true, message = null) }
+        liveSearch.submit(catalogIntent.capture(source, query), immediate, owner)
+    }
+    fun stopLiveSearch(owner: Any) {
+        if (liveSearch.cancelFor(owner)) _state.update { it.copy(busy = false) }
+    }
     fun showCatalog(latest: Boolean) { desiredLatest = latest; catalog("", latest) }
     private fun catalog(query: String, latest: Boolean) = task {
         val source = _state.value.activeSource ?: error("Escolha uma fonte.")
@@ -267,6 +295,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     fun back(): Boolean {
         val old = _state.value
         if (old.details == null && old.managerPage == null && old.selectedRepository == null) return false
+        liveSearch.cancel()
         job?.cancel()
         _state.value = when {
             old.details != null -> old.copy(details = null, busy = false, message = null)

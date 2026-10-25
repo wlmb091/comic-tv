@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.6
+
+Busca dinâmica na biblioteca e catálogo (consulta online após400ms), com filtro local em fontes/extensões. Campos recebem foco sem abrir o teclado; OK ou clique ativa a digitação, inclusive nas coleções e configuração do tradutor. Veja [notas e teste na Box](docs/releases/1.1.6.md).
+
 ## Versão 1.1.5
 
 Importação automática de coleções ZIP/RAR: cada HQ interna aparece separadamente na biblioteca, com progresso, resumo e reconhecimento de arquivos repetidos. Funciona pelo seletor local, rede local e FTP. Veja [formatos, limites e instalação](docs/releases/1.1.5.md).
