@@ -21,13 +21,14 @@ class DownloadRepository(private val queueFile: File, val store: OfflineStore,
     private val io: CoroutineDispatcher = Dispatchers.IO) {
     private val gson = Gson(); private val queueLock = Mutex(); private val workerLock = Mutex()
     private val _state = MutableStateFlow(DownloadsState()); val state = _state.asStateFlow()
-    suspend fun refresh() = withContext(io) { queueLock.withLock {
-        val queue = if (!queueFile.exists()) emptyList() else {
+    private fun persistedQueue(): List<String> = if (!queueFile.exists()) emptyList() else {
             require(queueFile.length() <= 64000)
             queueFile.reader().use { gson.fromJson(it, Array<String>::class.java) }.toList().also { rows ->
                 require(rows.size <= 100 && rows.distinct().size == rows.size && rows.all(OnlineIdentity::isOnline))
             }
         }
+    suspend fun refresh() = withContext(io) { queueLock.withLock {
+        val queue = persistedQueue()
         val saved = store.ids(); val complete = saved.filter(store::isComplete).toSet()
         _state.update { it.copy(queue = queue, saved = saved, complete = complete) }
     } }
@@ -47,6 +48,23 @@ class DownloadRepository(private val queueFile: File, val store: OfflineStore,
         store.remove(id); saveQueue(_state.value.queue - id)
         _state.update { it.copy(saved = it.saved - id, complete = it.complete - id, active = it.active.takeUnless { active -> active == id }, message = "Download removido. Biblioteca e progresso foram mantidos.") }
     } } }
+    /** Library deletion is serialized against the downloader and cannot leave a queued resurrection. */
+    suspend fun removeLibraryEdition(id: String, deleteEdition: suspend () -> Boolean): Boolean = withContext(io) {
+        require(OnlineIdentity.isOnline(id))
+        workerLock.withLock { queueLock.withLock {
+            currentCoroutineContext().ensureActive()
+            withContext(NonCancellable) {
+                // Startup refresh is asynchronous; disk is authoritative under this same queue lock.
+                saveQueue(persistedQueue() - id)
+                val editionClean = deleteEdition()
+                val offlineClean = runCatching { store.remove(id); true }.getOrDefault(false)
+                val saved = store.ids()
+                _state.update { it.copy(saved = saved, complete = saved.filter(store::isComplete).toSet(),
+                    active = it.active.takeUnless { active -> active == id }, message = "Edição removida da biblioteca.") }
+                editionClean && offlineClean
+            }
+        } }
+    }
     suspend fun runQueue() = withContext(io) { workerLock.withLock {
         _state.update { it.copy(running = true,message = null) }
         try {

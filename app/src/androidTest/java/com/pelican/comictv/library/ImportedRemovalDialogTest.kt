@@ -8,6 +8,13 @@ import org.junit.Rule
 import org.junit.Test
 
 class ImportedRemovalDialogTest {
+    @Test fun onlineConfirmationExplainsOfflineAndCatalogAndStartsOnCancel() {
+        compose.setContent {ComicTvTheme {ConfirmImportedRemoval("Online",{}, {true},{},online=true)}}
+        compose.onNodeWithText("Cancelar").assertIsFocused()
+        compose.onNodeWithText("download offline",substring=true).assertExists()
+        compose.onNodeWithText("Excluir edição da biblioteca").assertExists()
+        compose.onNodeWithText("Excluir arquivo importado").assertDoesNotExist()
+    }
     @get:Rule val compose=createComposeRule()
     @Test fun confirmationStartsOnCancelAndDoesNotDeleteUntilConfirmed() {
         var calls=0

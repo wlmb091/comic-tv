@@ -2,7 +2,11 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 1.1.1
+## Versão 1.1.2
+
+Exclusão de edições de fontes também pelo OK longo/detalhes, incluindo pacote offline e fila com confirmação. Barra lateral recolhe ao confirmar uma seção e leva o foco ao conteúdo. Veja [notas 1.1.2](docs/releases/1.1.2.md). Instalar como atualização; validação física pendente.
+
+## Organização e fontes · 1.1.1
 
 Exclusão confirmada de importados pelo OK longo/detalhes (preserva o arquivo externo), filtro de idioma nas fontes e preservação de metadados de capítulos exigidos pela All Manga. Direção manual de leitura continua salva por edição. Veja [notas 1.1.1](docs/releases/1.1.1.md). Teste da fonte real ainda depende da Box/extensão.
 

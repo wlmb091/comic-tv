@@ -75,7 +75,7 @@ import kotlinx.coroutines.launch
     }
     val nav = rememberNavController()
     var startupFocusPending by rememberSaveable { mutableStateOf(true) }
-    var sidebarFocusTarget by rememberSaveable { mutableStateOf<String?>(null) }
+    var navigationContentTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var relatedTitle by remember { mutableStateOf<RelatedComic?>(null) }
     var editionPreview by remember { mutableStateOf<File?>(null) }
     val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
@@ -94,20 +94,20 @@ import kotlinx.coroutines.launch
 
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
-            TvShell("library", onNavigate = { startupFocusPending = false; sidebarFocusTarget = it; nav.navigate(it) { launchSingleTop = true } },
-                contentFocusPending = startupFocusPending, focusSectionOnEntry = sidebarFocusTarget == "library", onSectionFocused = { sidebarFocusTarget = null }) {
+            TvShell("library", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { launchSingleTop = true } },
+                contentFocusPending = startupFocusPending, focusContentOnEntry = navigationContentTarget == "library", onSectionFocused = { navigationContentTarget = null }) {
                 LibraryScreen(comics, container.library, library.focusedId,
                     onFocus = { library.focusedId = it }, onOpen = { nav.navigate("details/$it") },
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
                     requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
                     query = libraryQuery, filter = libraryFilter, collections = collections, memberships = memberships,
                     onQuery = library.browse::setQuery, onFilter = library.browse::setFilter,
-                    offlineIds = downloadsState.complete,onDownload = ::openDownload)
+                    offlineIds = downloadsState.complete,onDownload = ::openDownload, onDeleteOnline = container::deleteOnlineEdition)
             }
         }
         composable("import") {
-            TvShell("import", onNavigate = { startupFocusPending = false; sidebarFocusTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
-                focusSectionOnEntry = sidebarFocusTarget == "import", onSectionFocused = { sidebarFocusTarget = null }) {
+            TvShell("import", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
+                focusContentOnEntry = navigationContentTarget == "import", onSectionFocused = { navigationContentTarget = null }) {
                 ImportScreen(busy, message, onMessage = library::message,
                     onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } },
                     onLocalTransfer = { nav.navigate("local-transfer") }, onFtpTransfer = { nav.navigate("ftp-transfer") })
@@ -136,7 +136,7 @@ import kotlinx.coroutines.launch
                 val install = rememberExtensionInstallFlow(sources)
                 TvShell(sourceRoute, onNavigate = { destination ->
                     startupFocusPending = false
-                    sidebarFocusTarget = destination
+                    navigationContentTarget = destination
                     if (destination == sourceRoute) {
                         when (destination) {
                             "recent" -> sources.navigateCatalog(true)
@@ -144,7 +144,7 @@ import kotlinx.coroutines.launch
                             else -> sources.navigateCatalog(false)
                         }
                     } else nav.navigate(destination) { popUpTo("library"); launchSingleTop = true }
-                }, focusSectionOnEntry = sidebarFocusTarget == sourceRoute, onSectionFocused = { sidebarFocusTarget = null }) {
+                }, focusContentOnEntry = navigationContentTarget == sourceRoute, onSectionFocused = { navigationContentTarget = null }) {
                     SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = install)
                 }
             }
@@ -157,14 +157,15 @@ import kotlinx.coroutines.launch
             val storage: com.pelican.comictv.storage.StorageViewModel = viewModel(factory = viewModelFactory {
                 initializer { com.pelican.comictv.storage.StorageViewModel(container.library::storageReport, container.library::clearReaderCaches) }
             })
-            TvShell("settings", onNavigate = { startupFocusPending = false; sidebarFocusTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
-                focusSectionOnEntry = sidebarFocusTarget == "settings", onSectionFocused = { sidebarFocusTarget = null }) {
+            TvShell("settings", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
+                focusContentOnEntry = navigationContentTarget == "settings", onSectionFocused = { navigationContentTarget = null }) {
                 SettingsScreen(container.appearance, storage, backup, onDownloads = {nav.navigate("downloads")}) { nav.popBackStack("library", false) }
             }
         }
         composable("details/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo, loadRelated = container.online::related,
+                onDeleteOnline = container::deleteOnlineEdition,
                 onEditions = if (id.startsWith("online-")) ({ nav.navigate("online-editions/$id?from=details") }) else null,
                 offlineAvailable = id in downloadsState.complete, onDownload = {openDownload(id)}, onRelated = { selected ->
                     if (selected.libraryId != null) nav.navigate("details/" + selected.libraryId)
@@ -224,8 +225,13 @@ import kotlinx.coroutines.launch
 }
 
 @Composable internal fun TvShell(selected: String, onNavigate: (String) -> Unit,
-    focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false, content: @Composable () -> Unit) {
+    focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false,
+    focusContentOnEntry: Boolean = false, content: @Composable () -> Unit) {
     val sectionFocus = remember { FocusRequester() }
+    val contentFocus = remember { FocusRequester() }
+    LaunchedEffect(focusContentOnEntry) {
+        if (focusContentOnEntry) { withFrameNanos { }; contentFocus.requestFocus(); onSectionFocused() }
+    }
     LaunchedEffect(focusSectionOnEntry) {
         if (focusSectionOnEntry) { sectionFocus.requestFocus(); onSectionFocused() }
     }
@@ -238,7 +244,7 @@ import kotlinx.coroutines.launch
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
     Box(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
         // The content keeps its full width while the drawer floats above its left edge.
-        Box(Modifier.fillMaxSize().padding(start = 80.dp)) { content() }
+        Box(Modifier.fillMaxSize().padding(start = 80.dp).focusRequester(contentFocus).focusGroup()) { content() }
         Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
             .background(TvColors.Panel, RoundedCornerShape(18.dp))
             .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(18.dp))
@@ -252,8 +258,11 @@ import kotlinx.coroutines.launch
             }
             routes.forEachIndexed { index, (route, title) ->
                 val active = route == selected
-                androidx.tv.material3.Button(onClick = { if (route != selected) onNavigate(route) },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).focusProperties { canFocus = !contentFocusPending }.testTag("nav-" + route)
+                androidx.tv.material3.Button(onClick = {
+                    contentFocus.requestFocus()
+                    if (route != selected) onNavigate(route)
+                },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).focusProperties { canFocus = !contentFocusPending && !focusContentOnEntry }.testTag("nav-" + route)
                         .semantics { this.selected = active }
                         .then(if (route == selected) Modifier.focusRequester(sectionFocus) else Modifier), contentPadding = PaddingValues(0.dp),
                     shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(12.dp)),

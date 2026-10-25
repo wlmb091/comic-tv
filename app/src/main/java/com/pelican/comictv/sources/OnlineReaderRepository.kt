@@ -37,6 +37,16 @@ class OnlineReaderRepository(
     private val mutex = Mutex()
     private val sessions = LinkedHashMap<String, OnlineReadingRecord>()
     private val prefetched = mutableSetOf<String>()
+    internal suspend fun forgetEdition(id: String): Boolean = withContext(Dispatchers.IO) { mutex.withLock {
+        require(OnlineIdentity.isOnline(id))
+        sessions.remove(id); prefetched.remove(id)
+        listOf("$id.json", "$id.json.bak", "$id.json.new").map { name ->
+            runCatching {
+                val file = File(directory,name)
+                file.canonicalFile.parentFile == directory.canonicalFile && !file.isDirectory && (!file.exists() || file.delete())
+            }.getOrDefault(false)
+        }.all {it}
+    } }
     internal suspend fun prepareOffline(id: String): List<OnlinePage> = withContext(Dispatchers.IO) { mutex.withLock { refresh(id).pages } }
     internal suspend fun downloadOffline(id: String, index: Int, target: File) = withContext(Dispatchers.IO) {
         val record = mutex.withLock { checkNotNull(sessions[id]) { "Retome o download para atualizar a fonte." } }

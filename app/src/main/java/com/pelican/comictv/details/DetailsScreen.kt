@@ -41,6 +41,7 @@ import kotlinx.coroutines.CancellationException
     showRelated: Boolean = false,
     offlineAvailable: Boolean = false, onDownload: (() -> Unit)? = null,
     onEditions: (() -> Unit)? = null,
+    onDeleteOnline: (suspend (String) -> Boolean)? = null,
 ) {
     var comic by remember(id) { mutableStateOf<ComicEntity?>(null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
@@ -95,7 +96,8 @@ import kotlinx.coroutines.CancellationException
         onDismiss = { confirmRemoval = false },
         onConfirm = { repository.setHistoryHidden(id, true); comic = repository.getComic(id) })
     if (confirmDelete) ConfirmImportedRemoval(comic?.title.orEmpty(), { confirmDelete = false },
-        { repository.deleteImported(id) }, { confirmDelete = false; onBack() })
+        { if (isOnline) requireNotNull(onDeleteOnline)(id) else repository.deleteImported(id) },
+        { confirmDelete = false; onBack() }, online = isOnline)
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
         BrandedBackground(repository.cover(id), Modifier.matchParentSize())
     BoxWithConstraints(Modifier.fillMaxSize().padding(24.dp)) {
@@ -144,7 +146,7 @@ import kotlinx.coroutines.CancellationException
                         TvButton("Escolher capítulo / edição", { afterDiscoveryStopped(onEditions) })
                     }
                     OrganizationActions(item, repository)
-                    if (!isOnline) TvButton("Excluir da biblioteca", { confirmDelete = true })
+                    if (!isOnline || onDeleteOnline != null) TvButton("Excluir da biblioteca", { confirmDelete = true })
                     if (isOnline && onDownload != null) {
                         if (offlineAvailable) Text("✓ Disponível offline",color = TvColors.Amber)
                         TvButton(if (offlineAvailable) "Gerenciar download offline" else "Baixar para ler offline",onDownload)

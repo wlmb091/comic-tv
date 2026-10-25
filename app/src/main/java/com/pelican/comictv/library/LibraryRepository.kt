@@ -59,24 +59,35 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
             withContext(NonCancellable) {
                 store.stageRemoval(id)
                 try { dao.delete(id) } catch (e: Exception) { store.rollbackRemoval(id); throw e }
-                var cleaned = runCatching { store.finishRemoval(id) }.getOrDefault(false)
-                val owned = listOf(cover(id)) + listOf(pageDirectory, thumbnailDirectory).flatMap { root ->
-                    root.listFiles().orEmpty().filter { it.name.matches(Regex(Regex.escape(id) + "-[0-9]+(?:\\..*)?")) }
-                }
-                for (file in owned) {
-                    val parent = file.parentFile ?: continue
-                    val removed = runCatching {
-                        file.canonicalFile.parentFile == parent.canonicalFile && !file.isDirectory && (!file.exists() || file.delete())
-                    }.getOrDefault(false)
-                    if (!removed) cleaned = false
-                }
-                protectedPage = protectedPage?.takeUnless { it.startsWith("$id-") }
-                if (!runCatching { context.getSharedPreferences("reader-image", Context.MODE_PRIVATE).edit().remove("$id:preset").remove("$id:intensity").commit() }.getOrDefault(false)) cleaned = false
-                runCatching { coil3.SingletonImageLoader.get(context).memoryCache?.clear() }
-                cleaned
+                val originalClean = runCatching { store.finishRemoval(id) }.getOrDefault(false)
+                cleanupEditionAssets(id) && originalClean
             }
         }
     }
+    internal suspend fun deleteOnline(id: String): Boolean = withContext(Dispatchers.IO) {
+        require(com.pelican.comictv.sources.OnlineIdentity.isOnline(id))
+        mutex.withLock {
+            currentCoroutineContext().ensureActive()
+            withContext(NonCancellable) { dao.delete(id); cleanupEditionAssets(id) }
+        }
+    }
+    private fun cleanupEditionAssets(id: String): Boolean = runCatching {
+        var cleaned = true
+        val owned = listOf(cover(id)) + listOf(pageDirectory, thumbnailDirectory).flatMap { root ->
+            root.listFiles().orEmpty().filter { it.name.matches(Regex(Regex.escape(id) + "-[0-9]+(?:\\..*)?")) }
+        }
+        for (file in owned) {
+            val parent = file.parentFile ?: continue
+            val removed = runCatching {
+                file.canonicalFile.parentFile == parent.canonicalFile && !file.isDirectory && (!file.exists() || file.delete())
+            }.getOrDefault(false)
+            if (!removed) cleaned = false
+        }
+        protectedPage = protectedPage?.takeUnless { it.startsWith("$id-") }
+        if (!runCatching { context.getSharedPreferences("reader-image", Context.MODE_PRIVATE).edit().remove("$id:preset").remove("$id:intensity").commit() }.getOrDefault(false)) cleaned = false
+        runCatching { coil3.SingletonImageLoader.get(context).memoryCache?.clear() }
+        cleaned
+    }.getOrDefault(false)
     fun observeComics() = dao.observe()
     fun observeCollections() = collectionDao?.observe() ?: kotlinx.coroutines.flow.flowOf(emptyList<CollectionEntity>())
     fun observeMemberships() = collectionDao?.observeMemberships() ?: kotlinx.coroutines.flow.flowOf(emptyList<CollectionMembership>())

@@ -10,6 +10,37 @@ import java.nio.file.Files
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DownloadQueueTest {
+    @Test fun deletingBeforeStartupRefreshPreservesOtherPersistedQueueEntries() = runTest(dispatcher) {
+        val root=Files.createTempDirectory("delete-before-refresh").toFile()
+        try {
+            val store=OfflineStore(File(root,"downloads"),freeBytes={Long.MAX_VALUE})
+            fun repo()=DownloadRepository(File(root,"queue.json"),store,{emptyList()},{_,_,_->},{10 to 20},dispatcher)
+            val first=repo();first.refresh();first.enqueue(id)
+            val other="online-"+"e".repeat(64);first.enqueue(other)
+            val fresh=repo()
+            assertTrue(fresh.removeLibraryEdition(id) {true})
+            val reopened=repo();reopened.refresh()
+            assertEquals(listOf(other),reopened.state.value.queue)
+        } finally {root.deleteRecursively()}
+    }
+    @Test fun deletingLibraryEditionRemovesQueueAndOfflineCopyWithoutTouchingOtherEdition() = runTest(dispatcher) {
+        val root=Files.createTempDirectory("delete-online").toFile()
+        try {
+            val store=OfflineStore(File(root,"downloads"),freeBytes={Long.MAX_VALUE})
+            val repo=DownloadRepository(File(root,"queue.json"),store,{listOf(OnlinePage(0,"a"))},
+                {_,_,file->file.writeBytes(byteArrayOf(1,2,3))},{10 to 20},dispatcher)
+            repo.refresh();repo.enqueue(id);repo.runQueue()
+            val other="online-"+"e".repeat(64)
+            repo.enqueue(other)
+            var deleted=false
+            assertTrue(repo.removeLibraryEdition(id) {deleted=true;true})
+            assertTrue(deleted);assertFalse(store.hasPackage(id))
+            assertEquals(listOf(other),repo.state.value.queue)
+            assertFalse(id in repo.state.value.saved)
+            val reopened=DownloadRepository(File(root,"queue.json"),store,{emptyList()},{_,_,_->},{10 to 20},dispatcher)
+            reopened.refresh();assertEquals(listOf(other),reopened.state.value.queue)
+        } finally {root.deleteRecursively()}
+    }
     private val dispatcher = StandardTestDispatcher()
     private val id = "online-" + "f".repeat(64)
     @Before fun setup() { Dispatchers.setMain(dispatcher) }

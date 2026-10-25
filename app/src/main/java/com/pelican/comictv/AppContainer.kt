@@ -33,4 +33,9 @@ class AppContainer(context: Context) {
     val onlineReader = com.pelican.comictv.offline.OfflineFirstReaderRepository(offlineStore,online,library,onOfflineOpened = library::updatePageCount) {id,index,file ->
         library.externalImage(id,index,true,foreground = false) { target -> file.copyTo(target,overwrite = true); Unit }
     }
+    suspend fun deleteOnlineEdition(id: String): Boolean = downloads.removeLibraryEdition(id) {
+        val assetsClean = library.deleteOnline(id)
+        val recordClean = runCatching { online.forgetEdition(id) }.getOrDefault(false)
+        assetsClean && recordClean
+    }
 }

@@ -21,6 +21,23 @@ import com.pelican.comictv.library.ConfirmHistoryRemoval
 
 @OptIn(ExperimentalTestApi::class)
 class NavigationAndSummaryTest {
+    @Test fun confirmedSectionCollapsesSidebarAndMovesFocusToContent() {
+        val route=mutableStateOf("library")
+        val pending=mutableStateOf<String?>(null)
+        compose.setContent {ComicTvTheme {
+            key(route.value) {
+                TvShell(route.value,{pending.value=it;route.value=it},
+                    focusContentOnEntry=pending.value==route.value,onSectionFocused={pending.value=null}) {
+                    TvButton("Conteúdo",{},Modifier.testTag("content-action"))
+                }
+            }
+        }}
+        compose.onNodeWithTag("nav-sources").performClick()
+        compose.onNodeWithTag("content-action").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.onNodeWithTag("content-action").performKeyInput {pressKey(Key.DirectionLeft)}
+        compose.onNodeWithTag("sidebar-expanded").assertExists()
+    }
     @get:Rule val compose = createComposeRule()
 
     @Test fun sidebarFocusFollowsRequestedSectionAndIgnoresCatalogUpdates() {

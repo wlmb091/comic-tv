@@ -41,6 +41,32 @@ class ImportedRemovalTest {
             assertEquals("keep",File(context.cacheDir,"pages/other-0").readText())
             assertEquals("other",library.originalFile("other").readText())
             assertEquals("external",external.readText())
+
+            // Online deletion uses only private records/downloads and never consults the source.
+            val source=com.pelican.comictv.sources.SourceHandle("pkg",1,"Source","en","https://example.com")
+            val title=com.pelican.comictv.sources.OnlineTitle("series","Series")
+            val chapter=com.pelican.comictv.sources.OnlineChapter("chapter","Chapter")
+            val id=com.pelican.comictv.sources.OnlineIdentity.id(source,title,chapter)
+            db.comics().insert(ComicEntity(id,"Online",1,lastRead=1,favorite=true))
+            library.setCollections(id,setOf(collection))
+            val online=com.pelican.comictv.sources.OnlineReaderRepository(context,db.comics(),library,
+                com.pelican.comictv.mihon.MihonEngine(real),com.pelican.comictv.sources.SourcePreferences(context))
+            online.restoreMetadata(id,com.pelican.comictv.backup.BackupOnline(source,title,chapter,"a".repeat(64)))
+            val store=com.pelican.comictv.offline.OfflineStore(File(context.filesDir,"offline"),freeBytes={Long.MAX_VALUE})
+            store.begin(id,1,"b".repeat(64))
+            val downloads=com.pelican.comictv.offline.DownloadRepository(File(context.filesDir,"queue.json"),store,
+                {error("Deletion must not contact source")},{_,_,_->error("Deletion must not download")})
+            downloads.refresh();downloads.enqueue(id)
+            assertTrue(downloads.removeLibraryEdition(id) {
+                val cleaned=library.deleteOnline(id)
+                online.forgetEdition(id) && cleaned
+            })
+            assertNull(db.comics().get(id))
+            assertTrue(library.collectionsFor(id).isEmpty())
+            assertFalse(File(context.filesDir,"online-records/$id.json").exists())
+            assertFalse(id in store.ids())
+            assertFalse(id in downloads.state.value.queue)
+            assertNotNull(db.comics().get("other"))
         } finally {db.close();root.deleteRecursively();real.deleteSharedPreferences("$prefix-reader-image")}
     }
 }

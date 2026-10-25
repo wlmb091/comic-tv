@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
     query: String = "", filter: String = "all", collections: List<CollectionEntity> = emptyList(),
     memberships: List<CollectionMembership> = emptyList(), onQuery: (String) -> Unit = {}, onFilter: (String) -> Unit = {},
     offlineIds: Set<String> = emptySet(), onDownload: ((String) -> Unit)? = null,
+    onDeleteOnline: (suspend (String) -> Boolean)? = null,
 ) {
     val grid = rememberLazyGridState()
     val restore = remember { FocusRequester() }
@@ -70,6 +71,7 @@ import kotlinx.coroutines.launch
     }
     optionsFor?.let { selected ->
         HistoryOptions(selected, repository, onRead = { optionsFor = null; focusComic(selected.id); onRead(selected.id) }, onOpen = { optionsFor = null; focusComic(selected.id); onOpen(selected.id) },
+            onDeleteOnline = onDeleteOnline,
             onDownload = onDownload?.let { callback -> {optionsFor = null;focusComic(selected.id);callback(selected.id)} },offlineAvailable = selected.id in offlineIds,
             onDismiss = { menuScope.launch {
                 grid.scrollToItem(0)
