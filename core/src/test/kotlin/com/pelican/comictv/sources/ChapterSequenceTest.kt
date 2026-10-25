@@ -55,4 +55,23 @@ class ChapterSequenceTest {
             chapterSequence(List(10_001) { first }, "a")
         }
     }
+    @Test fun numericOrdersDriveNeighborsAndSourceOptionPreservesOriginalOrder() {
+        val one = OnlineChapter("one", "Chapter 01", 1f)
+        val two = OnlineChapter("two", "Chapter 02", 2f, memo = "keep")
+        val half = OnlineChapter("half", "Capítulo 2,5", -1f)
+        val ten = OnlineChapter("ten", "Chapter 10", 10f)
+        val raw = listOf(ten, half, two, one)
+        val ascending = chapterSequence(raw, one.key, ChapterOrder.Ascending)
+        assertNull(ascending.previous); assertSame(two, ascending.next)
+        assertEquals(half, chapterSequence(raw, two.key, ChapterOrder.Ascending).next)
+        assertEquals(two, chapterSequence(raw, half.key, ChapterOrder.Descending).next)
+        assertNull(chapterSequence(raw, one.key, ChapterOrder.Source).next)
+        assertEquals(raw, chapterSequence(raw, one.key, ChapterOrder.Source).chapters)
+    }
+    @Test fun absentOrInvalidNamedPreferenceDefaultsToAscending() {
+        assertEquals(ChapterOrder.Ascending, restoreChapterOrder(null))
+        assertEquals(ChapterOrder.Ascending, restoreChapterOrder("invalid"))
+        assertEquals(ChapterOrder.Source, restoreChapterOrder("Source"))
+        assertEquals(ChapterOrder.Descending, restoreChapterOrder("Descending"))
+    }
 }

@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 
 @Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null, onChapterStep: ((Int) -> Unit)? = null, narrationOriginal: java.io.File? = null) {
     var narrationMode by remember(viewModel) { mutableStateOf(false) }
-    val narrate = { viewModel.beginNarration(); narrationMode = true }
+    val narrate: (() -> Unit)? = if (ReaderFeatures.narrationAndTranslation) ({ viewModel.beginNarration(); narrationMode = true }) else null
     val state by viewModel.state.collectAsStateWithLifecycle()
     val image by viewModel.image.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
@@ -59,7 +59,7 @@ import kotlinx.coroutines.launch
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.pauseAutomaticReading() }
     }
-    if (narrationMode) {
+    if (ReaderFeatures.narrationAndTranslation && narrationMode) {
         com.pelican.comictv.reader.narration.NarratedReaderScreen(viewModel, narrationOriginal) {
             viewModel.finishNarration(); narrationMode = false
         }

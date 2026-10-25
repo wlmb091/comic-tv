@@ -43,8 +43,8 @@ import kotlinx.coroutines.launch
     var attempted by rememberSaveable { mutableStateOf(false) }
     var initialFocus by remember { mutableStateOf(false) }
     val context = state.context
-    val sequence = remember(context, state.reversed) {
-        context?.let { chapterSequence(it.chapters, it.current.key, state.reversed) }
+    val sequence = remember(context, state.order) {
+        context?.let { chapterSequence(it.chapters, it.current.key, state.order) }
     }
     val exit = { viewModel.leave(); onBack() }
     val read: (String) -> Unit = { destination -> viewModel.leave(); onRead(destination) }
@@ -97,8 +97,7 @@ import kotlinx.coroutines.launch
                             color = TvColors.Muted, fontSize = 14.sp,
                         )
                         if (!state.busy) {
-                            TvButton(if (state.reversed) "Ordem invertida ⇅" else "Ordem da fonte ⇅",
-                                viewModel::toggleOrder, Modifier.fillMaxWidth())
+                            ChapterOrderControls(state.order, viewModel::selectOrder)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 sequence.previous?.let { chapter ->
                                     TvButton("Anterior", { viewModel.open(chapter, read) }, Modifier.weight(1f))
@@ -112,7 +111,7 @@ import kotlinx.coroutines.launch
                                 scope.launch { list.scrollToItem(sequence.index + 1) }
                             }, Modifier.fillMaxWidth())
                         }
-                        Text("A sequência segue a ordem selecionada na fonte.", color = TvColors.Muted, fontSize = 13.sp)
+                        Text("Anterior e próximo seguem a ordem selecionada acima.", color = TvColors.Muted, fontSize = 13.sp)
                     }
                     if (!state.busy) TvButton("Atualizar lista", viewModel::retry, Modifier.fillMaxWidth())
                 }

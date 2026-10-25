@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.8
+
+Capítulos em ordem crescente por padrão, com Do início/Do final/Ordem da fonte na sequência do leitor. Corrige próximo capítulo a partir do01 em fontes decrescentes. Narração e tradução temporariamente desativadas a pedido do usuário. Veja [notas](docs/releases/1.1.8.md).
+
 ## Versão 1.1.7
 
 Atalhos Anterior/Próximo capítulo abrem diretamente o vizinho, com carregamento e mensagem em caso de limite/falha. A lista fica no botão Capítulos/edições. Veja [notas](docs/releases/1.1.7.md).

@@ -11,10 +11,10 @@ import org.junit.Test
 
 class DirectChapterStepTest {
     @get:Rule val compose = createComposeRule()
-    private val first = OnlineChapter("1", "Primeiro")
-    private val second = OnlineChapter("2", "Segundo")
+    private val first = OnlineChapter("1", "Primeiro", 1f)
+    private val second = OnlineChapter("2", "Segundo", 2f)
     private val context = OnlineEditions(SourceHandle("source", 1, "Fonte", "pt", "https://example.com"),
-        OnlineTitle("title", "Saga"), first, listOf(first, second), "a".repeat(64))
+        OnlineTitle("title", "Saga"), first, listOf(second, first), "a".repeat(64))
 
     @Test fun nextOpensDirectlyWithoutDisplayingChapterMenuDuringLoading() {
         val loaded = CompletableDeferred<OnlineEditions>()

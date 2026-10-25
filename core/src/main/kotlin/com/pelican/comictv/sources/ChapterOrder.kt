@@ -4,6 +4,8 @@ enum class ChapterOrder(val label: String) {
     Ascending("Do início"), Descending("Do final"), Source("Ordem da fonte")
 }
 
+fun restoreChapterOrder(name: String?): ChapterOrder = ChapterOrder.entries.firstOrNull { it.name == name } ?: ChapterOrder.Ascending
+
 private val chapterNumber = Regex("(?:\\b(?:chapter|cap[ií]tulo|ch\\.?|cap\\.?)\\s*|#\\s*)([0-9]+(?:[.,][0-9]+)?)",RegexOption.IGNORE_CASE)
 private fun orderNumber(chapter: OnlineChapter): Float? {
     val title=chapter.title.trim()

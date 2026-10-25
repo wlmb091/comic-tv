@@ -7,6 +7,12 @@ data class ChapterSequence(
     val next: OnlineChapter?,
 )
 
+/** Displayed ordering and reader shortcuts must use the same numeric sequence. */
+fun chapterSequence(chapters: List<OnlineChapter>, currentKey: String, order: ChapterOrder): ChapterSequence {
+    require(chapters.size <= 10_000) { "Lista de edições excede o limite." }
+    return chapterSequence(orderedChapters(chapters, order), currentKey, reversed = false)
+}
+
 /** Source order is authoritative; duplicates keep their first entry even when reversed. */
 fun chapterSequence(
     chapters: List<OnlineChapter>,

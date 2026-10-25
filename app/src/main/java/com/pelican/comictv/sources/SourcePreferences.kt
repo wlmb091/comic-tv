@@ -22,9 +22,9 @@ class SourcePreferences(context: Context) {
         check(preferences.edit().putString("selected-source", selection?.let(gson::toJson)).commit()) { "Não foi possível salvar a fonte." }
     }
     fun isTrusted(fingerprint: String) = repositories().any { it.fingerprint == fingerprint }
-    fun reversedSequence(context: OnlineEditions): Boolean = preferences.getBoolean(sequenceKey(context), false)
-    fun saveSequenceOrder(context: OnlineEditions, reversed: Boolean) {
-        check(preferences.edit().putBoolean(sequenceKey(context), reversed).commit()) { "Não foi possível salvar a ordem." }
+    fun chapterSequenceOrder(context: OnlineEditions): ChapterOrder = restoreChapterOrder(preferences.getString(sequenceKey(context) + "-order-v2", null))
+    fun saveSequenceOrder(context: OnlineEditions, order: ChapterOrder) {
+        check(preferences.edit().putString(sequenceKey(context) + "-order-v2", order.name).commit()) { "Não foi possível salvar a ordem." }
     }
     private fun sequenceKey(context: OnlineEditions): String {
         val identity = gson.toJson(listOf(context.source.packageName, context.source.id.toString(), context.title.key))

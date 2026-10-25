@@ -6,14 +6,14 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
-data class OnlineEditionsState(val context: OnlineEditions? = null, val reversed: Boolean = false,
+data class OnlineEditionsState(val context: OnlineEditions? = null, val order: ChapterOrder = ChapterOrder.Ascending,
     val busy: Boolean = true, val message: String? = null)
 
 class OnlineEditionsViewModel(private val id: String, private val saved: SavedStateHandle,
     private val load: suspend (String) -> OnlineEditions,
     private val openChapter: suspend (OnlineEditions, OnlineChapter) -> String,
-    private val readOrder: suspend (OnlineEditions) -> Boolean = { false },
-    private val writeOrder: suspend (OnlineEditions, Boolean) -> Unit = { _, _ -> },
+    private val readOrder: suspend (OnlineEditions) -> ChapterOrder = { ChapterOrder.Ascending },
+    private val writeOrder: suspend (OnlineEditions, ChapterOrder) -> Unit = { _, _ -> },
 ) : ViewModel() {
     private val _state = MutableStateFlow(OnlineEditionsState())
     val state = _state.asStateFlow()
@@ -30,26 +30,25 @@ class OnlineEditionsViewModel(private val id: String, private val saved: SavedSt
         job = viewModelScope.launch {
             try {
                 val context = load(id)
-                val reversed = saved.get<Boolean>("reversed") ?: readOrder(context)
+                val order = saved.get<String>("chapterOrder")?.let(::restoreChapterOrder) ?: readOrder(context)
                 ensureActive()
-                _state.value = OnlineEditionsState(context, reversed, busy = false)
+                _state.value = OnlineEditionsState(context, order, busy = false)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (isActive && !leaving) _state.update { it.copy(busy = false, message = e.message ?: "Não foi possível consultar as edições.") } }
         }
     }
 
-    fun toggleOrder() {
+    fun selectOrder(order: ChapterOrder) {
         val old = _state.value
         val context = old.context ?: return
-        if (old.busy || leaving) return
+        if (old.busy || leaving || old.order == order) return
         _state.update { it.copy(busy = true, message = null) }
         job = viewModelScope.launch {
             try {
-                val reversed = !old.reversed
-                writeOrder(context, reversed)
+                writeOrder(context, order)
                 ensureActive()
-                saved["reversed"] = reversed
-                _state.update { it.copy(reversed = reversed, busy = false) }
+                saved["chapterOrder"] = order.name
+                _state.update { it.copy(order = order, busy = false) }
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { if (isActive && !leaving) _state.update { it.copy(busy = false, message = "Não foi possível salvar a ordem da sequência.") } }
         }
@@ -59,7 +58,7 @@ class OnlineEditionsViewModel(private val id: String, private val saved: SavedSt
         val old = _state.value
         if (old.busy || leaving || direction !in listOf(-1, 1)) return
         val context = old.context ?: return
-        val sequence = chapterSequence(context.chapters, context.current.key, old.reversed)
+        val sequence = chapterSequence(context.chapters, context.current.key, old.order)
         val neighbor = if (direction < 0) sequence.previous else sequence.next
         if (neighbor == null) {
             _state.update { it.copy(message = if (sequence.index < 0) "A edição atual não aparece na lista da fonte. Escolha uma edição."

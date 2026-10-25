@@ -212,8 +212,8 @@ import kotlinx.coroutines.launch
             val editions: OnlineEditionsViewModel = viewModel(factory = viewModelFactory {
                 initializer { OnlineEditionsViewModel(id, createSavedStateHandle(), container.online::editions,
                     { context, chapter -> container.online.open(context.source, context.title, chapter, context.pin) },
-                    readOrder = { context -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.reversedSequence(context) } },
-                    writeOrder = { context, reversed -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.saveSequenceOrder(context, reversed) } }) }
+                    readOrder = { context -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.chapterSequenceOrder(context) } },
+                    writeOrder = { context, order -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.saveSequenceOrder(context, order) } }) }
             })
             OnlineEditionsScreen(editions, onRead = { next ->
                 nav.navigate("reader/$next") { popUpTo(entry.destination.id) { inclusive = true } }

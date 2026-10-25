@@ -488,8 +488,8 @@ internal fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineC
     val summaryScroll = rememberLazyListState()
     val chapterScroll = rememberLazyListState()
     val scrollScope = rememberCoroutineScope()
-    var orderName by rememberSaveable(details.title.key) {mutableStateOf(ChapterOrder.Source.name)}
-    val order=ChapterOrder.entries.firstOrNull {it.name == orderName} ?: ChapterOrder.Source
+    var orderName by rememberSaveable(details.title.key) {mutableStateOf(ChapterOrder.Ascending.name)}
+    val order=restoreChapterOrder(orderName)
     val chapters=remember(details.chapters,order) {orderedChapters(details.chapters,order)}
     var summaryFocused by remember { mutableStateOf(false) }
     var expandedSummary by rememberSaveable(details.title.key) { mutableStateOf(false) }
