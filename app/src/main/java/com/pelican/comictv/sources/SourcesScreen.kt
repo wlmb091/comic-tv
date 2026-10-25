@@ -130,7 +130,8 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
         }
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SourceInput(filter, { filter = it }, "Buscar fonte · "+state.sources.size+" disponíveis")
+        SourceInput(filter, { filter = it }, "Buscar fonte · "+state.sources.size+" disponíveis",
+            com.pelican.comictv.ui.preferredContentEntryModifier(enabled = !state.busy))
         TvButton("Idioma: " + sourceLanguageLabel(language) + " · ${sources.size} fonte(s)", {choosingLanguage=true})
         LazyVerticalGrid(GridCells.Adaptive(120.dp * TvColors.options.textScale), Modifier.fillMaxSize().focusRestorer(),
             contentPadding = PaddingValues(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -156,12 +157,13 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
     val installed = state.installed.associateBy { it.packageName }
     val updates = state.availableExtensions.filter { c -> installed[c.entry.packageName]?.let { c.entry.versionCode > it.versionCode } == true }
     val available = state.availableExtensions.filter { it.entry.packageName !in installed }
+    val firstTab = com.pelican.comictv.ui.preferredContentEntryModifier()
     fun matches(name: String, extra: String = "") = filter.isBlank() || (name + " " + extra).contains(filter.trim(), true)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         ExtensionQueueSummary(vm)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf("Instaladas" to state.installed.size, "Atualizações" to updates.size, "Disponíveis" to available.size).forEach { (label, count) ->
-                SourceModeTab(label, count, tab == label) { tab = label }
+                SourceModeTab(label, count, tab == label, if (label == "Instaladas") firstTab else Modifier) { tab = label }
             }
         }
         SourceInput(filter, { filter = it }, "Buscar extensão por nome, fonte ou idioma")
@@ -244,8 +246,8 @@ private fun ExtensionIcon(packageName: String?, iconUrl: String?, name: String) 
 }
 
 @Composable
-private fun CatalogIconButton(label: String, search: Boolean, click: () -> Unit) {
-    Button(onClick = click, modifier = Modifier.size(44.dp).semantics { contentDescription = label },
+private fun CatalogIconButton(label: String, search: Boolean, modifier: Modifier = Modifier, click: () -> Unit) {
+    Button(onClick = click, modifier = modifier.size(44.dp).semantics { contentDescription = label },
         contentPadding = PaddingValues(10.dp), colors = ButtonDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
         val color = LocalContentColor.current
         Canvas(Modifier.size(24.dp)) {
@@ -398,12 +400,17 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
     DisposableEffect(vm, searchOwner) { onDispose { vm.stopLiveSearch(searchOwner) } }
     LaunchedEffect(state.activeSource, state.latest) { query = state.query }
     val grid = rememberLazyGridState()
+    val enteringSection = com.pelican.comictv.ui.LocalSectionContentEntry.current
+    val sectionEntry = remember { enteringSection }
+    val firstTitle = com.pelican.comictv.ui.preferredContentEntryModifier(enabled = !state.busy,
+        prepare = { grid.scrollToItem(0) })
     com.pelican.comictv.ui.WarmGridCovers(grid,state.titles.map {com.pelican.comictv.ui.CoverWarmEntry(it.key,it.coverUrl)})
     val restore = remember { FocusRequester() }
     var focusedTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var restoreTarget by remember { mutableStateOf<String?>(null) }
     var positioned by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
+        if (sectionEntry) return@LaunchedEffect
         val index = state.titles.indexOfFirst { it.key == focusedTitle }
         if (index >= 0) {
             restoreTarget = state.titles[index].key
@@ -434,7 +441,7 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
                         Text("${if (state.latest) "Novidades" else "Catálogo"} · ${state.activeSource?.language.orEmpty()} · ${state.titles.size} títulos carregados",
                             fontSize = 14.sp, color = TvColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    CatalogIconButton("Trocar fonte", false) { vm.openSourceManager() }
+                    CatalogIconButton("Trocar fonte", false, if (state.titles.isEmpty()) firstTitle else Modifier) { vm.openSourceManager() }
                     Spacer(Modifier.width(8.dp))
                     CatalogIconButton(if (searchVisible) "Fechar busca" else "Buscar", true) { searchVisible = !searchVisible }
                 }
@@ -462,7 +469,8 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
             var loaded by remember(title.coverUrl) { mutableStateOf(false) }
             var failed by remember(title.coverUrl) { mutableStateOf(false) }
             val focus = if (restoreTarget == title.key) Modifier.focusRequester(restore).onGloballyPositioned { positioned = title.key } else Modifier
-            Card(onClick = { vm.showDetails(title) }, modifier = focus.fillMaxWidth()
+            Card(onClick = { vm.showDetails(title) }, modifier = focus
+                .then(if (title.key == state.titles.firstOrNull()?.key) firstTitle else Modifier).fillMaxWidth()
                 .semantics { contentDescription = label }
                 .onFocusChanged { if (it.isFocused) focusedTitle = title.key }, colors = CardDefaults.colors(containerColor = TvColors.Panel),
                 scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {

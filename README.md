@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.11
+
+Entrada de foco definida para todas as seções da barra: Todas, primeiro título de Catálogo/Novidades, Instaladas, Escolher arquivo e Acessibilidade e aparência. Aguarda carregamento sem puxar foco de quem voltou à barra. Veja [destinos e limites](docs/releases/1.1.11.md).
+
 ## Versão 1.1.10
 
 Atalho de próximo capítulo na última página, sem foco automático e preservando zoom/mover. Retorno da barra na biblioteca no topo foca Todas sem selecionar o filtro. Veja [notas](docs/releases/1.1.10.md).

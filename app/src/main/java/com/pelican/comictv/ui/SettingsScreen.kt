@@ -43,10 +43,12 @@ import kotlinx.coroutines.sync.withLock
         } }
     }
     val themeCellWidth = 208.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val sections = androidx.compose.foundation.lazy.rememberLazyListState()
+    val firstSection = preferredContentEntryModifier(prepare = { sections.scrollToItem(0) })
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenTitle("Configurações", "Comic TV · versão " + BuildConfig.VERSION_NAME)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { TvChoice("Acessibilidade e aparência", accessibility && !storageOpen && !backupOpen, { accessibility = true; storageOpen = false; backupOpen = false }) }
+        LazyRow(state = sections, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            item { TvChoice("Acessibilidade e aparência", accessibility && !storageOpen && !backupOpen, { accessibility = true; storageOpen = false; backupOpen = false }, firstSection) }
             item { TvChoice("Controle remoto", !accessibility && !storageOpen && !backupOpen, { accessibility = false; storageOpen = false; backupOpen = false }) }
             item { TvChoice("Armazenamento", storageOpen && !backupOpen, { storageOpen = true; backupOpen = false; storage.refresh() }) }
             item { TvChoice("Backup e restauração", backupOpen, { backupOpen = true; storageOpen = false }) }

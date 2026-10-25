@@ -4,12 +4,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.*
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
@@ -19,22 +17,14 @@ import com.pelican.comictv.ui.*
 import kotlinx.coroutines.flow.first
 
 @Composable internal fun LibraryFilters(collections: List<CollectionEntity>, filter: String,
-    onFilter: (String) -> Unit, onManage: () -> Unit, restoreManage: Int = 0, returnFocusEnabled: Boolean = true) {
-    val list = rememberLazyListState()
+    onFilter: (String) -> Unit, onManage: () -> Unit, restoreManage: Int = 0, returnFocusEnabled: Boolean = true,
+    entryModifier: Modifier? = null, listState: LazyListState = rememberLazyListState()) {
+    val list = listState
     val manage = remember { FocusRequester() }
     LazyRow(Modifier.testTag("library-filters"), state = list, horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(3.dp)) {
         item(key = "all") {
-            val all = remember { FocusRequester() }
-            var coordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-            PreferredContentEntry {
-                val position = coordinates
-                if (!returnFocusEnabled || position?.isAttached != true) false else {
-                    val bounds = position.boundsInWindow()
-                    if (bounds.width + 1 < position.size.width || bounds.height + 1 < position.size.height) false
-                    else all.requestFocus()
-                }
-            }
-            FilterButton("Todas", "all", filter, onFilter, Modifier.focusRequester(all).onGloballyPositioned { coordinates = it })
+            val first = entryModifier ?: preferredContentEntryModifier(enabled = returnFocusEnabled)
+            FilterButton("Todas", "all", filter, onFilter, first)
         }
         item(key = "favorites") { FilterButton("★ Favoritos", "favorites", filter, onFilter) }
         items(collections, key = { it.id }) { FilterButton(it.name, "collection:" + it.id, filter, onFilter) }

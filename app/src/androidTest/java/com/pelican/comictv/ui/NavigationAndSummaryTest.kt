@@ -4,6 +4,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -21,6 +24,96 @@ import com.pelican.comictv.library.ConfirmHistoryRemoval
 
 @OptIn(ExperimentalTestApi::class)
 class NavigationAndSummaryTest {
+    @Test fun confirmingLibraryRevealsAllWhenCollectionsWereScrolledHorizontally() {
+        var filter = "favorites"
+        compose.setContent { ComicTvTheme {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("library", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                val filters = rememberLazyListState(initialFirstVisibleItemIndex = 6)
+                val first = preferredContentEntryModifier(prepare = { filters.scrollToItem(0) })
+                com.pelican.comictv.library.LibraryFilters(
+                    (1..20).map { com.pelican.comictv.library.CollectionEntity("$it", "Coleção $it", "colecao $it") },
+                    filter, { filter = it }, {}, entryModifier = first, listState = filters)
+            }
+        } }
+        compose.onNodeWithText("Todas").assertIsFocused().assertIsNotSelected()
+        compose.runOnIdle { assertEquals("favorites", filter) }
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+    }
+
+    @Test fun confirmedSectionPreparesFirstItemFromSavedScrollPosition() {
+        compose.setContent { ComicTvTheme {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("sources", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                val grid = rememberLazyGridState(initialFirstVisibleItemIndex = 12)
+                val first = preferredContentEntryModifier(prepare = { grid.scrollToItem(0) })
+                LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(), state = grid) {
+                    items(30) { index ->
+                        TvButton("Título $index", {}, (if (index == 0) first else Modifier)
+                            .height(150.dp).testTag("title-$index"))
+                    }
+                }
+            }
+        } }
+        compose.onNodeWithTag("title-0").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+    }
+
+    @Test fun firstTitleReceivesFocusAfterLoadAndLaterUpdatesDoNotStealIt() {
+        val loaded = mutableStateOf(false)
+        val refresh = mutableIntStateOf(0)
+        compose.setContent { ComicTvTheme {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("sources", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                val first = preferredContentEntryModifier(enabled = loaded.value)
+                Column {
+                    TvButton("Trocar fonte", {}, Modifier.testTag("source-switch"))
+                    if (loaded.value) {
+                        TvButton("Primeiro título ${refresh.intValue}", {}, first.testTag("first-title"))
+                        TvButton("Segundo título", {}, Modifier.testTag("second-title"))
+                    } else Text("Carregando")
+                }
+            }
+        } }
+        compose.onNodeWithTag("content-entry").assertIsFocused()
+        compose.runOnIdle { loaded.value = true }
+        compose.onNodeWithTag("first-title").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.onNodeWithTag("first-title").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithTag("second-title").assertIsFocused()
+        compose.runOnIdle { refresh.intValue++ }
+        compose.onNodeWithTag("second-title").assertIsFocused()
+    }
+
+    @Test fun loadingTitleDoesNotTakeFocusAfterUserReturnsToSidebar() {
+        val loaded = mutableStateOf(false)
+        compose.setContent { ComicTvTheme {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("recent", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                val first = preferredContentEntryModifier(enabled = loaded.value)
+                if (loaded.value) TvButton("Primeiro", {}, first.testTag("first-title")) else Text("Carregando")
+            }
+        } }
+        compose.onNodeWithTag("content-entry").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithTag("nav-recent").assertIsFocused()
+        compose.runOnIdle { loaded.value = true }
+        compose.onNodeWithTag("nav-recent").assertIsFocused()
+        compose.onNodeWithTag("first-title").assertIsNotFocused()
+    }
+
+    @Test fun importRailReturnFocusesChooseFileWithoutOpeningPicker() {
+        var opened = 0
+        compose.setContent { ComicTvTheme {
+            TvShell("import", {}) {
+                com.pelican.comictv.transfer.ImportScreen(false, null, {}, {}, { opened++ }, {})
+            }
+        } }
+        compose.onNodeWithTag("nav-settings").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.RequestFocus) { it() }
+        compose.onNodeWithTag("nav-settings").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Escolher arquivo").assertIsFocused()
+        compose.runOnIdle { assertEquals(0, opened) }
+    }
+
     @Test fun confirmedSectionCollapsesSidebarAndMovesFocusToContent() {
         val route=mutableStateOf("library")
         val pending=mutableStateOf<String?>(null)

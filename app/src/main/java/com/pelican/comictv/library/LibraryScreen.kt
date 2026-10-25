@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -37,6 +38,11 @@ import kotlinx.coroutines.launch
 ) {
     val grid = rememberLazyGridState()
     val pageAtTop by remember(grid) { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
+    val filterList = rememberLazyListState()
+    val firstFilter = preferredContentEntryModifier(enabled = pageAtTop,
+        prepare = { grid.scrollToItem(0); filterList.scrollToItem(0) })
+    val enteringSection = LocalSectionContentEntry.current
+    val sectionEntry = remember { enteringSection }
     val restore = remember { FocusRequester() }
     var history by rememberSaveable { mutableStateOf(false) }
     var target by remember { mutableStateOf<String?>(null) }
@@ -90,7 +96,7 @@ import kotlinx.coroutines.launch
     val entryId = remember { focusedId }
     var restored by remember { mutableStateOf(false) }
     LaunchedEffect(comics, history, query, filter, memberships) {
-        if (restored || entryId == null) return@LaunchedEffect
+        if (sectionEntry || restored || entryId == null) return@LaunchedEffect
         if (comics.isEmpty()) return@LaunchedEffect
         val index = visible.indexOfFirst { it.id == entryId }
         if (index < 0) {
@@ -121,7 +127,8 @@ import kotlinx.coroutines.launch
                 LibraryHeader(comics.size, recent.size, history, searching || query.isNotBlank(),
                     { searching = true }, { history = false }, { history = true },
                     Modifier.focusRequester(headerFocus), Modifier.focusRequester(searchFocus))
-                LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage, returnFocusEnabled = pageAtTop)
+                LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage,
+                    returnFocusEnabled = pageAtTop, entryModifier = firstFilter, listState = filterList)
                 if (!history) LibraryHero(featured, repository,
                     onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport)
             }

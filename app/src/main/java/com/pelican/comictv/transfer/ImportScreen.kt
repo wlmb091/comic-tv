@@ -17,10 +17,13 @@ import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
 
 @Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit, onLocalTransfer: () -> Unit, onFtpTransfer: () -> Unit, onCancelImport: () -> Unit = {}) {
-    val first = remember { FocusRequester() }
+    val scroll = rememberScrollState()
+    val first = preferredContentEntryModifier(prepare = { scroll.scrollTo(0) })
+    val initial = remember { FocusRequester() }
+    val enteringSection = LocalSectionContentEntry.current
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(onImport) }
-    LaunchedEffect(Unit) { first.requestFocus() }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    LaunchedEffect(Unit) { if (!enteringSection) initial.requestFocus() }
+    Column(Modifier.fillMaxSize().verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         ScreenTitle("Traga suas histórias", "Escolha como adicionar quadrinhos à sua biblioteca.")
         Column(Modifier.fillMaxWidth().background(TvColors.Panel).padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Arquivo local", fontSize = 23.sp)
@@ -29,7 +32,7 @@ import com.pelican.comictv.ui.*
             TvButton(if (busy) "Importando… aguarde" else "Escolher arquivo", {
                 if (!busy) try { picker.launch(arrayOf("*/*")) }
                 catch (_: ActivityNotFoundException) { onMessage("Esta TV não oferece um seletor de arquivos. Use a opção Enviar pela rede local para transferir pelo celular.") }
-            }, Modifier.focusRequester(first), primary = true)
+            }, first.focusRequester(initial), primary = true)
         }
         if (busy) TvButton("Interromper importação", onCancelImport)
         if (message != null) Text(message, color = TvColors.Amber, fontSize = 17.sp)

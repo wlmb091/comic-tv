@@ -23,8 +23,8 @@ import com.pelican.comictv.ui.TvColors
         fontWeight = FontWeight.ExtraBold, fontSize = 24.sp, lineHeight = 30.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
 }
 
-@Composable internal fun SourceModeTab(label: String, count: Int, active: Boolean, onClick: () -> Unit) {
-    Button(onClick = onClick, modifier = Modifier.heightIn(min = 42.dp).semantics { selected = active },
+@Composable internal fun SourceModeTab(label: String, count: Int, active: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Button(onClick = onClick, modifier = modifier.heightIn(min = 42.dp).semantics { selected = active },
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
         scale = ButtonDefaults.scale(focusedScale = 1f),

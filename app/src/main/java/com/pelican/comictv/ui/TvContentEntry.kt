@@ -17,12 +17,16 @@ import androidx.compose.ui.semantics.semantics
 
 /** Stable focus destination outside scrollable/lazy content, including while data is replaced. */
 @Composable internal fun TvContentEntry(entry: FocusRequester, sidebar: FocusRequester,
-    modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    modifier: Modifier = Modifier, onEntryLeft: () -> Unit = {}, content: @Composable () -> Unit) {
     val children = remember { FocusRequester() }
     var atEntry by remember { mutableStateOf(false) }
     var enteringKey by remember { mutableStateOf<Key?>(null) }
     Box(modifier.focusRequester(entry)
-        .onFocusChanged { atEntry = it.isFocused; if (!it.hasFocus) enteringKey = null }
+        .onFocusChanged {
+            if (atEntry && !it.isFocused) onEntryLeft()
+            atEntry = it.isFocused
+            if (!it.hasFocus) enteringKey = null
+        }
         .onPreviewKeyEvent { event ->
             if (enteringKey == event.key) {
                 if (event.type == KeyEventType.KeyUp) enteringKey = null

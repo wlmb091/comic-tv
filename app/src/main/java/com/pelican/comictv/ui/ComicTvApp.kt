@@ -235,9 +235,11 @@ import kotlinx.coroutines.launch
     val sectionFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val preferredEntry = remember { ContentEntryTarget() }
-    fun returnToContent() { if (!preferredEntry.requestFocus()) contentFocus.requestFocus() }
+    fun returnToContent(resetToFirst: Boolean = false) {
+        if (!preferredEntry.requestFocus(resetToFirst)) contentFocus.requestFocus()
+    }
     LaunchedEffect(focusContentOnEntry) {
-        if (focusContentOnEntry) { withFrameNanos { }; returnToContent(); onSectionFocused() }
+        if (focusContentOnEntry) { withFrameNanos { }; returnToContent(true); onSectionFocused() }
     }
     LaunchedEffect(focusSectionOnEntry) {
         if (focusSectionOnEntry) { sectionFocus.requestFocus(); onSectionFocused() }
@@ -251,13 +253,15 @@ import kotlinx.coroutines.launch
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
     Box(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
         // The content keeps its full width while the drawer floats above its left edge.
-        CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry) {
-            TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().padding(start = 80.dp), content)
+        CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry,
+            LocalSectionContentEntry provides focusContentOnEntry) {
+            TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().padding(start = 80.dp),
+                onEntryLeft = { preferredEntry.cancel() }, content = content)
         }
         Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
             .background(TvColors.Panel, RoundedCornerShape(18.dp))
             .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(18.dp))
-            .onFocusChanged { focusWithin = it.hasFocus }.onPreviewKeyEvent { event ->
+            .onFocusChanged { focusWithin = it.hasFocus; if (it.hasFocus) preferredEntry.cancel() }.onPreviewKeyEvent { event ->
                 if (event.key == Key.DirectionRight) {
                     if (event.type == KeyEventType.KeyDown) returnToContent()
                     true
@@ -273,7 +277,7 @@ import kotlinx.coroutines.launch
             routes.forEachIndexed { index, (route, title) ->
                 val active = route == selected
                 androidx.tv.material3.Button(onClick = {
-                    if (route == selected) returnToContent()
+                    if (route == selected) returnToContent(true)
                     else { contentFocus.requestFocus(); onNavigate(route) }
                 },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).focusProperties { canFocus = !contentFocusPending && !focusContentOnEntry }.testTag("nav-" + route)
