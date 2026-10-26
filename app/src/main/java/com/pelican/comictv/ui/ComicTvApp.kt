@@ -75,6 +75,31 @@ import kotlinx.coroutines.launch
         return
     }
     val nav = rememberNavController()
+    val updater: com.pelican.comictv.updates.AppUpdateViewModel = viewModel(key = "app-updates", factory = viewModelFactory {
+        initializer { com.pelican.comictv.updates.AppUpdateViewModel(container.appUpdates) }
+    })
+    val installUpdate = com.pelican.comictv.updates.rememberAppUpdateInstallFlow(updater)
+    val updateState by updater.state.collectAsStateWithLifecycle()
+    val updateRoute by nav.currentBackStackEntryAsState()
+    val updateContext = LocalContext.current
+    val updateLifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    var notifiedVersion by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(updater) { updater.automaticCheck() }
+    DisposableEffect(updateLifecycle, updater) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) updater.backgrounded()
+        }
+        updateLifecycle.addObserver(observer)
+        onDispose { updateLifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(updateState.update?.versionCode, updateRoute?.destination?.route) {
+        val candidate = updateState.update
+        if (candidate != null && notifiedVersion != candidate.versionCode && updateRoute?.destination?.route in
+            setOf("library", "sources", "recent", "extensions", "import", "settings")) {
+            notifiedVersion = candidate.versionCode
+            android.widget.Toast.makeText(updateContext, "Comic TV ${candidate.versionName} disponível. Abra Configurações → Atualizações.", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
     var startupFocusPending by rememberSaveable { mutableStateOf(true) }
     var navigationContentTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var relatedTitle by remember { mutableStateOf<RelatedComic?>(null) }
@@ -164,7 +189,7 @@ import kotlinx.coroutines.launch
             })
             TvShell("settings", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
                 focusContentOnEntry = navigationContentTarget == "settings", onSectionFocused = { navigationContentTarget = null }) {
-                SettingsScreen(container.appearance, storage, backup, onDownloads = {nav.navigate("downloads")}) { nav.popBackStack("library", false) }
+                SettingsScreen(container.appearance, storage, backup, onDownloads = {nav.navigate("downloads")}, updater = updater, installUpdate = installUpdate) { nav.popBackStack("library", false) }
             }
         }
         composable("details/{id}") { entry ->

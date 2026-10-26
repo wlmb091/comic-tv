@@ -1,5 +1,7 @@
 # Comic TV — decisões persistentes do usuário
 
+- 1.1.18: usuário aprovou atualizador integrado e publicação automática no GitHub. Manter botão explícito em Configurações → Atualizações (pedido reforçado em26/10/2026), consulta uma vez/sessão sem roubar foco, baixar somente por escolha, porcentagem/cancelar e instalação confirmada pelo Android. Canal APK público separado comic-tv-updates; fonte comic-tv continua privada. CI testa sem segredos, assina em runner separado com certificado anterior e copia apenas APK/update.json via deploykey exclusiva. Manifesto estrito, hash/tamanho/pacote/versão/minSDK/ABI/certificado; provider/diretório separados, preservar APK oferecido e dados/USB. Primeira instalação manual; execução do instalador/foco físico não inferir de testes compilados. Guia em docs/app-updates.md.
+
 - Design final aprovado: docs/design/approved-home.png. Ler docs/design/DESIGN.md antes de alterar interfaces.
 - A referência é para implementação nativa Android TV com fidelidade visual, não apenas recoloração do layout antigo.
 - A logo oficial é a arte fornecida pelo usuário em app/src/main/res/drawable-nodpi/brand_symbol.jpg; a assinatura com texto é brand_wordmark.jpg. Estas artes substituem a logo provisória da imagem de referência.

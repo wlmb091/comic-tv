@@ -28,13 +28,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-@Composable fun SettingsScreen(preferences: AppearancePreferences, storage: com.pelican.comictv.storage.StorageViewModel,
-    backup: com.pelican.comictv.backup.BackupViewModel, onDownloads: (() -> Unit)? = null, onBack: () -> Unit) {
+@Composable internal fun SettingsScreen(preferences: AppearancePreferences, storage: com.pelican.comictv.storage.StorageViewModel,
+    backup: com.pelican.comictv.backup.BackupViewModel, onDownloads: (() -> Unit)? = null,
+    updater: com.pelican.comictv.updates.AppUpdateViewModel? = null, installUpdate: (java.io.File) -> Unit = {}, onBack: () -> Unit) {
     val options by preferences.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var accessibility by rememberSaveable { mutableStateOf(true) }
     var storageOpen by rememberSaveable { mutableStateOf(false) }
     var backupOpen by rememberSaveable { mutableStateOf(false) }
+    var updatesOpen by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var diagnostics by remember { mutableStateOf(false) }
@@ -61,12 +63,16 @@ import kotlinx.coroutines.sync.withLock
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenTitle("Configurações", "Comic TV · versão " + BuildConfig.VERSION_NAME)
         LazyRow(state = sections, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { TvChoice("Acessibilidade e aparência", accessibility && !storageOpen && !backupOpen, { accessibility = true; storageOpen = false; backupOpen = false }, firstSection) }
-            item { TvChoice("Controle remoto", !accessibility && !storageOpen && !backupOpen, { accessibility = false; storageOpen = false; backupOpen = false }) }
-            item { TvChoice("Armazenamento", storageOpen && !backupOpen, { storageOpen = true; backupOpen = false; storage.refresh() }) }
-            item { TvChoice("Backup e restauração", backupOpen, { backupOpen = true; storageOpen = false }) }
+            item { TvChoice("Acessibilidade e aparência", accessibility && !storageOpen && !backupOpen && !updatesOpen, { accessibility = true; storageOpen = false; backupOpen = false; updatesOpen = false }, firstSection) }
+            item { TvChoice("Controle remoto", !accessibility && !storageOpen && !backupOpen && !updatesOpen, { accessibility = false; storageOpen = false; backupOpen = false; updatesOpen = false }) }
+            item { TvChoice("Armazenamento", storageOpen && !backupOpen && !updatesOpen, { storageOpen = true; backupOpen = false; updatesOpen = false; storage.refresh() }) }
+            item { TvChoice("Backup e restauração", backupOpen && !updatesOpen, { backupOpen = true; storageOpen = false; updatesOpen = false }) }
+            if (updater != null) item { TvChoice("Atualizações", updatesOpen, { updatesOpen = true; backupOpen = false; storageOpen = false }) }
         }
-        if (backupOpen) {
+        if (updatesOpen && updater != null) {
+            com.pelican.comictv.updates.AppUpdateSettings(updater, installUpdate, Modifier.weight(1f))
+            return@Column
+        } else if (backupOpen) {
             com.pelican.comictv.backup.BackupSettings(backup, Modifier.weight(1f))
             return@Column
         }

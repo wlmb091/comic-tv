@@ -18,6 +18,7 @@ class AppContainer(context: Context) {
     val sourcePreferences = SourcePreferences(app)
     val mihon = MihonEngine(app)
     val extensionInstaller = ExtensionInstaller(app)
+    internal val appUpdates: com.pelican.comictv.updates.AppUpdateSource by lazy { com.pelican.comictv.updates.AndroidAppUpdates(app) }
     suspend fun warmReaderThumbnail(file: java.io.File) {
         coil3.SingletonImageLoader.get(app).execute(com.pelican.comictv.reader.readerThumbnailRequest(app, file))
     }

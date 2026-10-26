@@ -1,5 +1,7 @@
 # Comic TV
 
+**Atualizações do aplicativo:** desde 1.1.18, abra **Configurações → Atualizações → Verificar atualizações**, baixe a versão disponível e escolha Instalar atualização. O Android pede a confirmação. [Fluxo de instalação e publicação automática](docs/app-updates.md).
+
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
 ## Versão 1.1.17
