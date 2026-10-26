@@ -429,8 +429,7 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
     val grid = rememberLazyGridState()
     val enteringSection = com.pelican.comictv.ui.LocalSectionContentEntry.current
     val sectionEntry = remember { enteringSection }
-    val firstTitle = com.pelican.comictv.ui.preferredContentEntryModifier(enabled = !state.busy,
-        prepare = { grid.scrollToItem(0) })
+    val firstTitle = catalogFirstEntryModifier(state.titles.size, state.busy, state.catalogLoaded, grid)
     val warmEntries = remember(state.titles) { state.titles.map {com.pelican.comictv.ui.CoverWarmEntry(it.key,it.coverUrl)} }
     com.pelican.comictv.ui.WarmGridCovers(grid, warmEntries)
     val titleIndex = remember(state.titles) { state.titles.associateBy { it.key } }

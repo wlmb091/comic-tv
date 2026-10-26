@@ -43,25 +43,7 @@ import kotlinx.coroutines.sync.withLock
         Text("O tema muda fundos, barras, cartões, botões, foco e a cor da marca. Capas e páginas mantêm suas cores originais.", color = TvColors.Muted)
         TvButton("Fechar", { themeHelp = false })
     }
-    if (diagnostics) {
-        var revision by remember { mutableIntStateOf(0) }
-        com.pelican.comictv.library.LibraryDialog("Diagnóstico de carregamento", { diagnostics = false }) {
-            Text("Medições desta execução. Etapas podem se sobrepor; não some as médias. Exibição mede até o retorno do leitor, não FPS. Nenhum título ou endereço é registrado.", color = TvColors.Muted)
-            val samples = remember(revision) { com.pelican.comictv.performance.AppTimings.snapshot() }
-            val heap = remember(revision) { Runtime.getRuntime().let {
-                (it.totalMemory() - it.freeMemory()) / (1024 * 1024) to it.maxMemory() / (1024 * 1024)
-            } }
-            Text("Heap Java: ${heap.first} MiB usados · limite ${heap.second} MiB. Não inclui toda a memória de imagens/GPU.", color = TvColors.Muted)
-            Text("Cache de páginas: até 256 MiB · miniaturas: até 32 MiB. Consulte o uso em Armazenamento.", color = TvColors.Muted)
-            if (samples.isEmpty()) Text("Abra um catálogo ou capítulo para registrar tempos.")
-            samples.forEach { (stage, sample) ->
-                Text("${stage.label}: ${sample.count} operação(ões) · média ${sample.averageMillis} ms · maior ${sample.maxMillis} ms · ${sample.failed} falha(s) · ${sample.cancelled} cancelada(s)")
-            }
-            TvButton("Atualizar medições", { revision++ })
-            TvButton("Zerar medições", { com.pelican.comictv.performance.AppTimings.clear(); revision++ })
-            TvButton("Fechar", { diagnostics = false })
-        }
-    }
+    if (diagnostics) LoadingDiagnosticsDialog({ diagnostics = false })
     val changes = remember { Mutex() }
     fun save(change: (AppearanceOptions) -> AppearanceOptions) {
         scope.launch(start = CoroutineStart.UNDISPATCHED) { changes.withLock {

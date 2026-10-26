@@ -284,6 +284,9 @@ import kotlinx.coroutines.launch
                     if (event.type == KeyEventType.KeyDown) returnToContent()
                     true
                 } else false
+            }.focusProperties {
+                // Spatial search from a top content control otherwise picks Biblioteca by proximity.
+                onEnter = { if (requestedFocusDirection == androidx.compose.ui.focus.FocusDirection.Left) sectionFocus.requestFocus() }
             }.focusGroup()
             .verticalScroll(rememberScrollState()).padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
