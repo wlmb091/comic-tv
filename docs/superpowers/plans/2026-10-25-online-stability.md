@@ -1,0 +1,12 @@
+# Online stability implementation plan
+
+> Executar inline com superpowers:executing-plans; uma revisão fresca final.
+
+Goal: bounded cooperative source operations, safe failure/retry and actionable aggregate diagnostics.
+Spec: ../specs/2026-10-25-online-stability.md. Base2c4dcc8. Existing feature checkout reused; authorized continuation. No dependency/quality/quota/USB/server changes.
+
+1. SourceRequest.kt + SourceRequestTest: enum Preview/Catalog/Details/PageList/Image with20/90/120s budgets; sourceRequest(request,timeoutMillis=request.timeoutMillis,block) wraps deadline, maps known HTTP/network failures, preserves external cancellation and rejects late success. Tests first: API absence RED; deadline, nested timeout, external cancel+IO/late result, HTTP, retry and unknown argument failure. Integrate SourcesVM catalog/preview/details and OnlineReaderRepository engine suspend calls; preserve linkage handling and trust. Engine image HTTP failure uses existing HttpException. Cancellation in SourcesVM.task catch must not publish stale error.
+2. Diagnostic stage timing: add PageQueue/RemoteImage/CacheLookup/CacheCommit/PageCacheHit/PagePrepare/PageDisplay enums; scheduler measures permit wait only, excluding active fetch and samekey wait, preserving original locking/probe API. Library wiring and OnlineRepository measure work only; ReaderVM prepare dimensions/text outside materialize timing and complete one-shot elapsed on first display callback. Metrics cancellation regression and scheduler blocked queue/cachehit test first. Settings diagnostics heap sample on explicit revision only. SourceRequest integration tests in LatestSearch and ReaderVM verify timeout→message/retry, canceled old search→no error. Add bounded200request stress and native staging timeout/retry compile. Do not auto-focus or change layout/zoom.
+3. Full suite core/Mihon/app JVM, debug/release/nativecompile/lint offline. One fresh read-only reviewer, one Important fix pass if needed. Sign/check APK1.1.15/code54, SQL/DEX ABI/alignment/certificate; release/validation docs, authorized commit/private push/sourceZIP. Device tests/performance numbers only if actually available.
+
+Review focus: timeout vs real cancellation races; nested source timeouts; no retry storm; trust/linkage error semantics; queue measurement cannot hold/alter scheduler locks or throw before cleanup; no file invalidation bypass; heap numbers not total device RAM. Every new behavior has executable unit evidence, device integration limits explicit.

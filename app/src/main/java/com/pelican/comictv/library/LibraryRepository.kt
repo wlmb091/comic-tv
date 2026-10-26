@@ -16,6 +16,8 @@ import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
 import com.pelican.comictv.storage.*
+import com.pelican.comictv.performance.AppTimings
+import com.pelican.comictv.performance.LoadStage
 
 class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val coverGenerator: CoverGenerator = BitmapCoverGenerator(),
@@ -149,17 +151,21 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
         val name = "$id-$index"
         try {
             transfers.load(name, foreground && !thumbnail, cached = {
-                mutex.withLock { imageRequests.check(ticket); runInterruptible { materializeExternal(name, thumbnail, foreground, null) } }
+                AppTimings.measure(LoadStage.CacheLookup) {
+                    mutex.withLock { imageRequests.check(ticket); runInterruptible { materializeExternal(name, thumbnail, foreground, null) } }
+                }.also { if (it != null) AppTimings.hit(LoadStage.PageCacheHit) }
             }, fetch = {
                 val temporary = File.createTempFile("$name-", ".part", onlineScratch)
                 try {
                     currentCoroutineContext().ensureActive()
                     fetch(temporary)
                     currentCoroutineContext().ensureActive()
-                    mutex.withLock {
-                        imageRequests.check(ticket)
-                        runInterruptible { materializeExternal(name, thumbnail, foreground, temporary)
-                            ?: throw IOException("Não foi possível preparar a página.") }
+                    AppTimings.measure(LoadStage.CacheCommit) {
+                        mutex.withLock {
+                            imageRequests.check(ticket)
+                            runInterruptible { materializeExternal(name, thumbnail, foreground, temporary)
+                                ?: throw IOException("Não foi possível preparar a página.") }
+                        }
                     }
                 } finally { temporary.delete(); File(temporary.path + ".part").delete() }
             })

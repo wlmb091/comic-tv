@@ -27,9 +27,9 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     private var sourceGeneration = 0L
     private val snapshots = CatalogSnapshots()
     private suspend fun fetchCatalog(query: CatalogSearchQuery, page: Int = 1) =
-        AppTimings.measure(LoadStage.Catalog) { engine.catalog(query.source, query.text, query.latest, page) }
+        AppTimings.measure(LoadStage.Catalog) { sourceRequest(SourceRequest.Catalog) { engine.catalog(query.source, query.text, query.latest, page) } }
     private val previews = TitlePreviewResolver { source, title ->
-        AppTimings.measure(LoadStage.CoverMetadata) { engine.titlePreview(source, title) }
+        AppTimings.measure(LoadStage.CoverMetadata) { sourceRequest(SourceRequest.Preview) { engine.titlePreview(source, title) } }
     }
     private val liveSearch = LatestSearch<CatalogSearchQuery, CatalogResult>(viewModelScope,
         fetch = { fetchCatalog(it) },
@@ -94,8 +94,8 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         job = viewModelScope.launch {
             try { block() }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { Log.e("ComicTV-Sources", "Source operation failed", e); _state.update { it.copy(message = e.message?.take(350) ?: "Não foi possível consultar a fonte.") } }
-            catch (e: LinkageError) { Log.e("ComicTV-Sources", "Extension compatibility failure", e); _state.update { it.copy(message = "Falha de compatibilidade da extensão: ${extensionLoadDiagnostic(e)}") } }
+            catch (e: Exception) { currentCoroutineContext().ensureActive(); Log.e("ComicTV-Sources", "Source operation failed", e); _state.update { it.copy(message = e.message?.take(350) ?: "Não foi possível consultar a fonte.") } }
+            catch (e: LinkageError) { currentCoroutineContext().ensureActive(); Log.e("ComicTV-Sources", "Extension compatibility failure", e); _state.update { it.copy(message = "Falha de compatibilidade da extensão: ${extensionLoadDiagnostic(e)}") } }
             finally { if (currentCoroutineContext().isActive) _state.update { it.copy(busy = false) } }
         }
     }
@@ -339,7 +339,8 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     }
     fun showDetails(title: OnlineTitle) = task {
         val source = _state.value.activeSource ?: error("Escolha uma fonte.")
-        val details = engine.details(source, title)
+        val details = sourceRequest(SourceRequest.Details) { engine.details(source, title) }
+        currentCoroutineContext().ensureActive()
         _state.update { it.copy(details = details) }
     }
     fun openChapter(chapter: OnlineChapter, onRead: (String) -> Unit) = task {

@@ -5,7 +5,11 @@ import kotlinx.coroutines.CancellationException
 internal enum class LoadStage(val label: String) {
     Catalog("Consulta do catálogo"), CatalogMemory("Catálogo reaproveitado"), CoverMetadata("Informações de capa"),
     OpenChapter("Abertura do capítulo"), PageList("Lista de páginas"), PageMaterialize("Página atual"),
-    PagePrefetch("Antecipação de página"), Thumbnail("Miniatura de página"), CoverCreation("Geração opcional da capa")
+    PagePrefetch("Antecipação de página"), Thumbnail("Miniatura de página"), CoverCreation("Geração opcional da capa"),
+    PageQueue("Espera por vaga de transferência"), RemoteImage("Imagem na fonte/rede"),
+    CacheLookup("Consulta/preparo local do cache"), CacheCommit("Validação/gravação do cache"),
+    PageCacheHit("Imagem reaproveitada do cache"), PagePrepare("Preparo da página atual"),
+    PageDisplay("Até primeira exibição da página")
 }
 internal data class LoadSample(val count: Long = 0, val failed: Long = 0, val cancelled: Long = 0,
     val totalNanos: Long = 0, val maxNanos: Long = 0) {
@@ -29,6 +33,9 @@ internal class LoadMetrics(private val clockNanos: () -> Long = System::nanoTime
             old.cancelled + if (cancelled) 1 else 0, old.totalNanos + nanos, maxOf(old.maxNanos, nanos))
     }
     fun hit(stage: LoadStage) = record(stage, 0, false, false)
+    fun mark(): Long = clockNanos()
+    fun finish(stage: LoadStage, startNanos: Long, failed: Boolean = false) =
+        record(stage, (clockNanos() - startNanos).coerceAtLeast(0), failed, false)
     @Synchronized fun snapshot(): Map<LoadStage, LoadSample> = samples.toMap()
     @Synchronized fun clear() = samples.clear()
 }

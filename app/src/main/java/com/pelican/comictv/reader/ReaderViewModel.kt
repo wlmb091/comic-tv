@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
+import com.pelican.comictv.performance.AppTimings
+import com.pelican.comictv.performance.LoadStage
 
 data class PageImage(val file: File, val width: Int, val height: Int, val text: String? = null, val displayed: Boolean = false)
 data class TimelinePreview(val page: Int, val file: File? = null, val loading: Boolean = true, val failed: Boolean = false)
@@ -73,6 +75,7 @@ class ReaderViewModel(
         return job
     }
     private var loadJob: Job? = null
+    private var imageReadyNanos: Long? = null
     private var initializationJob: Job? = null
     private var initialized = false
     private var closing = false
@@ -226,6 +229,8 @@ class ReaderViewModel(
     fun imageDisplayed(file: File) {
         val image = _image.value ?: return
         if (image.file == file && image.text == null && !image.displayed) {
+            imageReadyNanos?.let { AppTimings.finish(LoadStage.PageDisplay, it) }
+            imageReadyNanos = null
             _image.value = image.copy(displayed = true)
             warmReadingWindow()
         }
@@ -299,6 +304,8 @@ class ReaderViewModel(
     fun imageDisplayFailed(file: File) {
         val image = _image.value ?: return
         if (image.file != file || image.text != null) return
+        imageReadyNanos?.let { AppTimings.finish(LoadStage.PageDisplay, it, failed = true) }
+        imageReadyNanos = null
         pauseAutomaticReading()
         _error.value = "Não foi possível decodificar esta página. Use as ferramentas para tentar novamente."
     }
@@ -378,16 +385,23 @@ class ReaderViewModel(
         loadJob?.cancel()
         val expected = _state.value.page
         val page = pages.getOrNull(expected) ?: return
+        imageReadyNanos = null
         _image.value = null
         _loading.value = true
         _error.value = null
         loadJob = launchLoad {
             try {
                 val file = repository.materialize(comicId, page)
-                val text = if (page.key.startsWith("epub:text:")) withContext(ioDispatcher) { file.readText(Charsets.UTF_8) } else null
-                val dimensions = if (text != null) 1 to 1 else withContext(ioDispatcher) { pageDimensions(file) }
+                val prepared = AppTimings.measure(LoadStage.PagePrepare) {
+                    val text = if (page.key.startsWith("epub:text:")) withContext(ioDispatcher) { file.readText(Charsets.UTF_8) } else null
+                    val dimensions = if (text != null) 1 to 1 else withContext(ioDispatcher) { pageDimensions(file) }
+                    PageImage(file, dimensions.first, dimensions.second, text)
+                }
                 ensureActive()
-                if (_state.value.page == expected) _image.value = PageImage(file, dimensions.first, dimensions.second, text)
+                if (_state.value.page == expected) {
+                    imageReadyNanos = if (prepared.text == null) AppTimings.mark() else null
+                    _image.value = prepared
+                }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (_state.value.page == expected) _error.value = e.message ?: "Não foi possível carregar esta página." }
             finally { if (isActive && _state.value.page == expected) _loading.value = false }

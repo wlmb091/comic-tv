@@ -53,7 +53,7 @@ class OnlineReaderRepository(
     internal suspend fun downloadOffline(id: String, index: Int, target: File) = withContext(Dispatchers.IO) {
         val record = mutex.withLock { checkNotNull(sessions[id]) { "Retome o download para atualizar a fonte." } }
         trusted(record.pin)
-        extensionOperation { engine.download(record.source, record.pages[index], target) }
+        AppTimings.measure(LoadStage.RemoteImage) { sourceRequest(SourceRequest.Image) { engine.download(record.source, record.pages[index], target) } }
     }
 
     internal suspend fun backupMetadata(id: String): com.pelican.comictv.backup.BackupOnline = mutex.withLock {
@@ -82,7 +82,7 @@ class OnlineReaderRepository(
             trusted(saved.pin)
             val source = loadSource(saved.source, saved.pin)
             suspend fun preview(title: OnlineTitle): OnlineTitle = try {
-                withTimeoutOrNull(6_000) { extensionOperation { engine.titlePreview(source, title) } } ?: title
+                withTimeoutOrNull(6_000) { sourceRequest(SourceRequest.Preview) { engine.titlePreview(source, title) } } ?: title
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) { title }
             val base = preview(saved.title)
@@ -114,7 +114,7 @@ class OnlineReaderRepository(
                 val queries = listOfNotNull(base.author, base.artist).map { it.split(';', ',').first().trim() }
                     .filter { it.isNotBlank() }.distinct().take(2) + ""
                 for (query in queries) {
-                    try { extensionOperation { engine.catalog(source, query = query) }.titles.take(24)
+                    try { sourceRequest(SourceRequest.Catalog) { engine.catalog(source, query = query) }.titles.take(24)
                         .forEach { if (it.key != base.key) pool.putIfAbsent(it.key, it) } }
                     catch (e: CancellationException) { throw e }
                     catch (_: Exception) { partial = true }
@@ -139,7 +139,7 @@ class OnlineReaderRepository(
     suspend fun relatedDetails(item: RelatedComic): OnlineDetails = withContext(Dispatchers.IO) {
         mutex.withLock {
             val source = loadSource(item.source, item.pin)
-            extensionOperation { engine.details(source, item.title) }
+            sourceRequest(SourceRequest.Details) { engine.details(source, item.title) }
         }
     }
 
@@ -151,7 +151,7 @@ class OnlineReaderRepository(
             val saved = read(id)
             trusted(saved.pin)
             val source = loadSource(saved.source, saved.pin)
-            val details = extensionOperation { engine.details(source, saved.title) }
+            val details = sourceRequest(SourceRequest.Details) { engine.details(source, saved.title) }
             val sequence = chapterSequence(details.chapters, saved.chapter.key)
             OnlineEditions(source, details.title, saved.chapter, sequence.chapters, saved.pin)
         }
@@ -164,7 +164,7 @@ class OnlineReaderRepository(
             prefetched.remove(id)
             trusted(pin)
             val actual = loadSource(source, pin)
-            val pages = AppTimings.measure(LoadStage.PageList) { extensionOperation { engine.pages(actual, chapter, title) } }
+            val pages = AppTimings.measure(LoadStage.PageList) { sourceRequest(SourceRequest.PageList) { engine.pages(actual, chapter, title) } }
             requirePages(pages)
             val record = OnlineReadingRecord(actual, title, chapter, pin, pages)
             write(id, record)
@@ -199,7 +199,7 @@ class OnlineReaderRepository(
         val stage = if (thumbnail) LoadStage.Thumbnail else if (foreground) LoadStage.PageMaterialize else LoadStage.PagePrefetch
         val result = AppTimings.measure(stage) { library.externalImage(id, page.index, thumbnail, foreground) { target ->
             trusted(record.pin)
-            extensionOperation { engine.download(record.source, record.pages[page.index], target) }
+            AppTimings.measure(LoadStage.RemoteImage) { sourceRequest(SourceRequest.Image) { engine.download(record.source, record.pages[page.index], target) } }
         } }
         trusted(record.pin)
         if (!thumbnail && page.index == 0) {
@@ -220,7 +220,7 @@ class OnlineReaderRepository(
         val saved = sessions[id] ?: read(id)
         trusted(saved.pin)
         val source = loadSource(saved.source, saved.pin)
-        val pages = AppTimings.measure(LoadStage.PageList) { extensionOperation { engine.pages(source, saved.chapter, saved.title) } }
+        val pages = AppTimings.measure(LoadStage.PageList) { sourceRequest(SourceRequest.PageList) { engine.pages(source, saved.chapter, saved.title) } }
         requirePages(pages)
         val refreshed = saved.copy(source = source, pages = pages)
         write(id, refreshed)

@@ -46,8 +46,13 @@ import kotlinx.coroutines.sync.withLock
     if (diagnostics) {
         var revision by remember { mutableIntStateOf(0) }
         com.pelican.comictv.library.LibraryDialog("Diagnóstico de carregamento", { diagnostics = false }) {
-            Text("Medições desta execução. Tempos incluem espera e rede; não representam FPS. Nenhum título ou endereço é registrado.", color = TvColors.Muted)
+            Text("Medições desta execução. Etapas podem se sobrepor; não some as médias. Exibição mede até o retorno do leitor, não FPS. Nenhum título ou endereço é registrado.", color = TvColors.Muted)
             val samples = remember(revision) { com.pelican.comictv.performance.AppTimings.snapshot() }
+            val heap = remember(revision) { Runtime.getRuntime().let {
+                (it.totalMemory() - it.freeMemory()) / (1024 * 1024) to it.maxMemory() / (1024 * 1024)
+            } }
+            Text("Heap Java: ${heap.first} MiB usados · limite ${heap.second} MiB. Não inclui toda a memória de imagens/GPU.", color = TvColors.Muted)
+            Text("Cache de páginas: até 256 MiB · miniaturas: até 32 MiB. Consulte o uso em Armazenamento.", color = TvColors.Muted)
             if (samples.isEmpty()) Text("Abra um catálogo ou capítulo para registrar tempos.")
             samples.forEach { (stage, sample) ->
                 Text("${stage.label}: ${sample.count} operação(ões) · média ${sample.averageMillis} ms · maior ${sample.maxMillis} ms · ${sample.failed} falha(s) · ${sample.cancelled} cancelada(s)")

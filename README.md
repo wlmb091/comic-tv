@@ -2,6 +2,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.15
+
+Carregamento online com orçamentos cooperativos, falhas de fonte recuperáveis e diagnóstico separado de fila/rede/cache/preparo/exibição, mais amostra do heap Java. Preserva cancelamento, qualidade e limites de cache; sem retentativa automática. Veja [notas e limites](docs/releases/1.1.15.md).
+
 ## Versão 1.1.14
 
 Detalhes com ações secundárias em Mais opções, busca recolhível em fontes/extensões, temas em cartões únicos e ferramentas do leitor em duas colunas. Mantidos capa central, resumo lateral, temas e controles de leitura. Veja [notas e teste na Box](docs/releases/1.1.14.md).

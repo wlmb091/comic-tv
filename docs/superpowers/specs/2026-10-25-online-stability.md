@@ -1,0 +1,13 @@
+# Estabilidade online — 1.1.15
+
+Usuário aprovou diagnosticar esperas, cancelamento, recuperação e recursos após1.1.14. Manter implementação nativa, originais, qualidade, USB, trust e quotas256/32MiB. Sem nova dependência ou serviço.
+
+Evidência do código: métricas Página atual/Antecipação incluem fila, rede e disco; catálogo e lista não têm orçamento total do host, embora o cliente padrão tenha callTimeout2min por chamada. Fontes podem fazer várias chamadas ou customizar cliente. TimeoutCancellationException interno hoje atravessa como cancelamento, deixando interface sem mensagem de falha. Cancelamento real deve continuar silencioso; tentativas explícitas já existem. Duas vagas de metadados opcionais de capa podem ficar presas numa fonte lenta.
+
+Abordagens: aumentar antecipação/cache consumiria mais disco/rede sem explicar a espera; retentar automaticamente pode agravar limitação do servidor; escolher orçamento cooperativo + classificação de erro + diagnóstico por etapa mantém o usuário no controle. Esta última é decisão de implementação dentro da fase aprovada, sem novo fluxo de aprovação.
+
+Operações da fonte: capa opcional20s, catálogo/detalhes/lista90s, imagem120s de trabalho admitido (não inclui espera na fila). Orçamentos cooperativos, sem promessa de interromper código arbitrário que ignore cancelamento. Converter timeout interno em falha somente se o Job chamador continua ativo; cancelamento externo vence, inclusive quando rede lança IOException ao ser cancelada. Conferir atividade antes de publicar retorno. HTTP conhecido tem orientação segura, sem URL/chave no texto; não ignorar proteção nem confiança da fonte. Sem retentativa automática.
+
+Diagnóstico agregado de sessão acrescenta espera por vaga da fila, acesso remoto da imagem, lookup/preparo de cache, commit, preparação dos dados e intervalo até o primeiro callback de exibição da página atual no leitor. Sem IDs/URLs/histórico persistido. Fila mede apenas espera por vaga; espera pela mesma chave continua no tempo total de Página atual. Não mudar locks para acrescentar medição. Exibição não é tempo puro de GPU nem FPS. Heap Java usado/limite apenas ao abrir/atualizar diagnóstico, com aviso de que não inclui toda RAM/gráficos. Armazenamento conserva tela existente e limites. Não declarar FPS/tempo físico sem aparelho.
+
+Entrega: testes de deadline/timeout/cancelamento tardio/retry no JVM, fila e métricas, ReaderVM e LatestSearch com operação fake; compilação/lint/ABI/assinatura e APK atualizável1.1.15/code54. Um revisor fresco final. Testes nativos compilados somente se ADB vazio; documentar limitações.

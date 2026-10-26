@@ -3,6 +3,8 @@ package com.pelican.comictv.library
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.pelican.comictv.performance.AppTimings
+import com.pelican.comictv.performance.LoadStage
 
 /** Two transfers, at most one admitted as background; active work is not interrupted for priority. */
 internal class PageTransferScheduler(
@@ -44,7 +46,7 @@ internal class PageTransferScheduler(
                     val ticket = keysLock.withLock { Ticket(gate.foregroundUsers > 0).also { gate.ticket = it } }
                     try {
                         queueLock.withLock { waiting += ticket; drain() }
-                        ticket.ready.await()
+                        AppTimings.measure(LoadStage.PageQueue) { ticket.ready.await() }
                         currentCoroutineContext().ensureActive()
                         fetch()
                     } finally { withContext(NonCancellable) {

@@ -7,6 +7,21 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LatestSearchTest {
+    @Test fun sourceTimeoutReportsFailureAndNextQueryStillPublishes() = runTest {
+        val results = mutableListOf<String>(); val failures = mutableListOf<Throwable>()
+        val search = LatestSearch<String, String>(this,
+            fetch = { query -> sourceRequest(SourceRequest.Catalog, timeoutMillis = 20) {
+                if (query == "slow") awaitCancellation() else query
+            } }, publish = { _, value -> results += value }, failed = failures::add)
+        search.submit("slow", immediate = true); advanceUntilIdle()
+        assertEquals(1, failures.size); assertTrue(failures.single() is java.io.IOException)
+        search.submit("ready", immediate = true); advanceUntilIdle()
+        assertEquals(listOf("ready"), results)
+        search.submit("slow", immediate = true); runCurrent()
+        search.submit("replacement", immediate = true); advanceUntilIdle()
+        assertEquals(1, failures.size)
+        assertEquals(listOf("ready", "replacement"), results)
+    }
     @Test fun typingOnlyRequestsLastQueryAfterPauseAndClearingAlsoSearches() = runTest {
         val calls = mutableListOf<String>()
         val results = mutableListOf<String>()

@@ -6,6 +6,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TitlePreviewResolverTest {
+    @Test fun slowOptionalCoverReleasesSlotAfterDeadlineAndCanBeRetried() = runTest {
+        var first = true
+        val resolver = TitlePreviewResolver { _, title -> sourceRequest(SourceRequest.Preview, timeoutMillis = 20) {
+            if (first) { first = false; awaitCancellation() }
+            title.copy(coverUrl = "ready")
+        } }
+        try { resolver.resolve(source, OnlineTitle("slow", "HQ")); fail("Expected deadline") }
+        catch (_: java.io.IOException) { }
+        assertEquals("ready", resolver.resolve(source, OnlineTitle("slow", "HQ")).coverUrl)
+    }
     @Test fun refreshInvalidatesPositiveCacheAndOlderInFlightCompletion() = runTest {
         var calls = 0
         val released = CompletableDeferred<Unit>()

@@ -12,6 +12,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RemotePagePriorityTest {
+    @Test fun sourceDeadlineCleansStagingAndManualRetryCommits() = runBlocking { fixture { library, _, context, bytes, id ->
+        try {
+            library.externalImage(id, 0, false) { temporary ->
+                com.pelican.comictv.sources.sourceRequest(com.pelican.comictv.sources.SourceRequest.Image, timeoutMillis = 1000) {
+                    temporary.writeBytes(bytes); awaitCancellation()
+                }
+            }
+            fail("Expected source deadline")
+        } catch (_: java.io.IOException) { }
+        assertFalse(File(context.cacheDir, "pages/$id-0").exists())
+        assertTrue(File(context.cacheDir, "online-fetches").listFiles().orEmpty().isEmpty())
+        assertTrue(library.externalImage(id, 0, false) { it.writeBytes(bytes) }.isFile)
+    } }
     private suspend fun fixture(block: suspend (LibraryRepository, LibraryDatabase, android.content.Context, ByteArray, String) -> Unit) {
         val real = InstrumentationRegistry.getInstrumentation().targetContext
         val root = File(real.cacheDir, "priority-test-${System.nanoTime()}").apply { mkdirs() }

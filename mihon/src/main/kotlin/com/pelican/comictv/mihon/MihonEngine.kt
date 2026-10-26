@@ -146,7 +146,7 @@ class MihonEngine(context: Context) {
             api.getImage(original).use { response ->
                 val closeOnCancel = launch(start = CoroutineStart.UNDISPATCHED) { try { awaitCancellation() } finally { response.close() } }
                 try {
-                check(response.isSuccessful) { "HTTP ${response.code}" }
+                if (!response.isSuccessful) throw eu.kanade.tachiyomi.network.HttpException(response.code)
                 val body = requireNotNull(response.body) { "Empty image response" }
                 require(body.contentLength() <= maxBytes) { "Image exceeds page size limit" }
                 body.byteStream().use { input -> temporary.outputStream().use { output ->

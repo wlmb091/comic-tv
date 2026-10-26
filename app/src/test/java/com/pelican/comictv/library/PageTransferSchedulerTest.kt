@@ -7,6 +7,38 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PageTransferSchedulerTest {
+    @Test fun repeatedFailuresAndRapidCancellationsKeepTransfersBoundedAndUsable() = runTest {
+        val scheduler = PageTransferScheduler()
+        var active = 0; var maximum = 0
+        val jobs = (0 until 200).map { index -> launch {
+            try { scheduler.load("page-$index", index % 2 == 0, { null }) {
+                active++; maximum = maxOf(maximum, active)
+                try { delay(5); if (index % 7 == 0) throw java.io.IOException("offline"); "page" }
+                finally { active-- }
+            } } catch (_: java.io.IOException) { }
+        } }
+        runCurrent(); jobs.filterIndexed { index, _ -> index % 3 == 0 }.forEach { it.cancel() }
+        withTimeout(5_000) { jobs.joinAll() }
+        assertEquals(0, active); assertTrue(maximum <= 2)
+        assertEquals("ready", scheduler.load("after-stress", true, { null }) { "ready" })
+    }
+    @Test fun queueDiagnosticsExcludeCacheHitsAndRecordCancelledPermitWait() = runTest {
+        val metrics = com.pelican.comictv.performance.AppTimings
+        val stage = com.pelican.comictv.performance.LoadStage.PageQueue
+        val scheduler = PageTransferScheduler()
+        val background = launch { scheduler.load("background", false, { null }) { awaitCancellation(); "never" } }
+        val visible = launch { scheduler.load("visible", true, { null }) { awaitCancellation(); "never" } }
+        runCurrent(); metrics.clear()
+        try {
+            assertEquals("hit", scheduler.load("cached", true, { "hit" }) { error("No fetch") })
+            assertTrue(metrics.snapshot().isEmpty())
+            val waiting = launch { scheduler.load("waiting", true, { null }) { error("No permit") } }
+            runCurrent(); waiting.cancelAndJoin()
+            val sample = metrics.snapshot().getValue(stage)
+            assertEquals(1L, sample.count); assertEquals(1L, sample.cancelled)
+            assertEquals(0L, sample.failed)
+        } finally { background.cancelAndJoin(); visible.cancelAndJoin(); metrics.clear() }
+    }
     @Test fun oldCancellationCannotUndoNewForegroundDemand() = runTest {
         val demoting = CompletableDeferred<Unit>(); val resume = CompletableDeferred<Unit>()
         var paused = false
