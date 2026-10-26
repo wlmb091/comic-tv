@@ -19,9 +19,11 @@ class ReaderToolNavigationTest {
             assertEquals((0 until count).toSet(), visited)
         }
     }
-    @Test fun lastOddToolCanBeReachedFromRightColumnAndEdgesStayInDock() {
+    @Test fun verticalRailMovesOneToolAtATimeAndHorizontalArrowsStayInPlace() {
+        assertEquals(1, readerToolNeighbor(0, 9, ToolDirection.Down))
         assertEquals(8, readerToolNeighbor(7, 9, ToolDirection.Down))
-        assertEquals(6, readerToolNeighbor(8, 9, ToolDirection.Up))
+        assertEquals(7, readerToolNeighbor(8, 9, ToolDirection.Up))
+        assertNull(readerToolNeighbor(0, 9, ToolDirection.Right))
         assertNull(readerToolNeighbor(8, 9, ToolDirection.Right))
         assertNull(readerToolNeighbor(0, 9, ToolDirection.Left))
         assertNull(readerToolNeighbor(0, 9, ToolDirection.Up))

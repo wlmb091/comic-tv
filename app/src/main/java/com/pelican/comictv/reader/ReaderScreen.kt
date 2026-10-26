@@ -181,6 +181,7 @@ import kotlinx.coroutines.launch
                 fontSize = 14.sp, color = Color.White)
         }
         if (loading) Text("Carregando página…", Modifier.align(Alignment.Center), fontSize = 20.sp)
+        ReaderModeNotice(state.mode, Modifier.align(Alignment.BottomCenter).padding(24.dp))
         if (showEndShortcut) ChapterEndShortcut(endShortcutFocus, { focused ->
             endShortcutFocused = focused
             if (focused) { cancelCenter(); viewModel.pauseAutomaticReading() }

@@ -60,6 +60,7 @@ class ReaderViewModel(
     private val _anticipated = MutableStateFlow<List<PageImage>>(emptyList())
     val anticipated = _anticipated.asStateFlow()
     private var prefetchJob: Job? = null
+    private var activePrefetch: Pair<Job, Int>? = null
     private val thumbnailFiles = LinkedHashMap<Int, File>(32, .75f, true)
     private var previousPreviewCursor: Int? = null
     private var previewJob: Job? = null
@@ -173,14 +174,16 @@ class ReaderViewModel(
             if (target in pages.indices && target != old.page) old.copy(page = target, zoom = 1f, panX = 0f, panY = 0f) else old
         } else old.reduce(action)
         _state.value = next
-        if (next.page != old.page || next.timelinePage != old.timelinePage || next.mode != old.mode) updatePreviews()
         if (next.page != old.page) {
             saved["page"] = next.page
             writes.trySend(next.page)
-            prefetchJob?.cancel()
+            val keep = activePrefetch?.let { (owner, index) -> owner === prefetchJob && owner.isActive && index == next.page } == true
+            if (!keep) prefetchJob?.cancel()
             _anticipated.value = emptyList()
+            // Clear the previous displayed image before previews can start another warm window.
             loadPage()
         }
+        if (next.page != old.page || next.timelinePage != old.timelinePage || next.mode != old.mode) updatePreviews()
         if (next.fit != old.fit || next.rtl != old.rtl) viewModelScope.launch {
             try { repository.savePreferences(comicId, next.fit.ordinal, next.rtl) }
             catch (e: CancellationException) { throw e }
@@ -281,13 +284,17 @@ class ReaderViewModel(
         val next = expected + if (_layout.value == ReaderLayout.Book && hasBookPartner(expected)) 2 else 1
         prefetchJob = launchLoad {
             delay(150)
+            val owner = currentCoroutineContext().job
             val warmed = mutableSetOf<Int>()
             // The visible page is already local: its timeline thumbnail must not wait for remote future pages.
             try { thumbnail(expected); warmed += expected } catch (e: CancellationException) { throw e } catch (_: Exception) { }
             for (index in next..next + 1) {
+                if (_state.value.page != expected) return@launchLoad
                 if (index !in pages.indices || pages[index].key.startsWith("epub:text:")) continue
                 try {
-                    val file = repository.prefetch(comicId, pages[index])
+                    activePrefetch = owner to index
+                    val file = try { repository.prefetch(comicId, pages[index]) }
+                        finally { if (activePrefetch?.first === owner) activePrefetch = null }
                     val dimensions = withContext(ioDispatcher) { pageDimensions(file) }
                     ensureActive()
                     if (_state.value.page != expected) return@launchLoad
@@ -296,6 +303,7 @@ class ReaderViewModel(
                 } catch (e: CancellationException) { throw e } catch (_: Exception) { }
             }
             for (index in (expected - 2..expected + 4).filter { it in pages.indices && it !in warmed }.sortedBy { kotlin.math.abs(it - expected) }) {
+                if (_state.value.page != expected) return@launchLoad
                 try { thumbnail(index) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
             }
         }

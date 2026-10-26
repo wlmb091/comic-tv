@@ -53,14 +53,16 @@ class CompactControlsTest {
         compose.onNodeWithText("Tema Flix").assertIsNotSelected().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.onNodeWithText("✓ Tema Flix").assertIsSelected()
     }
-    @Test fun readerDockUsesTwoColumnsAndOptionsReturnToTheirIcon() {
+    @Test fun readerRailUsesOneColumnAndOptionsReturnToTheirIcon() {
         var chapters = 0
         compose.setContent { ComicTvTheme {
             ReaderTools(ReaderState(pageCount = 20), false, {}, {}, {},
                 onPreviousChapter = {}, onNextChapter = { chapters++ }, onEditions = {})
         } }
         compose.onNodeWithContentDescription("Continuar").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithContentDescription("Continuar").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("Escolher página").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithContentDescription("Capítulo anterior").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("Próximo capítulo").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, chapters) }
         compose.onNodeWithContentDescription("Imagem e mais opções").performClick()

@@ -20,9 +20,10 @@ enum class ColorPreset(
     Prime("Tema Prime", 0xFF40D5FF, 0xFF071522, 0xFF112B40, 0xFF285575, 0xFF40D5FF),
     Max("Tema Max", 0xFFB69AFF, 0xFF09091B, 0xFF252044, 0xFF4C426D, 0xFFB69AFF),
     Cinema("Tema Cinema", 0xFFFFFFFF, 0xFF000000, 0xFF202020, 0xFF454545),
-    Green("Preto e verde", 0xFF72E39A, 0xFF07120C, 0xFF14281C, 0xFF345341),
-    Blue("Preto e azul", 0xFF82C7FF, 0xFF080F1B, 0xFF18263B, 0xFF354B69),
-    Violet("Preto e violeta", 0xFFD1A5FF, 0xFF110B1B, 0xFF2B1E3B, 0xFF503B67),
+    // Legacy names stay persisted for preferences/backup compatibility; presentation was replaced.
+    Green("Tema Rosa", 0xFFFF92C4, 0xFF180A13, 0xFF321827, 0xFF65304A),
+    Blue("Tema Laranja", 0xFFFF9A62, 0xFF190D07, 0xFF341F14, 0xFF68452D),
+    Violet("Tema Lima", 0xFFC4E76D, 0xFF111508, 0xFF252D16, 0xFF4D5D2F),
 }
 data class AppearanceOptions(val preset: ColorPreset = ColorPreset.Amber, val textSize: Int = 0, val highContrast: Boolean = false,
     val coverBackground: Boolean = false, val textPercent: Int? = null) {

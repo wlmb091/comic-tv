@@ -124,6 +124,7 @@ Voltar  Sair do modo ativo e retornar""",
 
 @Composable internal fun ThemePresetCard(preset: ColorPreset, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Button(onClick, modifier.fillMaxWidth().heightIn(min = 84.dp).semantics { this.selected = selected },
+        shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
         contentPadding = PaddingValues(12.dp), scale = ButtonDefaults.scale(focusedScale = 1f),
         colors = ButtonDefaults.colors(containerColor = TvColors.Panel,
             contentColor = if (selected) TvColors.Amber else Color.White,

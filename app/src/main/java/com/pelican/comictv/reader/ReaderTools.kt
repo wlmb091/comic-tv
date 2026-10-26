@@ -12,7 +12,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.focus.*
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -89,32 +88,15 @@ import com.pelican.comictv.ui.*
             }
             val ids = actions.map { it.id }
             val requesters = remember(ids) { ids.associateWith { id -> when (id) { ToolId.Continue -> first; ToolId.More -> more; else -> FocusRequester() } } }
-            var focused by remember { mutableStateOf(ToolId.Continue) }
-            val scale = LocalDensity.current.fontScale.coerceAtLeast(1f)
-            val width = maxOf(188.dp, 144.dp * scale).coerceAtMost(360.dp)
-            Column(Modifier.align(Alignment.CenterEnd).width(width).fillMaxHeight().padding(12.dp)
-                .background(TvColors.Background.copy(alpha = .94f), RoundedCornerShape(16.dp))
-                .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(16.dp)).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.fillMaxWidth().height(66.dp * scale), contentAlignment = Alignment.Center) {
-                    Text(actions.firstOrNull { it.id == focused }?.label ?: "Controles de leitura", color = TvColors.Amber,
-                        fontSize = 17.sp, lineHeight = 22.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                }
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    actions.chunked(2).forEach { row ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)) {
-                            row.forEach { tool ->
-                                val index = actions.indexOf(tool)
-                                fun neighbor(direction: ToolDirection) = readerToolNeighbor(index, actions.size, direction)
-                                    ?.let { requesters.getValue(actions[it].id) } ?: FocusRequester.Cancel
-                                RailButton(tool.label, tool.icon, tool.action, Modifier.focusRequester(requesters.getValue(tool.id))
-                                    .onFocusChanged { if (it.isFocused) focused = tool.id }
-                                    .focusProperties { left = neighbor(ToolDirection.Left); right = neighbor(ToolDirection.Right)
-                                        up = neighbor(ToolDirection.Up); down = neighbor(ToolDirection.Down) })
-                            }
-                            if (row.size == 1) Spacer(Modifier.size(52.dp))
-                        }
-                    }
+            Column(Modifier.align(Alignment.CenterEnd).fillMaxHeight().verticalScroll(rememberScrollState())
+                .padding(vertical = 20.dp, horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.End) {
+                actions.forEachIndexed { index, tool ->
+                    fun neighbor(direction: ToolDirection) = readerToolNeighbor(index, actions.size, direction)
+                        ?.let { requesters.getValue(actions[it].id) } ?: FocusRequester.Cancel
+                    RailButton(tool.label, tool.icon, tool.action, Modifier.focusRequester(requesters.getValue(tool.id))
+                        .focusProperties { left = neighbor(ToolDirection.Left); right = neighbor(ToolDirection.Right)
+                            up = neighbor(ToolDirection.Up); down = neighbor(ToolDirection.Down) })
                 }
             }
         }
@@ -126,7 +108,12 @@ private enum class ToolId { Continue, Pages, Previous, Next, Chapters, Layout, F
 private data class Tool(val id: ToolId, val label: String, val icon: RailIcon, val action: () -> Unit)
 
 @Composable private fun RailButton(label: String, icon: RailIcon, onClick: () -> Unit, modifier: Modifier = Modifier) {
-        Button(onClick, modifier.size(52.dp).semantics { contentDescription = label },
+    var focused by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (focused) Text(label, Modifier.widthIn(max = 340.dp)
+            .background(TvColors.Panel, RoundedCornerShape(6.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
+            fontSize = 17.sp, lineHeight = 22.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        Button(onClick, modifier.size(48.dp).onFocusChanged { focused = it.isFocused }.semantics { contentDescription = label },
             contentPadding = PaddingValues(12.dp),
             colors = ButtonDefaults.colors(containerColor = TvColors.Panel, contentColor = Color.White,
                 focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
@@ -134,6 +121,7 @@ private data class Tool(val id: ToolId, val label: String, val icon: RailIcon, v
             border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber)))) {
             RailGlyph(icon, LocalContentColor.current)
         }
+    }
 }
 
 @Composable private fun RailGlyph(icon: RailIcon, tint: Color) {
