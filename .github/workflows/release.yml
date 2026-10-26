@@ -30,7 +30,7 @@ jobs:
           cache: gradle
       - name: Android tools
         if: steps.version.outputs.needed == 'true'
-        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+        run: bash distribution/tools/setup-android.sh 'platforms;android-36' 'build-tools;35.0.0'
       - name: Tests, release and lint (no signing secrets)
         if: steps.version.outputs.needed == 'true'
         run: |
@@ -62,7 +62,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - run: sdkmanager 'build-tools;35.0.0'
+      - run: bash distribution/tools/setup-android.sh 'build-tools;35.0.0'
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: comic-unsigned
