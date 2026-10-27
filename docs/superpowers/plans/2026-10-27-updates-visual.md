@@ -29,7 +29,7 @@ Texto 85–130%, alto contraste, temas e D-pad preservados. Sem alterações de 
 
 - [x] Registrar versão, release e validação, incluindo relato manual da1.1.18 e pendência física da atualização.
 - [x] Revisão final independente; erro longo movido ao painel rolável e verificação final passou.
-- [ ] Enviar ao main autorizado e acompanhar CI/assinatura/publicação; conferir manifesto e APK públicos da1.1.20.
+- [x] Enviar ao main autorizado e acompanhar CI/assinatura/publicação; manifesto e APK públicos da1.1.20 conferidos, incluindo assinatura histórica e compatibilidade. Resultado físico continua manual.
 
 ## Execução
 
