@@ -4,6 +4,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.20
+
+Atualizações com resumo de versões/estado, progresso em MiB, ação principal estável e mensagens/novidades roláveis pelo controle. Mantidos temas, texto ampliado e confirmação Android. Veja [notas e teste de atualização na Box](docs/releases/1.1.20.md).
+
 ## Versão 1.1.17
 
 Reaproveitamento da antecipação que vira página atual, barra estreita do leitor restaurada, aviso Zoom/Mover e cartões de tema com cantos leves. Presets secundários Rosa/Laranja/Lima preservam chaves salvas. Veja [notas e limites](docs/releases/1.1.17.md).
