@@ -397,7 +397,7 @@ import kotlinx.coroutines.launch
                 Row(Modifier.align(Alignment.TopStart).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     TvButton("Menu", ::openNavigation, Modifier.testTag("cinema-menu"))
-                    ComicWordmark(Modifier.width(150.dp))
+                    ComicWordmark(Modifier.width(180.dp * fontScale))
                 }
             }
             if (horizontal) {

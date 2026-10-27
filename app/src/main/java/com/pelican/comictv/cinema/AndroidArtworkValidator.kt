@@ -1,7 +1,7 @@
 package com.pelican.comictv.cinema
 
 import android.graphics.BitmapFactory
-import android.media.ExifInterface
+import androidx.exifinterface.media.ExifInterface
 import java.io.File
 
 internal fun validateCinemaArtwork(file: File) {

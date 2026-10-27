@@ -53,6 +53,8 @@ dependencies {
     ksp("androidx.room:room-compiler:2.7.2")
     implementation("io.coil-kt.coil3:coil-compose:3.3.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
+    // Already packaged transitively by Coil; declare for direct artwork metadata validation.
+    implementation("androidx.exifinterface:exifinterface:1.4.1")
     implementation("com.google.zxing:core:3.5.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     testImplementation("junit:junit:4.13.2")
