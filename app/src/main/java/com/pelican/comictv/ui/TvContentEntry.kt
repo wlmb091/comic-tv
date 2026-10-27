@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.*
@@ -17,7 +19,9 @@ import androidx.compose.ui.semantics.semantics
 
 /** Stable focus destination outside scrollable/lazy content, including while data is replaced. */
 @Composable internal fun TvContentEntry(entry: FocusRequester, sidebar: FocusRequester,
-    modifier: Modifier = Modifier, onEntryLeft: () -> Unit = {}, content: @Composable () -> Unit) {
+    modifier: Modifier = Modifier, onEntryLeft: () -> Unit = {},
+    navigationPolicy: ThemeNavigationPolicy = ThemeNavigationPolicy.Sidebar,
+    onNavigateToMenu: () -> Unit = { sidebar.requestFocus() }, content: @Composable () -> Unit) {
     val children = remember { FocusRequester() }
     var atEntry by remember { mutableStateOf(false) }
     var enteringKey by remember { mutableStateOf<Key?>(null) }
@@ -32,22 +36,34 @@ import androidx.compose.ui.semantics.semantics
                 if (event.type == KeyEventType.KeyUp) enteringKey = null
                 true // Do not deliver OK-up to a newly focused button/text field.
             } else if (!atEntry) false
-            else when (event.key) {
-                Key.DirectionDown, Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {
+            else if (event.key == when (navigationPolicy) {
+                ThemeNavigationPolicy.TopBar -> Key.DirectionUp
+                ThemeNavigationPolicy.BottomDock -> Key.DirectionDown
+                else -> Key.DirectionLeft
+            }) {
+                if (event.type == KeyEventType.KeyDown) onNavigateToMenu()
+                true
+            } else if (event.key == (if (navigationPolicy == ThemeNavigationPolicy.BottomDock) Key.DirectionUp else Key.DirectionDown) ||
+                event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter) {
                     if (event.type == KeyEventType.KeyDown) {
                         enteringKey = event.key
                         children.requestFocus()
                     }
                     true
-                }
-                Key.DirectionLeft -> { if (event.type == KeyEventType.KeyDown) sidebar.requestFocus(); true }
-                Key.DirectionUp, Key.DirectionRight -> true
-                else -> false
-            }
+            } else event.key == Key.DirectionLeft || event.key == Key.DirectionUp || event.key == Key.DirectionRight
         }.testTag("content-entry").semantics {
             contentDescription = "Conteúdo"
             onClick("Entrar no conteúdo") { children.requestFocus(); true }
         }.focusable()) {
-        Box(Modifier.fillMaxSize().focusRequester(children).focusGroup()) { content() }
+        Box(Modifier.fillMaxSize().focusRequester(children).focusProperties {
+            onExit = {
+                val menuDirection = when (navigationPolicy) {
+                    ThemeNavigationPolicy.TopBar -> FocusDirection.Up
+                    ThemeNavigationPolicy.BottomDock -> FocusDirection.Down
+                    else -> FocusDirection.Left
+                }
+                if (requestedFocusDirection == menuDirection) onNavigateToMenu()
+            }
+        }.focusGroup()) { content() }
     }
 }

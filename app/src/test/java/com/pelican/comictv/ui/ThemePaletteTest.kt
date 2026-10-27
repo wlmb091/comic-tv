@@ -26,8 +26,14 @@ class ThemePaletteTest {
         val themes = listOf(ColorPreset.Amber, ColorPreset.Flix, ColorPreset.Prime, ColorPreset.Max, ColorPreset.Cinema)
         assertEquals(5, themes.map { it.background }.distinct().size)
         assertEquals(4, themes.map { it.panel }.distinct().size)
-        listOf("Amber", "Green", "Blue", "Violet", "Flix", "Prime", "Max", "Cinema").forEach { key ->
+        listOf("Amber", "Flix", "Prime", "Max", "Cinema").forEach { key ->
             assertEquals(key, AppearanceOptions.restore(key, 1, false, true).preset.name)
+        }
+        listOf("Green", "Blue", "Violet").forEach { key ->
+            val restored = AppearanceOptions.restore(key, 1, false, true)
+            assertEquals(ColorPreset.Amber, restored.preset)
+            assertTrue(restored.coverBackground)
+            assertEquals(115, restored.textPercentage)
         }
     }
 }

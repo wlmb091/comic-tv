@@ -22,7 +22,7 @@ class AppSurfaceTest {
             }
         } finally { TvColors.options = previous }
     }
-    @Test fun frostedSurfaceLimitsUnderlyingBlackWhiteContrastToEightLevels() {
+    @Test fun frostedSurfaceUsesEightyPercentOpacityAndLimitsUnderlayContribution() {
         val previous = TvColors.options
         try {
             for (preset in ColorPreset.entries) {
@@ -30,7 +30,8 @@ class AppSurfaceTest {
                 for (surface in listOf(TvColors.FrostedPanel, TvColors.FrostedSidebar)) {
                     val white = surface.compositeOver(Color.White)
                     val black = surface.compositeOver(Color.Black)
-                    val limit = 8f / 255f + .000001f
+                    assertEquals(.80f, surface.alpha, 1f / 255f)
+                    val limit = .20f + .000001f
                     assertTrue(preset.name, white.red - black.red <= limit)
                     assertTrue(preset.name, white.green - black.green <= limit)
                     assertTrue(preset.name, white.blue - black.blue <= limit)
@@ -50,7 +51,7 @@ class AppSurfaceTest {
                     Color(0xFF0F0F0F) else Color(preset.background)
                 assertEquals(preset.name, expected, TvColors.Background)
                 val sidebar = if (preset in setOf(ColorPreset.Amber, ColorPreset.Flix, ColorPreset.Cinema))
-                    Color(0xF7404040) else Color(preset.panel).copy(alpha = 247f / 255f)
+                    Color(0xFF404040).copy(alpha = .80f) else Color(preset.panel).copy(alpha = .80f)
                 assertEquals(preset.name, sidebar, TvColors.FrostedSidebar)
             }
             TvColors.options = AppearanceOptions(highContrast = true)

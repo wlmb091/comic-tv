@@ -38,7 +38,7 @@ object BackupCodec {
         "collections" to Rule(element = obj("id" to text(100), "name" to text(100)), limit = 2000),
         "links" to Rule(element = obj("comicId" to text(100), "collectionId" to text(100)), limit = 100000),
         "appearance" to obj("preset" to text(30), "textSize" to smallNumber, "highContrast" to boolean, "coverBackground" to boolean,
-            "textPercent" to smallNumber.copy(optional = true)))
+            "textPercent" to smallNumber.copy(optional = true), "cinemaMode" to boolean.copy(optional = true)))
 
     fun decode(input: InputStream): BackupDocument {
         val bytes = ByteArrayOutputStream().also { output ->

@@ -7,12 +7,13 @@ import java.nio.file.LinkOption.NOFOLLOW_LINKS
 
 enum class CacheSelection(val label: String) { Pages("cache de páginas"), Thumbnails("miniaturas"), Both("páginas e miniaturas") }
 data class StorageReport(val originals: Long, val covers: Long, val pages: Long, val thumbnails: Long,
-    val freeBytes: Long, val skipped: Int = 0, val offline: Long = 0)
+    val freeBytes: Long, val skipped: Int = 0, val offline: Long = 0, val cinemaArtwork: Long = 0)
 data class CacheCleanup(val freedBytes: Long, val failures: Int)
 
 /** Only caller-owned directories are visited. Symlinks and canonical escapes are never followed. */
 class LibraryStorage(private val originals: File, private val covers: File, private val pages: File,
-    private val thumbnails: File, private val remove: (File) -> Boolean = { it.delete() }, private val offlineDirectory: File? = null) {
+    private val thumbnails: File, private val remove: (File) -> Boolean = { it.delete() }, private val offlineDirectory: File? = null,
+    private val cinemaDirectory: File? = null) {
     private fun visit(root: File, blocked: () -> Unit, file: (File) -> Unit) {
         // Context paths may have a trusted Android alias in an ancestor (/data/user/0).
         // Resolve that ancestor, but reject a redirect at the cache root or any child.
@@ -53,7 +54,8 @@ class LibraryStorage(private val originals: File, private val covers: File, priv
         val originalBytes = bytes(originals); val coverBytes = bytes(covers)
         val pageBytes = bytes(pages); val thumbBytes = bytes(thumbnails)
         val offline = offlineDirectory?.let(::bytes) ?: 0L
-        return StorageReport(originalBytes, coverBytes, pageBytes, thumbBytes, originals.parentFile?.usableSpace ?: 0L, skipped, offline)
+        val cinema = cinemaDirectory?.let(::bytes) ?: 0L
+        return StorageReport(originalBytes, coverBytes, pageBytes, thumbBytes, originals.parentFile?.usableSpace ?: 0L, skipped, offline, cinema)
     }
     fun clear(selection: CacheSelection): CacheCleanup {
         var freed = 0L; var failures = 0

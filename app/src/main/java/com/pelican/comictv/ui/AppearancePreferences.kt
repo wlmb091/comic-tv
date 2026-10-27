@@ -24,9 +24,12 @@ enum class ColorPreset(
     Green("Tema Rosa", 0xFFFF92C4, 0xFF180A13, 0xFF321827, 0xFF65304A),
     Blue("Tema Laranja", 0xFFFF9A62, 0xFF190D07, 0xFF341F14, 0xFF68452D),
     Violet("Tema Lima", 0xFFC4E76D, 0xFF111508, 0xFF252D16, 0xFF4D5D2F),
+    ;
+
+    val selectable get() = this != Green && this != Blue && this != Violet
 }
 data class AppearanceOptions(val preset: ColorPreset = ColorPreset.Amber, val textSize: Int = 0, val highContrast: Boolean = false,
-    val coverBackground: Boolean = false, val textPercent: Int? = null) {
+    val coverBackground: Boolean = false, val textPercent: Int? = null, val cinemaMode: Boolean = false) {
     val textPercentage: Int get() = textPercent?.let(::normalizeTextPercentage) ?: listOf(100, 115, 130)[textSize.coerceIn(0, 2)]
     val textScale: Float get() = textPercentage / 100f
     fun withTextPercentage(percent: Int): AppearanceOptions {
@@ -35,9 +38,10 @@ data class AppearanceOptions(val preset: ColorPreset = ColorPreset.Amber, val te
         return copy(textSize = legacy, textPercent = normalized)
     }
     companion object {
-        fun restore(preset: String?, textSize: Int, highContrast: Boolean, coverBackground: Boolean = false, textPercent: Int? = null) = AppearanceOptions(
-            ColorPreset.entries.firstOrNull { it.name == preset } ?: ColorPreset.Amber,
-            textSize.coerceIn(0, 2), highContrast, coverBackground).let { if (textPercent == null) it else it.withTextPercentage(textPercent) }
+        fun restore(preset: String?, textSize: Int, highContrast: Boolean, coverBackground: Boolean = false, textPercent: Int? = null,
+            cinemaMode: Boolean = false) = AppearanceOptions(
+            ColorPreset.entries.firstOrNull { it.name == preset && it.selectable } ?: ColorPreset.Amber,
+            textSize.coerceIn(0, 2), highContrast, coverBackground, cinemaMode = cinemaMode).let { if (textPercent == null) it else it.withTextPercentage(textPercent) }
         private fun normalizeTextPercentage(value: Int) = ((value.coerceIn(85, 130) + 2) / 5) * 5
     }
 }
@@ -46,14 +50,17 @@ class AppearancePreferences(context: Context) {
     private val writes = Mutex()
     private val _state = MutableStateFlow(AppearanceOptions.restore(
         preferences.getString("preset", null), preferences.getInt("text-size", 0), preferences.getBoolean("contrast", false), preferences.getBoolean("cover-background", false),
-        if (preferences.contains("text-percent")) preferences.getInt("text-percent", 100) else null))
+        if (preferences.contains("text-percent")) preferences.getInt("text-percent", 100) else null,
+        preferences.getBoolean("cinema-mode",false)))
     val state = _state.asStateFlow()
     suspend fun update(options: AppearanceOptions) = withContext(Dispatchers.IO) {
         writes.withLock {
-            val value = options.copy(textSize = options.textSize.coerceIn(0, 2)).let { if (it.textPercent == null) it else it.withTextPercentage(it.textPercent) }
+            val value = options.copy(preset = options.preset.takeIf { it.selectable } ?: ColorPreset.Amber,
+                textSize = options.textSize.coerceIn(0, 2)).let { if (it.textPercent == null) it else it.withTextPercentage(it.textPercent) }
             check(preferences.edit().putString("preset", value.preset.name).putInt("text-size", value.textSize)
                 .apply { if (value.textPercent == null) remove("text-percent") else putInt("text-percent", value.textPercent) }
-                .putBoolean("contrast", value.highContrast).putBoolean("cover-background", value.coverBackground).commit()) { "Não foi possível salvar a aparência." }
+                .putBoolean("contrast", value.highContrast).putBoolean("cover-background", value.coverBackground)
+                .putBoolean("cinema-mode",value.cinemaMode).commit()) { "Não foi possível salvar a aparência." }
             _state.value = value
         }
     }

@@ -27,6 +27,7 @@ import com.pelican.comictv.ui.*
             item { Text("Livre no armazenamento interno · " + bytes(report.freeBytes), fontSize = 21.sp) }
             item { Text("Originais importados · " + bytes(report.originals)) }
             item { Text("Capas salvas · " + bytes(report.covers)) }
+            item { Text("Artes do Modo Cinema · " + bytes(report.cinemaArtwork) + " · limite de 128 MiB") }
             item { Text("Cache de páginas · " + bytes(report.pages)) }
             item { Text("Miniaturas · " + bytes(report.thumbnails)) }
             item { Text("Downloads offline (completos e parciais) · " + bytes(report.offline)) }

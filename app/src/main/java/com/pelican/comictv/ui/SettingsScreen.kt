@@ -93,13 +93,17 @@ import kotlinx.coroutines.sync.withLock
                         TvButton("Sobre os temas", { themeHelp = true })
                     }
                 }
-                ColorPreset.entries.forEach { preset -> item(key = "theme-${preset.name}") {
+                ColorPreset.entries.filter { it.selectable }.forEach { preset -> item(key = "theme-${preset.name}") {
                     ThemePresetCard(preset, options.preset == preset, { save { it.copy(preset = preset) } })
                 } }
+                settingsRow("cinema-title") { Text("Arte cinematográfica", fontSize = 23.sp) }
+                settingsRow("cinema-toggle") { TvButton("Arte cinematográfica opcional: " + if (options.cinemaMode) "ligada" else "desligada",
+                    { save { it.copy(cinemaMode = !it.cinemaMode) } }) }
+                settingsRow("cinema-description") { Text("Usa a arte horizontal escolhida manualmente em Detalhes → Mais opções para acompanhar a edição em foco na biblioteca. Tema e organização visual são escolhas independentes. O Tema Cinema mantém sua apresentação imersiva. Sem arte, usa o fundo do tema; alto contraste preserva o fundo preto.", color = TvColors.Muted) }
                 settingsRow("background-title") { Text("Fundo dos detalhes", fontSize = 23.sp) }
                 settingsRow("background-toggle") { TvButton(if (options.coverBackground) "Fundo: capa desfocada" else "Fundo: identidade Comic TV",
                     { save { it.copy(coverBackground = !it.coverBackground) } }) }
-                settingsRow("background-description") { Text("Nos detalhes: capa desfocada quando ativado. Na tela principal: identidade Comic TV desfocada e escura. Em alto contraste, fundo preto.", color = TvColors.Muted) }
+                settingsRow("background-description") { Text("Nos detalhes: capa desfocada quando ativado. Esta opção é independente da arte horizontal da biblioteca. Em alto contraste, fundo preto.", color = TvColors.Muted) }
                 settingsRow("text-title") { Text("Tamanho dos textos", fontSize = 23.sp) }
                 settingsRow("text-control") {
                     TextScaleControl(options.textPercentage,

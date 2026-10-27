@@ -9,6 +9,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.pelican.comictv.ui.ComicWordmark
 import com.pelican.comictv.ui.TvChoice
+import com.pelican.comictv.ui.TvColors
+import com.pelican.comictv.ui.ColorPreset
 
 @Composable internal fun LibraryHeader(
     libraryCount: Int, historyCount: Int, history: Boolean, searchActive: Boolean,
@@ -22,7 +24,13 @@ import com.pelican.comictv.ui.TvChoice
         TvChoice("Histórico · $historyCount", history, onHistory, compact = true)
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth < 760.dp * scale) {
+        val showBrand = TvColors.options.preset in listOf(ColorPreset.Amber, ColorPreset.Max,
+            ColorPreset.Green, ColorPreset.Blue, ColorPreset.Violet)
+        if (!showBrand) {
+            FlowRow(Modifier.fillMaxWidth().testTag("library-header-actions"),
+                horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) { actions() }
+        } else if (maxWidth < 760.dp * scale) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ComicWordmark(Modifier.fillMaxWidth().heightIn(min = 38.dp).testTag("library-brand"))
                 FlowRow(Modifier.fillMaxWidth().testTag("library-header-actions"),

@@ -24,11 +24,23 @@ class AppearanceOptionsTest {
         assertEquals(1.3f, AppearanceOptions.restore("Green", 100, false).textScale, .001f)
     }
     @Test fun presetAndTextChoicesRoundTripByStableName() {
-        ColorPreset.entries.forEach { preset ->
+        ColorPreset.entries.filter { it.selectable }.forEach { preset ->
             for (size in 0..2) {
                 val original = AppearanceOptions(preset, size, true, coverBackground = true)
                 assertEquals(original, AppearanceOptions.restore(preset.name, size, true, coverBackground = true))
             }
+        }
+    }
+    @Test fun retiredThemesRestoreComicWithoutLosingAccessibilityOrArtworkPreference() {
+        assertEquals(listOf(ColorPreset.Amber, ColorPreset.Flix, ColorPreset.Prime, ColorPreset.Max, ColorPreset.Cinema),
+            ColorPreset.entries.filter { it.selectable })
+        for (retired in listOf("Green", "Blue", "Violet")) {
+            val restored = AppearanceOptions.restore(retired, 1, true, true, 125, true)
+            assertEquals(ColorPreset.Amber, restored.preset)
+            assertEquals(125, restored.textPercentage)
+            assertTrue(restored.highContrast)
+            assertTrue(restored.coverBackground)
+            assertTrue(restored.cinemaMode)
         }
     }
     @Test fun everyAccentHasStrongContrastAgainstBlack() {

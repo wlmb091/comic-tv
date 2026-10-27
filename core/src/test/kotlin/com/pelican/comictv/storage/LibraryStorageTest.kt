@@ -17,17 +17,21 @@ class LibraryStorageTest {
             val thumb = file(root, "thumbs/a", 3)
             val other = file(root, "other/keep", 11)
             val offline = file(root,"offline/edition/page",13)
-            val storage = LibraryStorage(File(root,"originals"), File(root,"covers"), File(root,"pages"), File(root,"thumbs"),offlineDirectory = File(root,"offline"))
+            val artwork = file(root,"cinema-artwork/edition.art",17)
+            val storage = LibraryStorage(File(root,"originals"), File(root,"covers"), File(root,"pages"), File(root,"thumbs"),
+                offlineDirectory = File(root,"offline"), cinemaDirectory = File(root,"cinema-artwork"))
             val report = storage.report()
             assertEquals(9L, report.originals); assertEquals(7L, report.covers)
             assertEquals(5L, report.pages); assertEquals(3L, report.thumbnails)
             assertEquals(13L, report.offline)
+            assertEquals(17L, report.cinemaArtwork)
             val clean = storage.clear(CacheSelection.Pages)
             assertEquals(5L, clean.freedBytes); assertEquals(0, clean.failures)
             assertFalse(page.exists()); assertTrue(thumb.isFile)
             assertTrue(original.isFile); assertTrue(cover.isFile); assertTrue(other.isFile)
             assertEquals(3L, storage.clear(CacheSelection.Both).freedBytes)
             assertTrue(offline.isFile)
+            assertTrue(artwork.isFile)
         } finally { root.deleteRecursively() }
     }
     @Test fun missingCachesAreZeroAndFailedDeletionIsNotReportedAsSuccess() {

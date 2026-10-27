@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BackupCodecTest {
+    @Test fun optionalCinemaPreferenceReadsOldBackupsAndRejectsNonBooleanValues() {
+        val oldJson = BackupCodec.encode(document()).toString(Charsets.UTF_8).replace(",\"cinemaMode\":false", "")
+        assertFalse(BackupCodec.decode(oldJson.byteInputStream()).appearance.cinemaMode)
+        val enabled = document().copy(appearance = BackupAppearance(cinemaMode = true))
+        val json = BackupCodec.encode(enabled).toString(Charsets.UTF_8)
+        assertEquals(enabled, BackupCodec.decode(json.byteInputStream()))
+        for (invalid in listOf("\"true\"", "1", "{}")) {
+            assertThrows(Exception::class.java) {
+                BackupCodec.decode(json.replace("\"cinemaMode\":true", "\"cinemaMode\":$invalid").byteInputStream())
+            }
+        }
+        assertFalse(json.contains("cinema-artwork"))
+    }
     @Test fun extensionChapterMemoIsNeverExportedInBackupV1() {
         val source=com.pelican.comictv.sources.SourceHandle("pkg",1,"Source","en","https://example.com")
         val title=com.pelican.comictv.sources.OnlineTitle("title","Title")

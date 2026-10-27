@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
     offlineIds: Set<String> = emptySet(), onDownload: ((String) -> Unit)? = null,
     onDeleteOnline: (suspend (String) -> Boolean)? = null,
 ) {
+    val cinema = TvColors.options.preset == ColorPreset.Cinema
     val grid = rememberLazyGridState()
     val pageAtTop by remember(grid) { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
     val filterList = rememberLazyListState()
@@ -116,6 +117,9 @@ import kotlinx.coroutines.launch
         target = null
         restored = true
     }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val cinemaHeroHeight = maxHeight - 32.dp
+    if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
     LazyVerticalGrid(
         columns = GridCells.Adaptive(140.dp), state = grid,
         modifier = Modifier.fillMaxSize().focusRestorer(),
@@ -125,12 +129,16 @@ import kotlinx.coroutines.launch
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                if (cinema && !history) LibraryHero(featured, repository,
+                    onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport,
+                    modifier = Modifier.heightIn(min = cinemaHeroHeight),
+                    readModifier = Modifier.focusRequester(headerFocus).then(firstFilter))
                 LibraryHeader(comics.size, recent.size, history, searching || query.isNotBlank(),
                     { searching = true }, { history = false }, { history = true },
-                    Modifier.focusRequester(headerFocus), Modifier.focusRequester(searchFocus))
+                    if (cinema && !history) Modifier else Modifier.focusRequester(headerFocus), Modifier.focusRequester(searchFocus))
                 LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage,
-                    returnFocusEnabled = pageAtTop, entryModifier = firstFilter, listState = filterList)
-                if (!history) LibraryHero(featured, repository,
+                    returnFocusEnabled = pageAtTop, entryModifier = if (cinema && !history) Modifier else firstFilter, listState = filterList)
+                if (!cinema && !history) LibraryHero(featured, repository,
                     onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport)
             }
         }
@@ -219,6 +227,7 @@ import kotlinx.coroutines.launch
                 }
             }
         }
+    }
     }
 }
 

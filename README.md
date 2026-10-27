@@ -4,9 +4,9 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão 1.1.22
+## Versão1.2.0
 
-Vidro mais fosco, fundo#0F0F0F/lateral#404040 e botões mais escuros somente nos temas neutros, preservando cores dos demais temas. Confirmação antes de sair pelo Voltar, com Continuar inicialmente focado. Veja [notas e limites físicos](docs/releases/1.1.22.md).
+Cinco layouts próprios: Comic TV/estante, Flix/lateral, Prime/menu superior, Max/dock inferior e Cinema/imersivo. Arte horizontal manual separada da capa, vidro80% e remoção de Lima/Rosa/Laranja das escolhas com migração de preferências. Veja [notas e limites físicos](docs/releases/1.2.0.md) e [referências aprovadas](docs/design/themes/README.md).
 
 ## Versão 1.1.21
 

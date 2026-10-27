@@ -260,14 +260,23 @@ import kotlinx.coroutines.launch
 @Composable internal fun TvShell(selected: String, onNavigate: (String) -> Unit,
     focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false,
     focusContentOnEntry: Boolean = false, content: @Composable () -> Unit) {
+    val policy = ThemeNavigationPolicy.forPreset(TvColors.options.preset)
     val sectionFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
     val preferredEntry = remember { ContentEntryTarget() }
     var atContentEntry by remember { mutableStateOf(false) }
     var internalEntry by remember { mutableStateOf(false) }
     var internalNavigationVersion by remember { mutableIntStateOf(0) }
+    var focusWithin by remember { mutableStateOf(false) }
+    var cinemaMenu by remember(policy) { mutableStateOf(false) }
     fun returnToContent(resetToFirst: Boolean = false) {
         if (!preferredEntry.requestFocus(resetToFirst)) contentFocus.requestFocus()
+        cinemaMenu = false
+    }
+    fun openNavigation() {
+        preferredEntry.cancel()
+        if (policy == ThemeNavigationPolicy.ImmersiveMenu && !cinemaMenu) cinemaMenu = true
+        else sectionFocus.requestFocus()
     }
     fun navigateWithinContent(change: () -> Unit) {
         preferredEntry.cancel()
@@ -275,6 +284,9 @@ import kotlinx.coroutines.launch
         internalEntry = true
         change()
         internalNavigationVersion++
+    }
+    LaunchedEffect(cinemaMenu) {
+        if (cinemaMenu) { withFrameNanos { }; sectionFocus.requestFocus() }
     }
     LaunchedEffect(internalNavigationVersion) {
         if (internalNavigationVersion > 0) {
@@ -286,76 +298,137 @@ import kotlinx.coroutines.launch
         if (focusContentOnEntry) { withFrameNanos { }; returnToContent(true); onSectionFocused() }
     }
     LaunchedEffect(focusSectionOnEntry) {
-        if (focusSectionOnEntry) { sectionFocus.requestFocus(); onSectionFocused() }
+        if (focusSectionOnEntry) { openNavigation(); onSectionFocused() }
+    }
+    androidx.activity.compose.BackHandler(policy == ThemeNavigationPolicy.ImmersiveMenu && cinemaMenu) {
+        returnToContent()
     }
     val routes = listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "settings" to "Configurações")
     val icons = listOf(R.drawable.nav_library, R.drawable.nav_recent, R.drawable.nav_sources, R.drawable.nav_extensions, R.drawable.nav_import, R.drawable.nav_settings)
-    var focusWithin by remember { mutableStateOf(false) }
-    val expanded = focusWithin
-    val expandedWidth = minOf(320.dp, 228.dp * LocalDensity.current.fontScale.coerceAtLeast(1f))
-    Box(Modifier.fillMaxSize().background(TvColors.Background)) {
-        if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
-    Box(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
-        // The content keeps its full width while the drawer floats above its left edge.
-        CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry,
-            LocalSectionContentEntry provides (focusContentOnEntry || internalEntry),
-            LocalContentNavigation provides ::navigateWithinContent) {
-            TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().padding(start = 80.dp)
-                .onFocusChanged { atContentEntry = it.isFocused },
-                onEntryLeft = { preferredEntry.cancel(); internalEntry = false }, content = content)
-        }
-        val sidebarReflection by animateFloatAsState(if (expanded) 1f else .6f,
-            tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
-        Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
-            .glassPanel(surface = TvColors.FrostedSidebar, reflection = { sidebarReflection })
-            .onFocusChanged { focusWithin = it.hasFocus; if (it.hasFocus) preferredEntry.cancel() }.onPreviewKeyEvent { event ->
-                if (event.key == Key.DirectionRight) {
-                    if (event.type == KeyEventType.KeyDown) returnToContent()
-                    true
-                } else false
-            }.focusProperties {
-                // Spatial search from a top content control otherwise picks Biblioteca by proximity.
-                onEnter = { if (requestedFocusDirection == androidx.compose.ui.focus.FocusDirection.Left) sectionFocus.requestFocus() }
-            }.focusGroup()
-            .verticalScroll(rememberScrollState()).padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
-                if (expanded) ComicWordmark(Modifier.fillMaxWidth().heightIn(min = 44.dp), centered = true)
-                else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
-                    Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
-            }
-            routes.forEachIndexed { index, (route, title) ->
-                val active = route == selected
-                var iconFocused by remember(route) { mutableStateOf(false) }
-                val iconScale by animateFloatAsState(if (iconFocused && !TvColors.options.highContrast) 1.08f else 1f,
-                    tween(120, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "nav-icon-scale")
-                androidx.tv.material3.Button(onClick = {
-                    if (route == selected) returnToContent(true)
-                    else { contentFocus.requestFocus(); onNavigate(route) }
-                },
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).focusProperties { canFocus = !contentFocusPending && !focusContentOnEntry }.testTag("nav-" + route)
-                        .onFocusChanged { iconFocused = it.isFocused }
-                        .semantics { this.selected = active }
-                        .then(if (route == selected) Modifier.focusRequester(sectionFocus) else Modifier), contentPadding = PaddingValues(0.dp),
-                    shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                    scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1f),
-                    border = if (TvColors.useNeutralButtons) androidx.tv.material3.ButtonDefaults.border(
-                        focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, TvColors.Amber)))
-                        else androidx.tv.material3.ButtonDefaults.border(),
-                    colors = androidx.tv.material3.ButtonDefaults.colors(
-                        containerColor = if (route == selected) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
-                        contentColor = if (route == selected) TvColors.Amber else Color.White,
-                        focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.width(48.dp).height(36.dp), contentAlignment = Alignment.Center) {
-                            androidx.tv.material3.Icon(painterResource(icons[index]), contentDescription = title,
-                                modifier = Modifier.size(26.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
-                        }
-                        if (expanded) Text(title, Modifier.weight(1f).padding(start = 8.dp), fontSize = 17.sp)
+    val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val expanded = focusWithin || policy == ThemeNavigationPolicy.ImmersiveMenu
+    val expandedWidth = minOf(320.dp, 228.dp * fontScale)
+    val horizontal = policy == ThemeNavigationPolicy.TopBar || policy == ThemeNavigationPolicy.BottomDock
+    val navigationToContentKey = when (policy) {
+        ThemeNavigationPolicy.TopBar -> Key.DirectionDown
+        ThemeNavigationPolicy.BottomDock -> Key.DirectionUp
+        else -> Key.DirectionRight
+    }
+    val entryDirection = when (policy) {
+        ThemeNavigationPolicy.TopBar -> androidx.compose.ui.focus.FocusDirection.Up
+        ThemeNavigationPolicy.BottomDock -> androidx.compose.ui.focus.FocusDirection.Down
+        else -> androidx.compose.ui.focus.FocusDirection.Left
+    }
+    @Composable fun NavigationItem(index: Int, modifier: Modifier = Modifier) {
+        val (route, title) = routes[index]
+        val active = route == selected
+        var iconFocused by remember(route) { mutableStateOf(false) }
+        val iconScale by animateFloatAsState(if (iconFocused && !TvColors.options.highContrast) 1.08f else 1f,
+            tween(120, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "nav-icon-scale")
+        androidx.tv.material3.Button(onClick = {
+            if (active) returnToContent(true)
+            else { contentFocus.requestFocus(); cinemaMenu = false; onNavigate(route) }
+        }, modifier = modifier.heightIn(min = if (policy == ThemeNavigationPolicy.BottomDock) 66.dp * fontScale else 52.dp)
+            .focusProperties { canFocus = !contentFocusPending && !focusContentOnEntry }
+            .testTag("nav-" + route).onFocusChanged { iconFocused = it.isFocused }
+            .semantics { this.selected = active }
+            .then(if (active) Modifier.focusRequester(sectionFocus) else Modifier),
+            contentPadding = PaddingValues(0.dp),
+            shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
+            scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1f),
+            border = androidx.tv.material3.ButtonDefaults.border(focusedBorder = androidx.tv.material3.Border(
+                androidx.compose.foundation.BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber))),
+            colors = androidx.tv.material3.ButtonDefaults.colors(
+                containerColor = if (active) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
+                contentColor = if (active) TvColors.Amber else Color.White,
+                focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
+            if (policy == ThemeNavigationPolicy.BottomDock) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    androidx.tv.material3.Icon(painterResource(icons[index]), null,
+                        Modifier.size(24.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
+                    Text(title, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                }
+            } else {
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.width(if (horizontal) 32.dp else 48.dp).height(36.dp), contentAlignment = Alignment.Center) {
+                        androidx.tv.material3.Icon(painterResource(icons[index]), if (expanded || horizontal) null else title,
+                            Modifier.size(if (horizontal) 22.dp else 26.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
                     }
+                    if (expanded || horizontal) Text(title, Modifier.weight(1f).padding(start = if (horizontal) 0.dp else 8.dp),
+                        fontSize = if (horizontal) 13.sp else 17.sp)
                 }
             }
         }
     }
+    val navigationModifier = Modifier.onFocusChanged {
+        val wasFocused = focusWithin
+        focusWithin = it.hasFocus
+        if (it.hasFocus) preferredEntry.cancel()
+        else if (wasFocused && policy == ThemeNavigationPolicy.ImmersiveMenu) cinemaMenu = false
+    }.onPreviewKeyEvent { event ->
+        if (event.key == navigationToContentKey) {
+            if (event.type == KeyEventType.KeyDown) returnToContent()
+            true
+        } else false
+    }.focusProperties {
+        // Always return to the current section, regardless of the nearest icon's geometry.
+        onEnter = { if (requestedFocusDirection == entryDirection) sectionFocus.requestFocus() }
+    }.focusGroup()
+    Box(Modifier.fillMaxSize().background(TvColors.Background)) {
+        if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
+        Box(Modifier.fillMaxSize().then(if (policy == ThemeNavigationPolicy.ImmersiveMenu) Modifier
+            else Modifier.padding(horizontal = 20.dp, vertical = 16.dp))) {
+            val contentPadding = when (policy) {
+                ThemeNavigationPolicy.Sidebar -> PaddingValues(start = 80.dp)
+                ThemeNavigationPolicy.TopBar -> PaddingValues(top = 72.dp * fontScale)
+                ThemeNavigationPolicy.BottomDock -> PaddingValues(bottom = 88.dp * fontScale)
+                ThemeNavigationPolicy.ImmersiveMenu -> PaddingValues(0.dp)
+            }
+            CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry,
+                LocalSectionContentEntry provides (focusContentOnEntry || internalEntry),
+                LocalContentNavigation provides ::navigateWithinContent) {
+                TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().padding(contentPadding)
+                    .onFocusChanged { atContentEntry = it.isFocused },
+                    onEntryLeft = { preferredEntry.cancel(); internalEntry = false },
+                    navigationPolicy = policy, onNavigateToMenu = ::openNavigation, content = content)
+            }
+            if (policy == ThemeNavigationPolicy.ImmersiveMenu && !cinemaMenu) {
+                Row(Modifier.align(Alignment.TopStart).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    TvButton("Menu", ::openNavigation, Modifier.testTag("cinema-menu"))
+                    ComicWordmark(Modifier.width(150.dp))
+                }
+            }
+            if (horizontal) {
+                val barModifier = if (policy == ThemeNavigationPolicy.TopBar)
+                    Modifier.align(Alignment.TopCenter).fillMaxWidth().testTag("navigation-top")
+                else Modifier.align(Alignment.BottomCenter).fillMaxWidth(.9f).testTag("navigation-bottom")
+                Row(barModifier.glassPanel(surface = TvColors.FrostedSidebar).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (policy == ThemeNavigationPolicy.TopBar) {
+                        ComicWordmark(Modifier.width(180.dp * fontScale).padding(horizontal = 8.dp))
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Row(navigationModifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        routes.indices.forEach { NavigationItem(it, Modifier.weight(1f)) }
+                    }
+                }
+            } else if (policy == ThemeNavigationPolicy.Sidebar || cinemaMenu) {
+                val sidebarReflection by animateFloatAsState(if (expanded) 1f else .6f,
+                    tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
+                Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight()
+                    .testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
+                    .glassPanel(surface = TvColors.FrostedSidebar, reflection = { sidebarReflection })
+                    .then(navigationModifier).verticalScroll(rememberScrollState()).padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
+                        if (expanded) ComicWordmark(Modifier.fillMaxWidth().heightIn(min = 44.dp), centered = true)
+                        else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
+                            Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
+                    }
+                    routes.indices.forEach { NavigationItem(it, Modifier.fillMaxWidth()) }
+                }
+            }
+        }
     }
 }

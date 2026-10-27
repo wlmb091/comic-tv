@@ -21,9 +21,9 @@ object TvColors {
     val Panel get() = if (options.highContrast) Color.Black else Color(options.preset.panel)
     internal val useNeutralButtons get() = !options.highContrast && options.preset.hasNeutralBackground
     val ButtonSurface get() = if (useNeutralButtons) Color(0xFF181818) else Panel
-    internal val FrostedPanel get() = if (options.highContrast) Color.Black else Panel.copy(alpha = 247f / 255f)
+    internal val FrostedPanel get() = if (options.highContrast) Color.Black else Panel.copy(alpha = .80f)
     internal val FrostedSidebar get() = if (options.highContrast) Color.Black else
-        if (options.preset.hasNeutralBackground) Color(0xF7404040) else FrostedPanel
+        if (options.preset.hasNeutralBackground) Color(0xFF404040).copy(alpha = .80f) else FrostedPanel
     val Muted get() = if (options.highContrast) Color.White else Color(0xFFCFD1D5)
     val Amber get() = Color(options.preset.accent)
     val Ink = Color(0xFF101010)

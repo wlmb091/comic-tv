@@ -18,6 +18,7 @@ import java.util.UUID
 import com.pelican.comictv.storage.*
 import com.pelican.comictv.performance.AppTimings
 import com.pelican.comictv.performance.LoadStage
+import com.pelican.comictv.cinema.validateCinemaArtwork
 
 class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val coverGenerator: CoverGenerator = BitmapCoverGenerator(),
@@ -32,6 +33,40 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val thumbnailCache = PageCache(thumbnailDirectory, 32L * 1024 * 1024)
     private val thumbnailGenerator = BitmapCoverGenerator(240, 360)
     private val mutex = Mutex()
+    private val cinemaDirectory = File(context.filesDir,"cinema-artwork")
+    private val cinemaStore by lazy { com.pelican.comictv.cinema.CinemaArtworkStore(cinemaDirectory,
+        ::validateCinemaArtwork) }
+    private val _cinemaRevision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    val cinemaRevision: kotlinx.coroutines.flow.StateFlow<Long> = _cinemaRevision
+
+    suspend fun cinemaArtwork(id: String): File? = withContext(Dispatchers.IO) {
+        mutex.withLock { if (dao.get(id) == null || !cinemaDirectory.exists()) null else cinemaStore.file(id) }
+    }
+
+    suspend fun importCinemaArtwork(id: String, uri: Uri): File = withContext(Dispatchers.IO) {
+        require(uri.scheme == "content") { "Escolha a imagem pelo seletor de arquivos." }
+        val active = currentCoroutineContext()
+        // Capture inside the interruptible block: prompt cancellation may discard its return value.
+        val prepared = java.util.concurrent.atomic.AtomicReference<com.pelican.comictv.cinema.StagedArtwork?>()
+        try {
+            val staged = runInterruptible {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    cinemaStore.stage(input) { active.ensureActive() }.also(prepared::set)
+                } ?: throw IOException("Não foi possível abrir a imagem escolhida.")
+            }
+            mutex.withLock {
+                active.ensureActive()
+                require(dao.get(id) != null) { "Esta edição não está mais na biblioteca." }
+                val file = cinemaStore.commit(id, staged) { active.ensureActive() }
+                _cinemaRevision.value++
+                file
+            }
+        } finally { prepared.get()?.close() }
+    }
+
+    suspend fun removeCinemaArtwork(id: String) = withContext(Dispatchers.IO) {
+        mutex.withLock { if (cinemaDirectory.exists()) { cinemaStore.remove(id); _cinemaRevision.value++ }; Unit }
+    }
     private val batchMutex = Mutex()
     private val importScratch = File(context.cacheDir, "collection-imports")
     private val onlineScratch = File(context.cacheDir, "online-fetches").apply { mkdirs() }
@@ -47,7 +82,8 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     fun originalFile(id: String): File = store.original(id)
     suspend fun updatePageCount(id: String, count: Int) = dao.updatePageCount(id,count)
 
-    private fun storage() = LibraryStorage(File(context.filesDir, "originals"), covers, pageDirectory, thumbnailDirectory, offlineDirectory = File(context.filesDir,"offline"))
+    private fun storage() = LibraryStorage(File(context.filesDir, "originals"), covers, pageDirectory, thumbnailDirectory,
+        offlineDirectory = File(context.filesDir,"offline"), cinemaDirectory = cinemaDirectory)
     suspend fun storageReport(): StorageReport = withContext(Dispatchers.IO) {
         mutex.withLock { runInterruptible { storage().report() } }
     }
@@ -85,6 +121,10 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     }
     private fun cleanupEditionAssets(id: String): Boolean = runCatching {
         var cleaned = true
+        if (cinemaDirectory.exists()) {
+            if (!runCatching { cinemaStore.remove(id); true }.getOrDefault(false)) cleaned = false
+            _cinemaRevision.value++
+        }
         val owned = listOf(cover(id)) + listOf(pageDirectory, thumbnailDirectory).flatMap { root ->
             root.listFiles().orEmpty().filter { it.name.matches(Regex(Regex.escape(id) + "-[0-9]+(?:\\..*)?")) }
         }

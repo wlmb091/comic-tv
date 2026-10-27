@@ -118,6 +118,7 @@ import kotlinx.coroutines.CancellationException
             Text(item.title, color = TvColors.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             TvButton("Voltar aos detalhes", ::closeMore, Modifier.focusRequester(menuFirst))
             OrganizationActions(item, repository, showFavorite = false)
+            com.pelican.comictv.cinema.CinemaArtworkActions(id, repository)
             if (isOnline && onDownload != null) {
                 if (offlineAvailable) Text("✓ Disponível offline", color = TvColors.Amber)
                 TvButton(if (offlineAvailable) "Gerenciar download offline" else "Baixar para ler offline", {
