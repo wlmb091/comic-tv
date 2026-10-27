@@ -15,15 +15,25 @@ import androidx.tv.material3.*
 
 object TvColors {
     internal var options by mutableStateOf(AppearanceOptions())
-    val Background get() = if (options.highContrast) Color.Black else Color(options.preset.background)
+    val NeutralBackground = Color(0xFF0F0F0F)
+    val Background get() = if (options.highContrast) Color.Black else
+        if (options.preset.hasNeutralBackground) NeutralBackground else Color(options.preset.background)
     val Panel get() = if (options.highContrast) Color.Black else Color(options.preset.panel)
+    internal val useNeutralButtons get() = !options.highContrast && options.preset.hasNeutralBackground
+    val ButtonSurface get() = if (useNeutralButtons) Color(0xFF181818) else Panel
+    internal val FrostedPanel get() = if (options.highContrast) Color.Black else Panel.copy(alpha = 247f / 255f)
+    internal val FrostedSidebar get() = if (options.highContrast) Color.Black else
+        if (options.preset.hasNeutralBackground) Color(0xF7404040) else FrostedPanel
     val Muted get() = if (options.highContrast) Color.White else Color(0xFFCFD1D5)
     val Amber get() = Color(options.preset.accent)
     val Ink = Color(0xFF101010)
-    val Action get() = Color(options.preset.action)
-    val OnAction get() = Color(options.preset.onAction)
+    val Action get() = if (useNeutralButtons) Color(0xFF303030) else Color(options.preset.action)
+    val OnAction get() = if (useNeutralButtons) Color.White else Color(options.preset.onAction)
     val Track get() = if (options.highContrast) Color(0xFF606060) else Color(options.preset.track)
 }
+
+internal val ColorPreset.hasNeutralBackground: Boolean
+    get() = this == ColorPreset.Amber || this == ColorPreset.Flix || this == ColorPreset.Cinema
 
 @Composable fun ComicTvTheme(options: AppearanceOptions = AppearanceOptions(), content: @Composable () -> Unit) {
     SideEffect { TvColors.options = options }
@@ -49,7 +59,7 @@ object TvColors {
         modifier = modifier.heightIn(min = 48.dp),
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
         colors = ButtonDefaults.colors(
-            containerColor = if (primary) TvColors.Action else TvColors.Panel,
+            containerColor = if (primary) TvColors.Action else TvColors.ButtonSurface,
             contentColor = if (primary) TvColors.OnAction else Color.White,
             focusedContainerColor = TvColors.Action,
             focusedContentColor = TvColors.OnAction,

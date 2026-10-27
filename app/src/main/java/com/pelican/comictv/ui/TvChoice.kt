@@ -25,7 +25,7 @@ import androidx.tv.material3.*
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
         scale = ButtonDefaults.scale(focusedScale = 1f),
         colors = ButtonDefaults.colors(
-            containerColor = TvColors.Panel,
+            containerColor = TvColors.ButtonSurface,
             contentColor = if (selected) TvColors.Amber else TvColors.Muted,
             focusedContainerColor = TvColors.Action,
             focusedContentColor = TvColors.OnAction,

@@ -275,7 +275,9 @@ private fun ExtensionIcon(packageName: String?, iconUrl: String?, name: String) 
 @Composable
 private fun CatalogIconButton(label: String, search: Boolean, modifier: Modifier = Modifier, click: () -> Unit) {
     Button(onClick = click, modifier = modifier.size(44.dp).semantics { contentDescription = label },
-        contentPadding = PaddingValues(10.dp), colors = ButtonDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
+        contentPadding = PaddingValues(10.dp),
+        border = if (TvColors.useNeutralButtons) ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.Amber))) else ButtonDefaults.border(),
+        colors = ButtonDefaults.colors(containerColor = TvColors.ButtonSurface, focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
         val color = LocalContentColor.current
         Canvas(Modifier.size(24.dp)) {
             if (search) {
@@ -635,7 +637,7 @@ private fun Muted(text: String) { Text(text, color = TvColors.Muted, fontSize = 
 @Composable
 private fun SourceButton(label: String, enabled: Boolean, modifier: Modifier = Modifier, click: () -> Unit) {
     Button(onClick = click, enabled = enabled, modifier = modifier.heightIn(min = 48.dp),
-        colors = ButtonDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
+        colors = ButtonDefaults.colors(containerColor = TvColors.ButtonSurface, focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
         border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.Amber)))) {
         Text(label, fontSize = 17.sp)
     }

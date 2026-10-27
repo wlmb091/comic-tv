@@ -4,6 +4,10 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+## Versão 1.1.22
+
+Vidro mais fosco, fundo#0F0F0F/lateral#404040 e botões mais escuros somente nos temas neutros, preservando cores dos demais temas. Confirmação antes de sair pelo Voltar, com Continuar inicialmente focado. Veja [notas e limites físicos](docs/releases/1.1.22.md).
+
 ## Versão 1.1.21
 
 Fundo mais escuro, vidro fosco na lateral e nas leituras recentes, cantos discretos e transições leves de foco. API26 e alto contraste preservados. Veja [notas e limites físicos](docs/releases/1.1.21.md).

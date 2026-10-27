@@ -115,7 +115,7 @@ private data class Tool(val id: ToolId, val label: String, val icon: RailIcon, v
             fontSize = 17.sp, lineHeight = 22.sp, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         Button(onClick, modifier.size(48.dp).onFocusChanged { focused = it.isFocused }.semantics { contentDescription = label },
             contentPadding = PaddingValues(12.dp),
-            colors = ButtonDefaults.colors(containerColor = TvColors.Panel, contentColor = Color.White,
+            colors = ButtonDefaults.colors(containerColor = TvColors.ButtonSurface, contentColor = Color.White,
                 focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
             scale = ButtonDefaults.scale(focusedScale = 1.08f),
             border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber)))) {

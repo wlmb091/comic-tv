@@ -29,7 +29,7 @@ import com.pelican.comictv.ui.TvColors
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
         scale = ButtonDefaults.scale(focusedScale = 1f),
         colors = ButtonDefaults.colors(
-            containerColor = if (active) TvColors.Amber.copy(alpha = .13f) else TvColors.Panel,
+            containerColor = if (active) TvColors.Amber.copy(alpha = .13f) else TvColors.ButtonSurface,
             contentColor = if (active) TvColors.Amber else TvColors.Muted,
             focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
         border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.Amber)))) {

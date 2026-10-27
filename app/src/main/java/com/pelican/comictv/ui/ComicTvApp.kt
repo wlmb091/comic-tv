@@ -304,10 +304,10 @@ import kotlinx.coroutines.launch
                 .onFocusChanged { atContentEntry = it.isFocused },
                 onEntryLeft = { preferredEntry.cancel(); internalEntry = false }, content = content)
         }
-        val sidebarOpacity by animateFloatAsState(if (expanded || TvColors.options.highContrast) 1f else .96f,
-            tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-opacity")
+        val sidebarReflection by animateFloatAsState(if (expanded) 1f else .6f,
+            tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
         Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
-            .graphicsLayer { alpha = sidebarOpacity }.glassPanel()
+            .glassPanel(surface = TvColors.FrostedSidebar, reflection = { sidebarReflection })
             .onFocusChanged { focusWithin = it.hasFocus; if (it.hasFocus) preferredEntry.cancel() }.onPreviewKeyEvent { event ->
                 if (event.key == Key.DirectionRight) {
                     if (event.type == KeyEventType.KeyDown) returnToContent()
@@ -339,6 +339,9 @@ import kotlinx.coroutines.launch
                         .then(if (route == selected) Modifier.focusRequester(sectionFocus) else Modifier), contentPadding = PaddingValues(0.dp),
                     shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
                     scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1f),
+                    border = if (TvColors.useNeutralButtons) androidx.tv.material3.ButtonDefaults.border(
+                        focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, TvColors.Amber)))
+                        else androidx.tv.material3.ButtonDefaults.border(),
                     colors = androidx.tv.material3.ButtonDefaults.colors(
                         containerColor = if (route == selected) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
                         contentColor = if (route == selected) TvColors.Amber else Color.White,

@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pelican.comictv.ui.ComicTvApp
 import com.pelican.comictv.ui.ComicTvTheme
+import com.pelican.comictv.ui.AppExitGuard
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.memory.MemoryCache
@@ -37,7 +38,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val container = (application as ComicTvApplication).container
             val appearance by container.appearance.state.collectAsStateWithLifecycle()
-            ComicTvTheme(appearance) { ComicTvApp(container) }
+            ComicTvTheme(appearance) { AppExitGuard(onExit = { finish() }) { ComicTvApp(container) } }
         }
     }
 }

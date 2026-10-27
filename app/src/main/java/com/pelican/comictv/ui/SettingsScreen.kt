@@ -132,7 +132,7 @@ Voltar  Sair do modo ativo e retornar""",
     Button(onClick, modifier.fillMaxWidth().heightIn(min = 84.dp).semantics { this.selected = selected },
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
         contentPadding = PaddingValues(12.dp), scale = ButtonDefaults.scale(focusedScale = 1f),
-        colors = ButtonDefaults.colors(containerColor = TvColors.Panel,
+        colors = ButtonDefaults.colors(containerColor = TvColors.ButtonSurface,
             contentColor = if (selected) TvColors.Amber else Color.White,
             focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction),
         border = ButtonDefaults.border(border = if (selected) Border(BorderStroke(1.dp, TvColors.Amber)) else Border.None,
@@ -146,7 +146,7 @@ Voltar  Sair do modo ativo e retornar""",
 
 @Composable private fun ThemeSwatches(preset: ColorPreset) {
     Row(Modifier.fillMaxWidth().height(28.dp)
-        .background(Color(preset.background), RoundedCornerShape(6.dp))
+        .background(if (preset.hasNeutralBackground) TvColors.NeutralBackground else Color(preset.background), RoundedCornerShape(6.dp))
         .border(1.dp, Color(preset.accent).copy(alpha = .6f), RoundedCornerShape(6.dp))
         .padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.width(18.dp).fillMaxHeight().background(Color(preset.panel)))

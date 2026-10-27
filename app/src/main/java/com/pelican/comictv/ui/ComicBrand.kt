@@ -41,11 +41,11 @@ private var identityBackdropBitmap: Bitmap? = null // One static nodpi asset, 96
 }
 
 @Composable internal fun BrandedBackground(cover: File? = null, modifier: Modifier = Modifier) {
-    Box(modifier.background(Color.Black)) {
+    Box(modifier.background(TvColors.Background)) {
         if (!TvColors.options.highContrast) {
             if (TvColors.options.coverBackground && cover?.isFile == true) {
                 CoverBackdrop(cover, Modifier.fillMaxSize())
-            } else {
+            } else if (!TvColors.options.preset.hasNeutralBackground) {
                 IdentityBackdrop(Modifier.fillMaxSize())
             }
         }
