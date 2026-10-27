@@ -16,4 +16,4 @@ Fundo sólido exato nas seções principais dos temas neutros; fundos dos temas 
 - [x] Implementar confirmação no fallback de Voltar, Continuar focado e Sair explícito; caso de prioridade de leitor/NavHost e cancelamento preparado em AndroidTest.
 - [x] Acrescentar lateral#404040 e botões escuros somente nos neutros; foco cinza com contorno/White. Preservar cores/alto contraste. Caso isolado de pop NavHost adicionado à cobertura preparada.
 - [x] Verificar cor em todos os presets, contribuição máxima do fundo e botões neutros/coloridos/alto contraste; build/testes/lint/AndroidTest compile passaram.346casos/1ignorado/0falhas; lint0erros/71avisos. Native somente compilado.
-- [ ] Revisão independente, release1.1.22/code61, publicar pelo CI autorizado e conferir arquivos públicos.
+- [x] Revisão independente sem bloqueantes, release1.1.22/code61 publicada pelo CI autorizado e arquivos públicos conferidos (hash/versão/certificado/ABI). Resultado físico depende do relato na Box.
