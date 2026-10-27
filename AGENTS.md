@@ -1,5 +1,7 @@
 # Comic TV — decisões persistentes do usuário
 
+- 1.1.19: em 27/10/2026 usuário confirmou botões e funções funcionando na Box com a 1.1.18 e solicitou outra atualização para testar o atualizador. Publicar manutenção com code58, sem mudanças funcionais. Registrar como relato manual; instalação Android da 1.1.18 para 1.1.19 ainda depende de confirmação física. Preservar dados/USB e atualizar por cima.
+
 - 1.1.18: usuário aprovou atualizador integrado e publicação automática no GitHub. Manter botão explícito em Configurações → Atualizações (pedido reforçado em26/10/2026), consulta uma vez/sessão sem roubar foco, baixar somente por escolha, porcentagem/cancelar e instalação confirmada pelo Android. Canal APK público separado comic-tv-updates; fonte comic-tv continua privada. CI testa sem segredos, assina em runner separado com certificado anterior e copia apenas APK/update.json via deploykey exclusiva. Manifesto estrito, hash/tamanho/pacote/versão/minSDK/ABI/certificado; provider/diretório separados, preservar APK oferecido e dados/USB. Primeira instalação manual; execução do instalador/foco físico não inferir de testes compilados. Guia em docs/app-updates.md.
 
 - Design final aprovado: docs/design/approved-home.png. Ler docs/design/DESIGN.md antes de alterar interfaces.
