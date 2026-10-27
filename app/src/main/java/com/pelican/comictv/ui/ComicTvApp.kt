@@ -1,7 +1,9 @@
 package com.pelican.comictv.ui
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +24,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.res.painterResource
 import com.pelican.comictv.R
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -301,9 +304,10 @@ import kotlinx.coroutines.launch
                 .onFocusChanged { atContentEntry = it.isFocused },
                 onEntryLeft = { preferredEntry.cancel(); internalEntry = false }, content = content)
         }
+        val sidebarOpacity by animateFloatAsState(if (expanded || TvColors.options.highContrast) 1f else .96f,
+            tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-opacity")
         Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight().testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
-            .background(TvColors.Panel, RoundedCornerShape(18.dp))
-            .border(1.dp, TvColors.Muted.copy(alpha = .2f), RoundedCornerShape(18.dp))
+            .graphicsLayer { alpha = sidebarOpacity }.glassPanel()
             .onFocusChanged { focusWithin = it.hasFocus; if (it.hasFocus) preferredEntry.cancel() }.onPreviewKeyEvent { event ->
                 if (event.key == Key.DirectionRight) {
                     if (event.type == KeyEventType.KeyDown) returnToContent()
@@ -322,14 +326,18 @@ import kotlinx.coroutines.launch
             }
             routes.forEachIndexed { index, (route, title) ->
                 val active = route == selected
+                var iconFocused by remember(route) { mutableStateOf(false) }
+                val iconScale by animateFloatAsState(if (iconFocused && !TvColors.options.highContrast) 1.08f else 1f,
+                    tween(120, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "nav-icon-scale")
                 androidx.tv.material3.Button(onClick = {
                     if (route == selected) returnToContent(true)
                     else { contentFocus.requestFocus(); onNavigate(route) }
                 },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp).focusProperties { canFocus = !contentFocusPending && !focusContentOnEntry }.testTag("nav-" + route)
+                        .onFocusChanged { iconFocused = it.isFocused }
                         .semantics { this.selected = active }
                         .then(if (route == selected) Modifier.focusRequester(sectionFocus) else Modifier), contentPadding = PaddingValues(0.dp),
-                    shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(12.dp)),
+                    shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
                     scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1f),
                     colors = androidx.tv.material3.ButtonDefaults.colors(
                         containerColor = if (route == selected) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
@@ -337,7 +345,8 @@ import kotlinx.coroutines.launch
                         focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
                     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.width(48.dp).height(36.dp), contentAlignment = Alignment.Center) {
-                            androidx.tv.material3.Icon(painterResource(icons[index]), contentDescription = title, modifier = Modifier.size(26.dp))
+                            androidx.tv.material3.Icon(painterResource(icons[index]), contentDescription = title,
+                                modifier = Modifier.size(26.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
                         }
                         if (expanded) Text(title, Modifier.weight(1f).padding(start = 8.dp), fontSize = 17.sp)
                     }

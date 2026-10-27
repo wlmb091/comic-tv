@@ -148,9 +148,11 @@ import kotlinx.coroutines.launch
                             onClick = { focusComic(comic.id); onOpen(comic.id) },
                             modifier = libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsFor = comic }).width(288.dp).onFocusChanged { if (it.isFocused) focusComic(comic.id) },
                             border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
-                            colors = CardDefaults.colors(containerColor = TvColors.Panel),
+                            shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+                            scale = CardDefaults.scale(focusedScale = 1.025f),
+                            colors = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent),
                         ) {
-                            Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            Row(Modifier.fillMaxWidth().glassPanel().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 AsyncImage(repository.cover(comic.id), null, Modifier.width(44.dp).height(64.dp), contentScale = ContentScale.Fit)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -197,6 +199,7 @@ import kotlinx.coroutines.launch
                 onClick = { focusComic(comic.id); onOpen(comic.id) },
                 modifier = restoreModifier.then(libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsFor = comic })).onFocusChanged { if (it.isFocused) focusComic(comic.id) },
                 scale = CardDefaults.scale(focusedScale = 1.03f),
+                shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
                 border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
                 colors = CardDefaults.colors(containerColor = TvColors.Panel),
             ) {

@@ -69,7 +69,7 @@ private var identityBackdropBitmap: Bitmap? = null // One static nodpi asset, 96
     }
     Box(modifier.background(TvColors.Background)) {
         bitmap?.let { AsyncImage(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds) }
-        Box(Modifier.fillMaxSize().background(TvColors.Background.copy(alpha = .94f)))
+        Box(Modifier.fillMaxSize().background(TvColors.Background.copy(alpha = .98f)))
     }
 }
 
