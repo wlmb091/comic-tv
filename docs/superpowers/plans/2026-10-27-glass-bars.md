@@ -18,4 +18,4 @@ Transparência não afeta legibilidade; alto contraste opaco. Movimento não alt
 - [x] Criar GlassPanel compartilhado e aplicar à lateral/recentes; cantos8dp, também nos containers da coleção.
 - [x] Escurecer camada da identidade e introduzir transições limitadas a opacidade/escala.
 - [x] Conferir build/testes/lint e AndroidTest compile existentes;343casos/1ignorado/0falhas, lint0erros. Sem aparelho, não alegar execução física.
-- [ ] Revisão independente final, documentação/versão1.1.21/code60 e publicação autorizada; verificar APK/manifesto públicos.
+- [x] Revisão independente final sem achados acionáveis, documentação/versão1.1.21/code60 e publicação autorizada concluídas; APK/manifesto públicos verificados. Aparência/fluidez físicas pendentes do relato na Box.
