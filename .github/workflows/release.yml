@@ -36,7 +36,7 @@ jobs:
         run: |
           chmod +x gradlew
           node --test tools/update-release.test.mjs
-          ./gradlew :core:test :mihon:testDebugUnitTest :app:testDebugUnitTest :app:assembleRelease :app:assembleDebugAndroidTest :app:lintRelease --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
+          ./gradlew :core:test :mihon:testDebugUnitTest :app:testDebugUnitTest :app:assembleRelease :app:assembleDebugAndroidTest :app:lintRelease --build-cache --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
           node tools/check-history-migration.mjs
           node tools/check-library-organization.mjs
           mkdir -p "$RUNNER_TEMP/dex"

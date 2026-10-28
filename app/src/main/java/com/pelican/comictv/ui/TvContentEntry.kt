@@ -21,8 +21,8 @@ import androidx.compose.ui.semantics.semantics
 @Composable internal fun TvContentEntry(entry: FocusRequester, sidebar: FocusRequester,
     modifier: Modifier = Modifier, onEntryLeft: () -> Unit = {},
     navigationPolicy: ThemeNavigationPolicy = ThemeNavigationPolicy.Sidebar,
+    children: FocusRequester = remember { FocusRequester() },
     onNavigateToMenu: () -> Unit = { sidebar.requestFocus() }, content: @Composable () -> Unit) {
-    val children = remember { FocusRequester() }
     var atEntry by remember { mutableStateOf(false) }
     var enteringKey by remember { mutableStateOf<Key?>(null) }
     Box(modifier.focusRequester(entry)

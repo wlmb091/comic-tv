@@ -92,14 +92,9 @@ class MaxThemeCaptureTest {
             compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
             compose.waitUntil(30_000) { imageReady.get() }
             compose.mainClock.advanceTimeBy(300)
-            if (percent == 100) {
-                val content = compose.onNodeWithTag("content-entry").getUnclippedBoundsInRoot()
-                (0..3).forEach { index ->
-                    val card = compose.onNodeWithTag("library-recent-capture-$index").getUnclippedBoundsInRoot()
-                    assertTrue("Four recent cards fit before focus scrolling", card.bottom <= content.bottom && card.right <= content.right)
-                }
-            }
+            compose.onNodeWithTag("max-explore").assertExists()
             capture(outputs, "home", imageReady)
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-recent-capture-0"))
             val first = compose.onNodeWithTag("library-recent-capture-0")
             first.performSemanticsAction(SemanticsActions.RequestFocus) { it() }.assertIsFocused()
             capture(outputs, "card-focused", imageReady)

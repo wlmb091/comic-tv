@@ -1,5 +1,7 @@
 # Comic TV — decisões persistentes do usuário
 
+- Pedido apósfoto1.2.4: corrigirMax ondeContinuarlendo temminiaturas maiores ecoleção ficoureduzida;hierarquia passaRecentescompactos/coleçãocapasmaiores. Usuário autorizouseguirPrimeeosoutros3temas DIRETO,semparadasparaprovarcadatema;verificarápacotefinal eavisaráseprecisarmudar. Substitui gatesanteriores deaguardarrelato/aprovaçãoMaxantesPrime. Plano docs/superpowers/plans/2026-10-28-five-themes-complete.md. Preservardados/USB/foco/HC/130% ecompilarpublicarúnicopacote;semHub/novasAPIs/driversemulador.
+
 - 1.2.4 publicada28/10/2026 às12:56:07BRT/code66,fontea02830c1f437809ae60d54c54dd90c5b0f22122a;CI40717670982/40720864302 aprovados,APK públicoconferido porhash/tamanho/certificado/versão/ABI/alinhamento. FonteThemeSpec+Max,375casos/0falhas,lint0erros/75avisos. STATUSMaxpartial,usuárioescolheuBox para validarfidelidade/foco;nãotestarcomdriver/emuladoroffline,nãoclaimmatches. PróximatemaPrime apósrelatoMax. Hubadiado;monetizaçãofutura. Registrodocs/validation/1.2.4.md.
 
 - Usuário questionou demora por repetirtesteslocal+CI durante1.2.4. Nas próximasrodadas usar verificaçõeslocais focadas no recorte e bateria completa uma vez noCI, ampliando local apenas emfalhas/integração relevante. Medição local desta rodada: suitesJVM somam~6.95s contra3m03 debuild completo; não atribuir todaademora aos testes. Cache de resultadosGradle ainda nãohabilitado; avaliar/aplicar emetapa própria sempularsegurança daassinatura/publicação nemreiniciarCI emandamento.

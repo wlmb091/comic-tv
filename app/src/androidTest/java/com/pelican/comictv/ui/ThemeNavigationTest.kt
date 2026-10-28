@@ -3,7 +3,14 @@ package com.pelican.comictv.ui
 import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
@@ -11,6 +18,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -23,9 +31,15 @@ class ThemeNavigationTest {
     private fun setShell(preset: ColorPreset, selected: String = "library", highContrast: Boolean = true) {
         compose.setContent { ComicTvTheme(AppearanceOptions(preset = preset, textPercent = 130, highContrast = highContrast)) {
             var pending by remember { mutableStateOf(true) }
-            TvShell(selected, {}, focusContentOnEntry = pending, onSectionFocused = { pending = false },
+            val startupFocus = remember { FocusRequester() }
+            // Library startup owns hero focus; focusContentOnEntry means an explicit section change.
+            LaunchedEffect(Unit) {
+                if (preset == ColorPreset.Flix) { withFrameNanos { }; startupFocus.requestFocus(); pending = false }
+            }
+            TvShell(selected, {}, focusContentOnEntry = pending && preset != ColorPreset.Flix,
+                onSectionFocused = { pending = false },
                 backdrop = { Box(Modifier.fillMaxSize().testTag("test-shell-backdrop")) }) {
-                TvButton("Primeiro controle", {}, preferredContentEntryModifier())
+                TvButton("Primeiro controle", {}, Modifier.focusRequester(startupFocus).then(preferredContentEntryModifier()))
             }
         } }
     }
@@ -215,10 +229,10 @@ class ThemeNavigationTest {
         val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
         val backdrop = compose.onNodeWithTag("test-shell-backdrop").fetchSemanticsNode().boundsInRoot
         assertTrue("Arte deve alcançar a área dos ícones e as bordas da tela", backdrop == shell)
-        compose.onNodeWithTag("sidebar-collapsed").assertExists()
+        compose.onNodeWithTag("sidebar-expanded").assertExists()
         compose.onNodeWithTag("sidebar-panel").assertDoesNotExist()
         compose.onNodeWithTag("nav-library").assertIsSelected()
-        compose.onNodeWithTag("flix-navigation-scrim").assertDoesNotExist()
+        compose.onNodeWithTag("flix-navigation-scrim").assertExists()
         compose.onNodeWithText("Primeiro controle").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithTag("sidebar-expanded").assertExists()
         compose.onNodeWithTag("sidebar-panel").assertDoesNotExist()
@@ -271,7 +285,84 @@ class ThemeNavigationTest {
 
     @Test fun flixHighContrastRetainsOpaqueSidebar() {
         setShell(ColorPreset.Flix)
-        compose.onNodeWithTag("sidebar-collapsed").assertExists()
+        compose.onNodeWithTag("sidebar-expanded").assertExists()
         compose.onNodeWithTag("sidebar-panel").assertExists()
+    }
+
+    @Test fun flixDefaultOpenBackClosesBeforeUnderlyingPageAndPreservesHeroFocus() {
+        var pageBack = false
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Flix)) {
+            val startupFocus = remember { FocusRequester() }
+            LaunchedEffect(Unit) { withFrameNanos { }; startupFocus.requestFocus() }
+            TvShell("library", {}) {
+                androidx.activity.compose.BackHandler { pageBack = true }
+                TvButton("Destaque inicial", {}, Modifier.focusRequester(startupFocus).then(preferredContentEntryModifier()))
+            }
+        } }
+        compose.onNodeWithTag("sidebar-expanded").assertExists()
+        compose.onNodeWithText("Destaque inicial").assertIsFocused()
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.waitForIdle()
+        compose.onNodeWithTag("sidebar-collapsed").assertExists()
+        compose.onNodeWithText("Destaque inicial").assertIsFocused()
+        compose.runOnIdle { assertTrue(!pageBack) }
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
+    }
+
+    @Test fun sidebarExpansionKeepsContentBoundsAndDismissalRestoresLowerCardAndScroll() {
+        var scroll: androidx.compose.foundation.ScrollState? = null
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Amber, textPercent = 130)) {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("library", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                val state = rememberScrollState()
+                scroll = state
+                Column(Modifier.fillMaxSize().verticalScroll(state)) {
+                    TvButton("Topo", {}, preferredContentEntryModifier())
+                    Spacer(Modifier.height(600.dp))
+                    TvButton("Cartão inferior", {})
+                    Spacer(Modifier.height(150.dp))
+                }
+            }
+        } }
+        compose.onNodeWithTag("sidebar-collapsed").assertExists()
+        compose.onNodeWithText("Cartão inferior").performScrollTo()
+            .performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        compose.waitForIdle()
+        val bounds = compose.onNodeWithTag("content-entry").fetchSemanticsNode().boundsInRoot
+        var offset = 0
+        compose.runOnIdle { offset = scroll!!.value; assertTrue(offset > 0) }
+        compose.onNodeWithText("Cartão inferior").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithTag("sidebar-expanded").assertExists()
+        assertTrue(bounds == compose.onNodeWithTag("content-entry").fetchSemanticsNode().boundsInRoot)
+        compose.onNodeWithTag("nav-library").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Cartão inferior").assertIsFocused()
+        compose.runOnIdle { assertTrue(scroll!!.value == offset) }
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
+    }
+
+    @Test fun confirmingAnotherSidebarSectionRetractsAndFocusesDestinationEntry() {
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Flix)) {
+            var route by remember { mutableStateOf("library") }
+            var pendingDestination by remember { mutableStateOf<String?>(null) }
+            // NavHost destinations have separate shell instances, rather than one shell changing selected.
+            key(route) {
+                val startupFocus = remember { FocusRequester() }
+                LaunchedEffect(Unit) {
+                    if (route == "library") { withFrameNanos { }; startupFocus.requestFocus() }
+                }
+                TvShell(route, { pendingDestination = it; route = it },
+                    focusContentOnEntry = pendingDestination == route,
+                    onSectionFocused = { pendingDestination = null }) {
+                    TvButton("Conteúdo $route", {}, Modifier.focusRequester(startupFocus).then(preferredContentEntryModifier()))
+                }
+            }
+        } }
+        compose.onNodeWithTag("sidebar-expanded").assertExists()
+        compose.onNodeWithText("Conteúdo library").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithTag("nav-recent").performClick()
+        compose.onNodeWithTag("sidebar-collapsed").assertExists()
+        compose.onNodeWithText("Conteúdo recent").assertIsFocused()
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
     }
 }

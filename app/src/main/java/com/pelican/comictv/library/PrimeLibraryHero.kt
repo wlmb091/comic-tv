@@ -51,17 +51,18 @@ import com.pelican.comictv.ui.TvColors
             horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(if (wide) .43f else .51f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUAR SUA LEITURA" else "NA SUA BIBLIOTECA",
-                    color = TvColors.Amber, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    color = TvColors.Amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(comic?.title ?: "Seu universo de quadrinhos", fontSize = theme.typography.titleSp.sp, lineHeight = theme.typography.titleLineHeightSp.sp,
-                    fontWeight = FontWeight.ExtraBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    fontFamily = libraryTitleFont(theme.typography.titleFamily),
+                    fontWeight = FontWeight.ExtraBold, maxLines = theme.hero.titleMaxLines, overflow = TextOverflow.Ellipsis)
                 if (comic != null) {
                     Text(if (comic.lastRead > 0) "Página ${comic.currentPage + 1} de ${comic.pageCount}"
                         else "${comic.pageCount} páginas para explorar", color = TvColors.Muted, fontSize = 15.sp)
                     if (comic.lastRead > 0 && comic.pageCount > 0) ProgressTrack((comic.currentPage + 1f) / comic.pageCount,
                         Modifier.widthIn(max = 240.dp).fillMaxWidth())
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, readModifier, primary = true)
-                        TvButton("Ver detalhes", { onOpen(comic.id) }, transparentBackground = true)
+                        TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, readModifier, primary = true, heroAction = true)
+                        TvButton("Ver detalhes", { onOpen(comic.id) }, transparentBackground = true, heroAction = true)
                     }
                 } else {
                     Text("Adicione suas edições ou explore as fontes online.", color = TvColors.Muted, fontSize = 16.sp)
@@ -104,8 +105,8 @@ import com.pelican.comictv.ui.TvColors
         Column(Modifier.fillMaxWidth()) {
             if (!TvColors.options.highContrast) AsyncImage(repository.cover(edition.id), null,
                 Modifier.fillMaxWidth().aspectRatio(.68f), contentScale = ContentScale.Fit)
-            Text(edition.title, Modifier.padding(horizontal = 8.dp, vertical = 8.dp), fontSize = 12.sp,
-                lineHeight = 15.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            Text(edition.title, Modifier.padding(horizontal = 8.dp, vertical = 8.dp), fontSize = 14.sp,
+                lineHeight = 18.sp, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 fontWeight = FontWeight.SemiBold)
         }
     }

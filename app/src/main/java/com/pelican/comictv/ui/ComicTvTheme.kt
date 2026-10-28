@@ -70,8 +70,10 @@ internal fun transparentButtonSurface(options: AppearanceOptions): Color? {
 ) {
     val theme = LocalThemeSpec.current
     val outlinedHero = heroAction && theme.colors.outlinedHeroAction && !TvColors.options.highContrast
-    val artworkSurface = if (outlinedHero) {
-        if (primary) Color(theme.colors.heroPrimarySurface!!) else Color.Transparent
+    val filledHero = heroAction && theme.colors.filledHeroAction && !TvColors.options.highContrast
+    val styledHero = outlinedHero || filledHero
+    val artworkSurface = if (styledHero) {
+        if (primary) theme.colors.heroPrimarySurface?.let { Color(it) } ?: TvColors.Action else Color.Transparent
     } else if (transparentBackground) transparentButtonSurface(TvColors.options) else null
     val primePrimary = primary && theme.colors.whitePrimaryAction && !TvColors.options.highContrast
     Button(
@@ -82,18 +84,33 @@ internal fun transparentButtonSurface(options: AppearanceOptions): Color? {
         colors = ButtonDefaults.colors(
             containerColor = artworkSurface ?: if (primePrimary) Color.White else if (primary) TvColors.Action else TvColors.ButtonSurface,
             contentColor = if (artworkSurface != null) Color.White else if (primePrimary) TvColors.Ink else if (primary) TvColors.OnAction else Color.White,
-            focusedContainerColor = TvColors.Action,
-            focusedContentColor = TvColors.OnAction,
+            focusedContainerColor = if (filledHero && primary) artworkSurface ?: TvColors.Action else TvColors.Action,
+            focusedContentColor = if (filledHero && primary) Color.White else TvColors.OnAction,
         ),
         border = ButtonDefaults.border(
-            border = if (outlinedHero) {
-                if (primary) Border(BorderStroke(2.dp, TvColors.FocusAccent)) else Border.None
+            border = if (styledHero) {
+                if (outlinedHero && primary) Border(BorderStroke(2.dp, TvColors.FocusAccent)) else Border.None
             } else if (artworkSurface != null && !TvColors.options.highContrast)
                 Border(BorderStroke(1.dp, Color.White.copy(alpha = .28f))) else Border.None,
             focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) theme.focus.highContrastBorderDp.dp else theme.focus.buttonBorderDp.dp, TvColors.FocusAccent)),
         ),
         scale = ButtonDefaults.scale(focusedScale = theme.focus.buttonScale),
-    ) { Text(text, fontSize = 17.sp) }
+    ) {
+        if (heroAction && primary && (theme.colors.whitePrimaryAction || theme.hero.playIcon)) {
+            val tint = LocalContentColor.current
+            androidx.compose.foundation.Canvas(Modifier.size(18.dp)) {
+                val triangle = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(size.width * .2f, size.height * .1f)
+                    lineTo(size.width * .9f, size.height * .5f)
+                    lineTo(size.width * .2f, size.height * .9f)
+                    close()
+                }
+                drawPath(triangle, tint)
+            }
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(text, fontSize = 17.sp)
+    }
 }
 
 @Composable fun ScreenTitle(title: String, subtitle: String) {
