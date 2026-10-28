@@ -30,4 +30,4 @@ Implementar os cinco layouts próprios de docs/design/themes/README.md e suas im
 - [x] Android validator e integraçãoLibraryRepository/DAO/deleção/storageReport; seletor de arte em Mais opções com escopo local, feedback/cancelamento/remoção confirmada.
 - [x] Preferência opcional/persistência/backup retrocompatível e controlesSettings; renderCinema naBiblioteca/hero com seleçãoatual e fallback seguro.
 - [x] Ajustar vidro80% e testes. Testes unitários significativos/AndroidTest compilados/build/lint/SQL/ABI; revisãoindependente final sem bloqueantes.
-- [ ] Documentar, versão1.2.0/code62, publicação automática autorizada e verificação de manifesto/APK público. Conferência física ainda manual.
+- [x] Documentar, versão1.2.0/code62, publicação automática autorizada e verificação de manifesto/APK público. CI40607159296/40608975914 aprovados, publicado27/10/2026 às21:28:45BRT; certificado/hash/versão/ABI/alinhamento conferidos. Conferência física ainda manual.
