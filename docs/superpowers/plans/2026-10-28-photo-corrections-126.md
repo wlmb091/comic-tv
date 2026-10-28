@@ -7,7 +7,7 @@ Autorização final do usuário: aplicar todas as observações após envio do l
 - [x] Comic: esticar capa principal e miniaturas de Recentes marcadas; lateral recolhida retorna ao modelo anterior fixo; filtros/coleções marcados descem ao rodapé e capa principal cresce com espaço liberado.
 - [x] Rodapés de Flix/Prime/Comic/Max: uma única faixa horizontal compacta com Biblioteca/Histórico/filtros/coleções/Gerenciar; manter foco, alvos48dp/14sp/130%. Usar rolagem horizontal quando número de coleções não couber sem cortar texto; não quebrar em duas linhas.
 - [x] Max: Home sem seção Sua coleção; manter Recentes/círculos/rodapé/dock. Círculos de coleções abrem página dedicada, não filtro da Home; voltar restaura círculo/posição, detalhes preservam página de coleção. Nenhum dado/exemplar é removido. Busca/Histórico/Todas mantêm acesso à biblioteca completa.
-- [ ] Verificar localmente somente recorte afetado e compilar nativos; CI faz bateria completa. Publicar1.2.6/code68, conferir APK público e encerrar sem esperas redundantes.
+- [x] Verificar localmente somente recorte afetado e compilar nativos; CI faz bateria completa. Publicar1.2.6/code68, conferir APK público e encerrar sem esperas redundantes.
 
 Cinema não recebeu ajuste visual neste lote; rodapé comum pode receber o mesmo alinhamento sem mudar seu layout principal. Novas decisões de esticar substituem Fit apenas nas áreas marcadas; não alterar arquivos originais nem esticar wallpaper/carrossel não marcados.
 
