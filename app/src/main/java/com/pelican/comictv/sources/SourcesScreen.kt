@@ -66,7 +66,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.pelican.comictv.ui.LocalContentNavigation
 
 @Composable
-fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInstall: (File) -> Unit) {
+fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInstall: (File) -> Unit, onDetailsBack: (() -> Unit)? = null) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     val visibilityOwner = remember {Any()}
@@ -79,7 +79,7 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
     }
     val pages = rememberSaveableStateHolder()
     val nested = state.details != null || state.selectedRepository != null || (state.managerPage != null && state.activeSource != null)
-    BackHandler(enabled = nested) { viewModel.back() }
+    BackHandler(enabled = nested) { if (state.details != null && onDetailsBack != null) onDetailsBack() else viewModel.back() }
     if (state.activeSource != null && state.details == null && state.managerPage == null) {
         val source = state.activeSource!!
         pages.SaveableStateProvider("catalog:${source.packageName}:${source.id}") { SourceCatalog(state, viewModel) }

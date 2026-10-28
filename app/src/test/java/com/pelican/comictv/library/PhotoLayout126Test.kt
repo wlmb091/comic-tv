@@ -11,18 +11,18 @@ class PhotoLayout126Test {
                 ThemeSpec.forPreset(preset).hero.textOnlyActions)
         }
     }
-    @Test fun stretchingIsLimitedToTheExplicitlyMarkedFrames() {
+    @Test fun croppingIsLimitedToTheExplicitlyMarkedFrames() {
         val comic = ThemeSpec.forPreset(ColorPreset.Amber)
         val flix = ThemeSpec.forPreset(ColorPreset.Flix)
         val prime = ThemeSpec.forPreset(ColorPreset.Prime)
-        assertTrue(comic.hero.stretchPoster && comic.cards.stretchRecentCover)
-        assertTrue(flix.cards.stretchRecentCover)
-        assertFalse(flix.cards.stretchCollectionCover)
-        assertTrue(prime.cards.stretchRecentCover && prime.cards.stretchCollectionCover)
-        assertFalse(prime.hero.stretchPoster)
+        assertTrue(comic.hero.cropPoster && comic.cards.cropRecentCover && comic.cards.cropCollectionCover)
+        assertTrue(flix.cards.cropRecentCover)
+        assertFalse(flix.cards.cropCollectionCover)
+        assertTrue(prime.cards.cropRecentCover && prime.cards.cropCollectionCover)
+        assertFalse(prime.hero.cropPoster)
         listOf(ColorPreset.Max, ColorPreset.Cinema, ColorPreset.Green).forEach {
             val spec = ThemeSpec.forPreset(it)
-            assertFalse(spec.cards.stretchRecentCover || spec.cards.stretchCollectionCover || spec.hero.stretchPoster)
+            assertFalse(spec.cards.cropRecentCover || spec.cards.cropCollectionCover || spec.hero.cropPoster)
         }
     }
     @Test fun comicControlsLeaveRoomForBiggerPosterAndFlixSearchLivesInNavigation() {

@@ -42,7 +42,7 @@ import com.pelican.comictv.ui.*
                 Box(Modifier.width(hero.posterWidthDp.dp).height(hero.posterHeightDp.dp)
                     .border(hero.posterBorderDp.dp, TvColors.FocusAccent, RoundedCornerShape(theme.shapes.posterRadiusDp.dp))
                     .background(Color.Black, RoundedCornerShape(6.dp)).padding(3.dp)) {
-                    AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = if (hero.stretchPoster) ContentScale.FillBounds else ContentScale.Fit)
+                    AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = if (hero.cropPoster) ContentScale.Crop else ContentScale.Fit)
                 }
             }
             Column(Modifier.fillMaxWidth(hero.textWidthFraction),

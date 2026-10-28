@@ -15,6 +15,40 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     private val client: MihonRepoClient = MihonRepoClient()) : ViewModel() {
     private val _state = MutableStateFlow(SourcesState(repositories = preferences.repositories()))
     val state = _state.asStateFlow()
+    private val _homePreviews = MutableStateFlow(HomeSourcePreviews())
+    val homePreviews = _homePreviews.asStateFlow()
+
+    /** Independent first-page samples: never changes catalog mode, pagination, selection or focus. */
+    suspend fun collectHomePreviews() {
+        state.map { Triple(it.activeSource, it.sourceRevision, it.sourcesRefreshing || it.busy) }.distinctUntilChanged().collectLatest { (source, generation, blocked) ->
+            if (_homePreviews.value.source != source || state.value.sourcesRefreshing) _homePreviews.value = HomeSourcePreviews(source = source)
+            if (source == null || blocked) return@collectLatest
+            for (latest in listOf(false, true)) {
+                val query = CatalogSearchQuery(source, "", latest)
+                try {
+                    val cached = snapshots.get(query)
+                    cached?.snapshot?.titles?.let { titles ->
+                        val sample = titles.distinctBy { it.key }.take(12)
+                        _homePreviews.update { if (latest) it.copy(latest = sample) else it.copy(catalog = sample) }
+                    }
+                    val titles = if (cached?.fresh == true) cached.snapshot.titles else {
+                        val result = fetchCatalog(query)
+                        currentCoroutineContext().ensureActive()
+                        if (sourceGeneration != generation || state.value.activeSource != source) return@collectLatest
+                        snapshots.put(query, result)
+                        result.titles
+                    }
+                    currentCoroutineContext().ensureActive()
+                    if (sourceGeneration != generation || state.value.activeSource != source) return@collectLatest
+                    val sample = titles.distinctBy { it.key }.take(12)
+                    _homePreviews.update { if (latest) it.copy(latest = sample) else it.copy(catalog = sample) }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) { Log.w("ComicTV-Sources", "Home preview unavailable", error) }
+                catch (error: LinkageError) { Log.w("ComicTV-Sources", "Home preview incompatible", error) }
+            }
+        }
+    }
+
     private var job: Job? = null
     private var catalogJob: Job? = null
     private var initialLoading = true

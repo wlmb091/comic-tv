@@ -70,6 +70,13 @@ class LibraryFooterLayoutTest {
                     }
                 }
             }
+            if (focusedId != null && preset in setOf(ColorPreset.Flix, ColorPreset.Prime, ColorPreset.Max, ColorPreset.Cinema)) {
+                // Full-grid geometry is tested through its explicit Home footer entry.
+                compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
+                compose.onNodeWithText("Biblioteca · 24").performClick()
+                compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-cover-$focusedId"))
+                compose.onNodeWithTag("library-cover-$focusedId").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            }
             body()
         } finally {
             compose.runOnIdle { shown = false }
@@ -89,14 +96,15 @@ class LibraryFooterLayoutTest {
         compose.onNodeWithText("Biblioteca · 24").assertIsDisplayed()
         compose.onNodeWithText("Histórico · 1").assertIsDisplayed()
         compose.onNodeWithText("Todas").assertIsDisplayed()
-        if (preset == ColorPreset.Max) {
-            compose.onNodeWithTag("library-cover-footer-23").assertDoesNotExist()
-            compose.onNodeWithText("Sua coleção · 24").assertDoesNotExist()
-        } else {
-            val lastCover = compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-            val footer = compose.onNodeWithTag("library-footer").fetchSemanticsNode().boundsInRoot
-            assertTrue("O rodapé deve seguir a última capa da coleção", lastCover.bottom <= footer.top)
-        }
+        compose.onNodeWithTag("library-cover-footer-23").assertDoesNotExist()
+        // Home rows end before the controls, including when the selected source has no sample.
+        compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("home-source-Novidades"))
+        compose.onNodeWithTag("home-source-Novidades").assertIsDisplayed()
+        compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("home-collection-row"))
+        compose.onNodeWithText("Sua coleção · 24").assertExists()
+        compose.onNodeWithTag("home-collection-row").performScrollToNode(hasTestTag("home-collection-more"))
+        compose.onNodeWithTag("home-collection-more").assertIsDisplayed()
+        compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
         if (preset == ColorPreset.Cinema) compose.onNodeWithText("Buscar").assertDoesNotExist()
         if (preset == ColorPreset.Max) compose.onNodeWithText("Buscar").assertIsDisplayed()
     }
@@ -167,12 +175,6 @@ class LibraryFooterLayoutTest {
     }
 
     private fun collectionCoverKeepsPortraitGeometry(preset: ColorPreset) = fixture(preset, "footer-23") {
-        if (preset == ColorPreset.Max) {
-            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
-            compose.onNodeWithText("Biblioteca · 24").performClick()
-            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-cover-footer-23"))
-            compose.onNodeWithTag("library-cover-footer-23").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
-        }
         val bounds = compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().assertIsFocused()
             .fetchSemanticsNode().boundsInRoot
         assertTrue("A coleção mantém capas verticais", bounds.height > bounds.width)
@@ -223,7 +225,7 @@ class LibraryFooterLayoutTest {
 
     @Test fun cinemaCollectionKeepsPortraitCards() = collectionCoverKeepsPortraitGeometry(ColorPreset.Cinema)
 
-    @Test fun primeShellSearchReturnsToReadingWhenThereIsNoVisibleEditionOrigin() {
+    @Test fun primeShellSearchShowsActualEmptyResultsWithoutInventingTitles() {
         val searchEvents = mutableIntStateOf(0)
         fixture(ColorPreset.Prime, searchEvents = searchEvents) {
             compose.onNodeWithTag("library-top-search").assertDoesNotExist()
@@ -232,7 +234,8 @@ class LibraryFooterLayoutTest {
             compose.onNodeWithContentDescription("Título do quadrinho").assertIsDisplayed()
             compose.onNodeWithContentDescription("Título do quadrinho").performTextInput("Sem correspondência")
             compose.onNodeWithText("Ver resultados").performClick()
-            compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithText("Nenhum quadrinho encontrado").assertIsDisplayed()
+            compose.onNodeWithText("Mostrar todas").assertIsDisplayed().assertIsFocused()
             compose.onNodeWithTag("library-top-search").assertDoesNotExist()
             compose.onAllNodes(isFocused()).assertCountEquals(1)
         }
@@ -410,7 +413,8 @@ class LibraryFooterLayoutTest {
             compose.onNodeWithText("Continuar leitura").assertIsNotDisplayed()
             compose.runOnIdle { screenKey.intValue++ }
             compose.onNodeWithContentDescription("Título do quadrinho").assertDoesNotExist()
-            compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithTag("library-cover-footer-23").assertDoesNotExist()
         }
     }
 }

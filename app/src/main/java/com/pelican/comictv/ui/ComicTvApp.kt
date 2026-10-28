@@ -31,6 +31,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -135,6 +138,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     fun openDownload(id: String) { nav.navigate(if (id in downloadsState.complete) "downloads" else "downloads?edition=$id") }
     // A pending action is consumed by LibraryScreen, including when the destination is newly composed.
     // It is deliberately not saved: returning from details/recreation must not replay a search.
+    var homeTitlePending by remember { mutableStateOf<OnlineTitle?>(null) }
     var librarySearchPending by remember { mutableStateOf(false) }
     val openLibrarySearch: () -> Unit = {
         startupFocusPending = false
@@ -157,7 +161,24 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         CinemaBackdrop(featuredComic(comics, backdropId)?.id, container.library, Modifier.fillMaxSize())
                     }
                 }) {
+                val previewSources: SourcesViewModel? = if (LocalThemeSpec.current.artwork)
+                    viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory) else null
+                val homePreviews = previewSources?.homePreviews?.collectAsStateWithLifecycle()?.value ?: HomeSourcePreviews()
+                val lifecycle = LocalLifecycleOwner.current.lifecycle
+                LaunchedEffect(previewSources, lifecycle) {
+                    if (previewSources != null) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { previewSources.collectHomePreviews() }
+                }
                 LibraryScreen(comics, container.library, library.focusedId,
+                    homeSources = homePreviews,
+                    onSourceSection = { latest ->
+                        val route = if (latest) "recent" else "sources"
+                        startupFocusPending = false; navigationContentTarget = route; nav.navigate(route)
+                    },
+                    onSourceTitle = { title, latest ->
+                        val route = if (latest) "recent" else "sources"
+                        startupFocusPending = false; navigationContentTarget = route
+                        homeTitlePending = title; nav.navigate(route)
+                    },
                     onFocus = { library.focusedId = it; backdropId = it }, onOpen = { nav.navigate("details/$it") },
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
                     requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
@@ -193,8 +214,13 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         listOf("sources", "recent", "extensions").forEach { sourceRoute ->
             composable(sourceRoute) { sourceEntry ->
                 val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory)
-                LaunchedEffect(sourceEntry.id) { sources.enterMainSection(sourceEntry.id, sourceRoute) }
+                var fromHomePreview by rememberSaveable(sourceEntry.id) { mutableStateOf(homeTitlePending != null) }
+                LaunchedEffect(sourceEntry.id) {
+                    sources.enterMainSection(sourceEntry.id, sourceRoute)
+                    homeTitlePending?.let { title -> homeTitlePending = null; sources.showDetails(title) }
+                }
                 TvShell(sourceRoute, onNavigate = { destination ->
+                    fromHomePreview = false
                     startupFocusPending = false
                     navigationContentTarget = destination
                     if (destination == sourceRoute) {
@@ -205,7 +231,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         }
                     } else nav.navigate(destination) { popUpTo("library"); launchSingleTop = true }
                 }, focusContentOnEntry = navigationContentTarget == sourceRoute, onSectionFocused = { navigationContentTarget = null }) {
-                    SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = installExtension)
+                    SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = installExtension,
+                        onDetailsBack = if (fromHomePreview) ({ sources.back(); nav.popBackStack(); Unit }) else null)
                 }
             }
         }

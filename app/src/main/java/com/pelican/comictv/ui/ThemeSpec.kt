@@ -32,7 +32,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val playIcon: Boolean = false,
     val posterWidthDp: Int = 142, val posterHeightDp: Int = 206,
     val posterBorderDp: Int = 1, val posterGapDp: Int = 22,
-    val stretchPoster: Boolean = false,
+    val cropPoster: Boolean = false,
     val textOnlyActions: Boolean = false,
 ) { val editorial get() = variant == HeroVariant.PosterLeft }
 @Immutable internal data class ThemeCardSpec(
@@ -45,7 +45,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val gridHorizontalPaddingDp: Int = 12, val recentSurface: Long? = null,
     val gridVerticalPaddingDp: Int? = null,
     val recentBorder: Long? = null,
-    val stretchRecentCover: Boolean = false, val stretchCollectionCover: Boolean = false,
+    val cropRecentCover: Boolean = false, val cropCollectionCover: Boolean = false,
 )
 @Immutable internal data class ThemeFocusSpec(
     val buttonBorderDp: Int = 2, val highContrastBorderDp: Int = 3,
@@ -95,13 +95,13 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     navigation = editorial.navigation.copy(libraryBrand = true, staticCollapsedRail = true),
                     footerControls = true,
                     hero = editorial.hero.copy(minimumHeightDp = 194, titleMaxLines = 2,
-                        posterWidthDp = 190, posterHeightDp = 250, stretchPoster = true, posterBorderDp = 2,
+                        posterWidthDp = 190, posterHeightDp = 250, cropPoster = true, posterBorderDp = 2,
                         posterGapDp = 15, progressWidthDp = 225, contentGapDp = 8, playIcon = true),
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.Compact,
                         collectionStyle = CollectionCardStyle.Square, gridMinimumWidthDp = 146,
                         scaleGridWithText = true, recentWidthDp = 248, recentHeightDp = 90,
                         recentThumbnailWidthDp = 82.5f, recentThumbnailHeightDp = 51,
-                        recentPaddingDp = 8, recentGapDp = 8, stretchRecentCover = true),
+                        recentPaddingDp = 8, recentGapDp = 8, cropRecentCover = true, cropCollectionCover = true),
                     typography = ThemeTypographySpec(33, 37, cardTitleSp = 14,
                         cardStatusSp = 14, cardLineHeightSp = 18, badgeSp = 14),
                     focus = ThemeFocusSpec(buttonBorderDp = 2, cardBorderDp = 2),
@@ -114,7 +114,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                         playIcon = true, verticalPaddingDp = 18, contentGapDp = 8, textOnlyActions = true),
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.ArtLarge,
                         collectionStyle = CollectionCardStyle.Poster, recentWidthDp = 180,
-                        recentHeightDp = 114, gridMinimumWidthDp = 140, scaleGridWithText = true, stretchRecentCover = true),
+                        recentHeightDp = 114, gridMinimumWidthDp = 140, scaleGridWithText = true, cropRecentCover = true),
                     typography = ThemeTypographySpec(57, 54, ThemeTitleFamily.Bebas,
                         titleExtraBold = false, cardTitleSp = 16, cardStatusSp = 14,
                         cardLineHeightSp = 18, badgeSp = 14),
@@ -127,7 +127,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.Art16x9,
                         collectionStyle = CollectionCardStyle.Mini, gridMinimumWidthDp = 203,
                         scaleGridWithText = true, recentWidthDp = 203, recentHeightDp = 114,
-                        stretchRecentCover = true, stretchCollectionCover = true),
+                        cropRecentCover = true, cropCollectionCover = true),
                     typography = ThemeTypographySpec(54, 56, ThemeTitleFamily.Barlow,
                         cardTitleSp = 16, cardStatusSp = 14, badgeSp = 14), footerControls = true, artwork = true)
                 ColorPreset.Max -> editorial.copy(

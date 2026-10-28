@@ -42,12 +42,12 @@ internal fun libraryTitleFont(family: ThemeTitleFamily): FontFamily = when (fami
     when (cards.continueStyle) {
         ContinueCardStyle.Art16x9, ContinueCardStyle.ArtLarge -> {
             // Covers are inexpensive existing files. Never extract original pages or fetch artwork per card.
-            // Fit preserves the whole original cover; the gradient fills a broad frame without stretching it.
+            // Crop fills the approved frames with uniform scaling; Fit retains the whole cover elsewhere.
             val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
             Box(Modifier.fillMaxWidth().heightIn(min = cards.recentHeightDp.coerceAtLeast(114).dp * fontScale)
                 .testTag("library-recent-art-${comic.id}").background(if (TvColors.options.highContrast) Color.Black else TvColors.Panel)) {
                 if (!TvColors.options.highContrast) AsyncImage(repository.cover(comic.id), null,
-                    Modifier.matchParentSize(), contentScale = if (cards.stretchRecentCover) ContentScale.FillBounds else ContentScale.Fit)
+                    Modifier.matchParentSize(), contentScale = if (cards.cropRecentCover) ContentScale.Crop else ContentScale.Fit)
                 Column(Modifier.align(Alignment.BottomStart).fillMaxWidth()
                     .background(cardScrim()).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(comic.title, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
@@ -67,7 +67,7 @@ internal fun libraryTitleFont(family: ThemeTitleFamily): FontFamily = when (fami
                 .padding(cards.recentPaddingDp.dp), horizontalArrangement = Arrangement.spacedBy(cards.recentGapDp.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 if (!TvColors.options.highContrast) AsyncImage(repository.cover(comic.id), null,
-                    Modifier.width(cards.recentThumbnailWidthDp.dp).height(cards.recentThumbnailHeightDp.dp), contentScale = if (cards.stretchRecentCover) ContentScale.FillBounds else ContentScale.Fit)
+                    Modifier.width(cards.recentThumbnailWidthDp.dp).height(cards.recentThumbnailHeightDp.dp), contentScale = if (cards.cropRecentCover) ContentScale.Crop else ContentScale.Fit)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(comic.title, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis,
                         fontFamily = if (cards.continueStyle == ContinueCardStyle.GlassSerif) libraryTitleFont(ThemeTitleFamily.Serif) else ComicFonts.Body,
@@ -88,7 +88,7 @@ internal fun libraryTitleFont(family: ThemeTitleFamily): FontFamily = when (fami
         Row(Modifier.fillMaxWidth().heightIn(min = 96.dp).glassPanel().padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             if (!TvColors.options.highContrast) AsyncImage(repository.cover(comic.id), null,
-                Modifier.width(52.dp).height(76.dp).testTag("library-thumbnail-${comic.id}"), contentScale = if (theme.cards.stretchCollectionCover) ContentScale.FillBounds else ContentScale.Fit)
+                Modifier.width(52.dp).height(76.dp).testTag("library-thumbnail-${comic.id}"), contentScale = if (theme.cards.cropCollectionCover) ContentScale.Crop else ContentScale.Fit)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 CollectionTitle(comic)
                 Text(readingStatus(comic), color = TvColors.Muted, fontSize = theme.typography.cardStatusSp.coerceAtLeast(14).sp)
@@ -106,7 +106,7 @@ internal fun libraryTitleFont(family: ThemeTitleFamily): FontFamily = when (fami
     }
     Box(Modifier.fillMaxWidth().aspectRatio(ratio).background(if (TvColors.options.highContrast) Color.Black else TvColors.Panel)) {
         if (!TvColors.options.highContrast) AsyncImage(repository.cover(comic.id), comic.title,
-            Modifier.fillMaxSize().testTag("library-thumbnail-${comic.id}"), contentScale = if (theme.cards.stretchCollectionCover) ContentScale.FillBounds else ContentScale.Fit)
+            Modifier.fillMaxSize().testTag("library-thumbnail-${comic.id}"), contentScale = if (theme.cards.cropCollectionCover) ContentScale.Crop else ContentScale.Fit)
         if (offline) Box(Modifier.align(Alignment.TopStart).background(Color.Black).padding(5.dp)) { OfflineBadge() }
         if (comic.favorite) Box(Modifier.align(Alignment.TopEnd).background(Color.Black).padding(6.dp)) { FavoriteBadge() }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(cardScrim())
