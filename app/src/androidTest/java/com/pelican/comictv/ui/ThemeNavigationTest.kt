@@ -14,13 +14,38 @@ import org.junit.Test
 class ThemeNavigationTest {
     @get:Rule val compose = createComposeRule()
 
-    private fun setShell(preset: ColorPreset) {
+    private fun setShell(preset: ColorPreset, selected: String = "library") {
         compose.setContent { ComicTvTheme(AppearanceOptions(preset = preset, textPercent = 130, highContrast = true)) {
             var pending by remember { mutableStateOf(true) }
-            TvShell("library", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+            TvShell(selected, {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
                 TvButton("Primeiro controle", {}, preferredContentEntryModifier())
             }
         } }
+    }
+
+    @Test fun cinemaReservesMenuSpaceOutsideTheImmersiveLibrary() {
+        setShell(ColorPreset.Cinema, "settings")
+        val menu = compose.onNodeWithTag("cinema-menu").fetchSemanticsNode().boundsInRoot
+        val content = compose.onNodeWithText("Primeiro controle").fetchSemanticsNode().boundsInRoot
+        assertTrue("Menu não deve cobrir controles/título das outras seções", content.top >= menu.bottom)
+    }
+
+    @Test fun cinemaMenuBackPreservesUnderlyingNestedPage() {
+        var nestedBack = false
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Cinema)) {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("sources", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                androidx.activity.compose.BackHandler { nestedBack = true }
+                TvButton("Página interna", {}, preferredContentEntryModifier())
+            }
+        } }
+        compose.onNodeWithText("Página interna").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithTag("sidebar-expanded").assertExists()
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.waitForIdle()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        assertTrue("Voltar do menu preserva a página interna", !nestedBack)
     }
 
     private fun assertWordmarkFits() {

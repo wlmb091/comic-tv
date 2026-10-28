@@ -300,12 +300,10 @@ import kotlinx.coroutines.launch
     LaunchedEffect(focusSectionOnEntry) {
         if (focusSectionOnEntry) { openNavigation(); onSectionFocused() }
     }
-    androidx.activity.compose.BackHandler(policy == ThemeNavigationPolicy.ImmersiveMenu && cinemaMenu) {
-        returnToContent()
-    }
     val routes = listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "settings" to "Configurações")
     val icons = listOf(R.drawable.nav_library, R.drawable.nav_recent, R.drawable.nav_sources, R.drawable.nav_extensions, R.drawable.nav_import, R.drawable.nav_settings)
     val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val immersiveLibrary = policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"
     val expanded = focusWithin || policy == ThemeNavigationPolicy.ImmersiveMenu
     val expandedWidth = minOf(320.dp, 228.dp * fontScale)
     val horizontal = policy == ThemeNavigationPolicy.TopBar || policy == ThemeNavigationPolicy.BottomDock
@@ -377,13 +375,13 @@ import kotlinx.coroutines.launch
     }.focusGroup()
     Box(Modifier.fillMaxSize().background(TvColors.Background)) {
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
-        Box(Modifier.fillMaxSize().then(if (policy == ThemeNavigationPolicy.ImmersiveMenu) Modifier
+        Box(Modifier.fillMaxSize().then(if (immersiveLibrary) Modifier
             else Modifier.padding(horizontal = 20.dp, vertical = 16.dp))) {
             val contentPadding = when (policy) {
                 ThemeNavigationPolicy.Sidebar -> PaddingValues(start = 80.dp)
                 ThemeNavigationPolicy.TopBar -> PaddingValues(top = 72.dp * fontScale)
                 ThemeNavigationPolicy.BottomDock -> PaddingValues(bottom = 88.dp * fontScale)
-                ThemeNavigationPolicy.ImmersiveMenu -> PaddingValues(0.dp)
+                ThemeNavigationPolicy.ImmersiveMenu -> if (immersiveLibrary) PaddingValues(0.dp) else PaddingValues(top = 64.dp * fontScale)
             }
             CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry,
                 LocalSectionContentEntry provides (focusContentOnEntry || internalEntry),
@@ -394,7 +392,7 @@ import kotlinx.coroutines.launch
                     navigationPolicy = policy, onNavigateToMenu = ::openNavigation, content = content)
             }
             if (policy == ThemeNavigationPolicy.ImmersiveMenu && !cinemaMenu) {
-                Row(Modifier.align(Alignment.TopStart).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically,
+                Row(Modifier.align(Alignment.TopStart).then(if (immersiveLibrary) Modifier.padding(horizontal = 20.dp, vertical = 16.dp) else Modifier), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     TvButton("Menu", ::openNavigation, Modifier.testTag("cinema-menu"))
                     ComicWordmark(Modifier.width(180.dp * fontScale))
@@ -430,5 +428,9 @@ import kotlinx.coroutines.launch
                 }
             }
         }
+    }
+    // Registered after route handlers: Back closes the overlay before navigating its underlying page.
+    androidx.activity.compose.BackHandler(policy == ThemeNavigationPolicy.ImmersiveMenu && cinemaMenu) {
+        returnToContent()
     }
 }
