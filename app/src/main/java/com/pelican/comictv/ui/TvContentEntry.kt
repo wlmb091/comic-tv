@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
             else if (event.key == when (navigationPolicy) {
                 ThemeNavigationPolicy.TopBar -> Key.DirectionUp
                 ThemeNavigationPolicy.BottomDock -> Key.DirectionDown
+                ThemeNavigationPolicy.ImmersiveMenu -> Key.DirectionRight
                 else -> Key.DirectionLeft
             }) {
                 if (event.type == KeyEventType.KeyDown) onNavigateToMenu()
@@ -60,6 +61,7 @@ import androidx.compose.ui.semantics.semantics
                 val menuDirection = when (navigationPolicy) {
                     ThemeNavigationPolicy.TopBar -> FocusDirection.Up
                     ThemeNavigationPolicy.BottomDock -> FocusDirection.Down
+                    ThemeNavigationPolicy.ImmersiveMenu -> FocusDirection.Right
                     else -> FocusDirection.Left
                 }
                 if (requestedFocusDirection == menuDirection) onNavigateToMenu()

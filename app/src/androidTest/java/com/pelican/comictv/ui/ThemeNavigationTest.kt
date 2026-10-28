@@ -47,7 +47,7 @@ class ThemeNavigationTest {
                 TvButton("Página interna", {}, preferredContentEntryModifier())
             }
         } }
-        compose.onNodeWithText("Página interna").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithText("Página interna").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithTag("sidebar-expanded").assertExists()
         androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
             .sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
@@ -65,6 +65,9 @@ class ThemeNavigationTest {
     @Test fun primeMovesUpToCurrentSectionAndDownToContent() {
         setShell(ColorPreset.Prime)
         assertWordmarkFits()
+        val primeBrand = compose.onNodeWithTag("prime-wordmark").fetchSemanticsNode().boundsInRoot
+        val primeMenu = compose.onNodeWithTag("navigation-top").fetchSemanticsNode().boundsInRoot
+        assertTrue("Marca do Prime fica à direita da navegação", primeBrand.center.x > primeMenu.center.x)
         compose.onNodeWithTag("navigation-top").assertExists()
         compose.onNodeWithTag("sidebar-collapsed").assertDoesNotExist()
         compose.onNodeWithText("Primeiro controle").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
@@ -81,15 +84,36 @@ class ThemeNavigationTest {
         compose.onNodeWithText("Primeiro controle").assertIsFocused()
     }
 
-    @Test fun cinemaLeftOpensFloatingMenuAndRightDismissesIt() {
+    @Test fun maxSearchCategoryIsAvailableFromEveryMainSection() {
+        var route by mutableStateOf("library")
+        var searches = 0
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Max, textPercent = 130)) {
+            CompositionLocalProvider(LocalShellLibrarySearch provides { searches++ }) {
+                key(route) {
+                    TvShell(route, {}) { TvButton("Conteúdo", {}, preferredContentEntryModifier()) }
+                }
+            }
+        } }
+        listOf("library", "recent", "sources", "extensions", "import", "settings").forEachIndexed { index, section ->
+            compose.runOnIdle { route = section }
+            compose.onNodeWithTag("nav-search").assertIsDisplayed().assertIsNotSelected().performClick()
+            compose.onNodeWithTag("nav-$section").assertIsSelected()
+            compose.runOnIdle { assertTrue(searches == index + 1) }
+        }
+    }
+
+    @Test fun cinemaRightOpensMenuOnRightAndLeftDismissesIt() {
         setShell(ColorPreset.Cinema)
         compose.onNodeWithText("COMIC TV").assertDoesNotExist()
         compose.onNodeWithTag("sidebar-collapsed").assertDoesNotExist()
         compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
-        compose.onNodeWithText("Primeiro controle").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithText("Primeiro controle").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithTag("sidebar-expanded").assertExists()
+        val menu = compose.onNodeWithTag("sidebar-expanded").fetchSemanticsNode().boundsInRoot
+        val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
+        assertTrue("Menu expandido segue o botão à direita", menu.center.x > shell.center.x)
         compose.onNodeWithText("COMIC TV").assertDoesNotExist()
-        compose.onNodeWithTag("nav-library").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithTag("nav-library").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Primeiro controle").assertIsFocused()
         compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
     }
@@ -105,13 +129,52 @@ class ThemeNavigationTest {
         compose.onNodeWithTag("flix-navigation-scrim").assertDoesNotExist()
         compose.onNodeWithText("Primeiro controle").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithTag("sidebar-expanded").assertExists()
-        compose.onNodeWithTag("sidebar-panel").assertExists()
+        compose.onNodeWithTag("sidebar-panel").assertDoesNotExist()
         val scrim = compose.onNodeWithTag("flix-navigation-scrim").fetchSemanticsNode().boundsInRoot
         assertTrue("Escurecimento cobre o conteúdo completo", scrim == shell)
         compose.onNodeWithTag("nav-library").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Primeiro controle").assertIsFocused()
         compose.onNodeWithTag("sidebar-panel").assertDoesNotExist()
         compose.onNodeWithTag("flix-navigation-scrim").assertDoesNotExist()
+    }
+
+    @Test fun cinemaMenuDownReturnsDirectlyToContentWithoutOpeningMenu() {
+        setShell(ColorPreset.Cinema)
+        compose.onNodeWithTag("cinema-menu").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        compose.onNodeWithTag("cinema-menu").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Primeiro controle").assertIsFocused()
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
+    }
+
+    @Test fun cinemaSearchInvokesExistingLibraryCallbackWithoutChangingRoute() {
+        var searches = 0
+        var navigations = 0
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Cinema)) {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("library", { navigations++ }, focusContentOnEntry = pending,
+                onSectionFocused = { pending = false }, onSearch = { searches++ }) {
+                TvButton("Primeiro controle", {}, preferredContentEntryModifier())
+            }
+        } }
+        compose.onNodeWithText("Primeiro controle").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithTag("nav-library").assertIsSelected().assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionUp) }
+        compose.onNodeWithTag("nav-library").assertIsSelected().assertIsNotFocused()
+        compose.onNodeWithTag("nav-search").assertIsNotSelected().assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionCenter) }
+        compose.runOnIdle { assertTrue(searches == 1 && navigations == 0) }
+        compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.onNodeWithText("Primeiro controle").assertIsFocused()
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
+    }
+
+    @Test fun maxBackdropExtendsBehindBottomDock() {
+        setShell(ColorPreset.Max, highContrast = false)
+        val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
+        val backdrop = compose.onNodeWithTag("test-shell-backdrop").fetchSemanticsNode().boundsInRoot
+        assertTrue("Arte Max alcança toda a tela atrás do dock", backdrop == shell)
+        compose.onNodeWithTag("navigation-bottom").assertExists()
     }
 
     @Test fun flixHighContrastRetainsOpaqueSidebar() {

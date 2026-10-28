@@ -21,12 +21,18 @@ import com.pelican.comictv.ui.*
 @Composable internal fun LibraryHero(comic: ComicEntity?, repository: LibraryRepository,
     onRead: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
     modifier: Modifier = Modifier, readModifier: Modifier = Modifier,
+    comics: List<ComicEntity> = emptyList(), onSelect: (String) -> Unit = {},
 ) {
     val preset = TvColors.options.preset
+    if (preset == ColorPreset.Prime) {
+        PrimeLibraryHero(comic, comics, repository, onRead, onOpen, onImport, onSelect, modifier, readModifier)
+        return
+    }
     val cinema = preset == ColorPreset.Cinema
+    val max = preset == ColorPreset.Max
     val editorial = preset == ColorPreset.Amber || preset in listOf(ColorPreset.Green, ColorPreset.Blue, ColorPreset.Violet)
-    Box(modifier.fillMaxWidth().heightIn(min = if (editorial) 206.dp else 230.dp)) {
-        Row(Modifier.align(if (cinema) Alignment.BottomStart else Alignment.CenterStart)
+    Box(modifier.fillMaxWidth().heightIn(min = if (editorial) 206.dp else if (max) 260.dp else 230.dp)) {
+        Row(Modifier.align(if (cinema || max) Alignment.BottomStart else Alignment.CenterStart)
             .fillMaxWidth().padding(horizontal = if (cinema) 32.dp else 14.dp, vertical = if (cinema) 38.dp else 12.dp),
             horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.CenterVertically) {
             if (editorial && comic != null) {
@@ -52,14 +58,14 @@ import com.pelican.comictv.ui.*
                     if (comic.lastRead > 0 && comic.pageCount > 0) ProgressTrack((comic.currentPage + 1f) / comic.pageCount,
                         Modifier.widthIn(max = if (editorial) 280.dp else 240.dp).fillMaxWidth())
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, readModifier)
-                        TvButton("Ver detalhes", { onOpen(comic.id) })
+                        TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, readModifier, transparentBackground = !editorial)
+                        TvButton("Ver detalhes", { onOpen(comic.id) }, transparentBackground = !editorial)
                     }
                 } else {
                     Text("Adicione suas edições ou explore as fontes online.", color = TvColors.Muted, fontSize = 16.sp)
-                    TvButton("Importar quadrinhos", onImport, readModifier)
+                    TvButton("Importar quadrinhos", onImport, readModifier, transparentBackground = !editorial)
                 }
-                if (cinema) Text("↓ Biblioteca    ·    ← Menu", color = TvColors.Muted, fontSize = 13.sp)
+                if (cinema) Text("↓ Biblioteca    ·    → Menu", color = TvColors.Muted, fontSize = 13.sp)
             }
         }
     }

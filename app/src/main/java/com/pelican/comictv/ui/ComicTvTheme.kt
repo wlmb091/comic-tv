@@ -35,6 +35,17 @@ object TvColors {
 internal val ColorPreset.hasNeutralBackground: Boolean
     get() = this == ColorPreset.Amber || this == ColorPreset.Flix || this == ColorPreset.Cinema
 
+/** Opt-in material for actions laid over streaming artwork; never fades labels or icons. */
+internal fun transparentButtonSurface(options: AppearanceOptions): Color? {
+    val preset = options.preset
+    if (preset != ColorPreset.Flix && preset != ColorPreset.Prime &&
+        preset != ColorPreset.Max && preset != ColorPreset.Cinema) return null
+    if (options.highContrast) return Color.Black
+    // Dark enough for opaque white labels even over the brightest possible artwork.
+    val tint = if (preset.hasNeutralBackground) Color.Black else Color(preset.panel)
+    return tint.copy(alpha = .68f)
+}
+
 @Composable fun ComicTvTheme(options: AppearanceOptions = AppearanceOptions(), content: @Composable () -> Unit) {
     SideEffect { TvColors.options = options }
     val density = LocalDensity.current
@@ -52,19 +63,26 @@ internal val ColorPreset.hasNeutralBackground: Boolean
     text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
     primary: Boolean = false,
     enabled: Boolean = true,
+    transparentBackground: Boolean = false,
 ) {
+    val artworkSurface = if (transparentBackground) transparentButtonSurface(TvColors.options) else null
+    val primePrimary = primary && TvColors.options.preset == ColorPreset.Prime && !TvColors.options.highContrast
     Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.heightIn(min = 48.dp),
         shape = ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
         colors = ButtonDefaults.colors(
-            containerColor = if (primary) TvColors.Action else TvColors.ButtonSurface,
-            contentColor = if (primary) TvColors.OnAction else Color.White,
+            containerColor = artworkSurface ?: if (primePrimary) Color.White else if (primary) TvColors.Action else TvColors.ButtonSurface,
+            contentColor = if (artworkSurface != null) Color.White else if (primePrimary) TvColors.Ink else if (primary) TvColors.OnAction else Color.White,
             focusedContainerColor = TvColors.Action,
             focusedContentColor = TvColors.OnAction,
         ),
-        border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber))),
+        border = ButtonDefaults.border(
+            border = if (artworkSurface != null && !TvColors.options.highContrast)
+                Border(BorderStroke(1.dp, Color.White.copy(alpha = .28f))) else Border.None,
+            focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber)),
+        ),
         scale = ButtonDefaults.scale(focusedScale = 1.03f),
     ) { Text(text, fontSize = 17.sp) }
 }

@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalDensity
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.pelican.comictv.cinema.CinemaImagePolicy
 import com.pelican.comictv.ui.ColorPreset
 import com.pelican.comictv.ui.TvColors
@@ -42,6 +43,7 @@ import kotlinx.coroutines.delay
         val request = remember(context, artwork, revision, size) { artwork?.let {
             val targetSize = requireNotNull(size)
             ImageRequest.Builder(context).data(it.file).size(targetSize.first, targetSize.second)
+                .crossfade(160)
                 .precision(coil3.size.Precision.EXACT)
                 // Decode the bounded source aspect ratio; only drawing crops to the viewport.
                 .scale(coil3.size.Scale.FIT)

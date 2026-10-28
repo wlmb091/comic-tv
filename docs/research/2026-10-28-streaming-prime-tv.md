@@ -1,0 +1,34 @@
+# Prime Video e padrões Android TV / Google TV
+
+Consulta: 28/10/2026. Pesquisa documental em fontes primárias públicas; sem instalar ou executar Prime Video e sem alterar o aplicativo Comic TV. As páginas de 2022/2024 comprovam decisões anunciadas nessas épocas, não a composição exata de todos os aparelhos em 2026.
+
+## Evidência e aplicação
+
+| Tema | Evidência primária | Aplicação ao Comic TV / limite |
+| --- | --- | --- |
+| Hierarquia Prime | O anúncio Amazon de 23/07/2024 descreve navegação por conteúdo e hero rotativo imediatamente abaixo, com ações diretas. [Amazon, experiência 2024](https://www.aboutamazon.com/news/entertainment/prime-video-updated-steaming-experience); [edição brasileira, 24/07/2024](https://www.aboutamazon.com.br/noticias/entretenimento/prime-video-atualiza-experiencia-do-usuario-no-servico-de-streaming-veja-aqui-as-novidades). | Preservar o menu superior aprovado. Banner amplo, informação/ação à esquerda e espaço visual para capas reais. Não importar compras, publicidade, assinaturas ou recomendação por IA. |
+| Carrosséis Prime | O anúncio de 2022 apresenta Super Carousel com pôsteres maiores, fileiras e imagem cinematográfica; distingue aplicativos de sala de estar e ressalva diferenças por aparelho/território. Naquele anúncio, a navegação de sala estava na lateral. [Amazon, redesign 2022](https://www.aboutamazon.com/news/entertainment/prime-video-makes-it-easier-to-find-your-favorite-content). | Aproveitar hierarquia de destaque e fileiras. A lateral histórica não substitui a posição superior escolhida pelo usuário. Não confundir uma versão móvel/web com TV. |
+| Banner e legibilidade | O guia TV admite carrossel imersivo ou em cartão, com bloco título/descrição/botão, paginação e grade. Recomenda imagem relacionada ao conteúdo e scrim para leitura. [Google, Featured carousels](https://developer.android.google.cn/design/ui/tv/guides/components/featured-carousel?hl=en) — espelho oficial usado após timeout do domínio .com. | Degradê marinho/preto sob texto; conteúdo e ações legíveis, sem painel claro encobrindo arte. Paginação apenas se realmente houver navegação entre destaques. |
+| Preview ao navegar | A lista imersiva relaciona o preview ao cartão em foco, revela detalhes progressivamente e recomenda fundo 16:9 quando possível, sem distorção; assunto alinhado à direita ajuda composição. [Google, Immersive list](https://developer.android.com/design/ui/tv/guides/components/immersive-list). | É um padrão TV fundamentado para atualizar destaque com D-pad. Não prova que todo carrossel Prime use esse mecanismo. Capa vertical não deve ser esticada para parecer arte horizontal. |
+| Foco | O guia separa estados normal, focado, pressionado e selecionado; só um elemento pode estar em foco por vez. Escala, contorno e cor são sinais possíveis. [Google, Focus system](https://developer.android.com/design/ui/tv/guides/styles/focus-system). | Manter seleção de filtro discreta e foco atual inequívoco. Atualizar preview não deve abrir detalhes, confirmar filtro ou tirar foco do controle. |
+| Tipografia | Roboto é a fonte padrão Android TV; o guia pede tamanhos legíveis à distância e fontes sem decoração para texto utilitário. [Google, Typography](https://developer.android.com/design/ui/tv/guides/styles/typography). | Usar fontes já licenciadas/embutidas no projeto e preservar texto 85–130%. A pesquisa não identificou uma especificação oficial da fonte do Prime TV atual; não atribuir Amazon Ember ou outra família ao app sem evidência. |
+| Simplicidade e ícones | O guia Fire TV pede baixa densidade, pouco texto, ações claras e todos os alvos acessíveis por D-pad. [Amazon, Design and User Experience Guidelines](https://www.developer.amazon.com/docs/fire-tv/design-and-user-experience-guidelines.html). | Reduzir controles sobre o banner e manter ícones reconhecíveis com rótulos. Guia do sistema Fire TV não comprova fonte ou desenhos de ícones do Prime Video; sua orientação antiga de teclado automático não se aplica ao Comic TV, que exige OK explícito. |
+
+## Foto aprovada e fidelidade
+
+Na [foto local Prime](../design/themes/photos-1.2.2/prime-reference.png), a navegação fica no alto; o destaque reúne texto/ação na região inferior esquerda, três cartões verticais à direita, indicadores abaixo e outra fileira já visível. Isso é observação da foto fornecida, não alegação de layout universal do Prime. A foto representa promoção de assinaturas: transferir sua composição, não sua mensagem, marcas de terceiros ou catálogo. O recorte vinculante continua no [README de 1.2.2](../design/themes/photos-1.2.2/README.md).
+
+Uma composição adaptativa com duas ou três capas reais à direita é inferência de implementação compatível com essa referência. Quantidade, margens e recortes precisam caber com texto 130% e biblioteca pequena; não preencher vazios com títulos fictícios.
+
+## Movimento: o que foi e não foi demonstrado
+
+Amazon documenta novas animações, transições suaves e zoom no anúncio de 2024; também descreve vídeo no hero em dispositivos de sala. Não publica nesse material duração, easing, frequência de rotação, curva de escala ou código da animação. Logo, números exatos não podem ser apresentados como reprodução do Prime. Imagens estáticas não comprovam movimento em execução. Preview de vídeo/áudio automático não é requisito do Comic TV.
+
+## HTML, fontes públicas e APK
+
+- Os artigos Amazon fornecem HTML documental e imagens oficiais, incluindo [mock de 2024](https://assets.aboutamazon.com/c2/f9/bccdc45c470a8f4e3b8d1f384523/mocks-remaster-dp-1.png) e [Super Carousel histórico](https://assets.aboutamazon.com/6c/0e/95afa7954a82880db925f6cdb9cc/super-carousel.png). Não são código do app nem licença para incorporar filmes, logos ou fontes ao produto. As URLs foram resolvidas pelas páginas oficiais; não houve cópia desses arquivos para o projeto.
+- A [listagem oficial Google Play de Prime Video](https://play.google.com/store/apps/details?id=com.amazon.amazonvideo.livingroom), publicada por Amazon Mobile LLC, confirma o pacote `com.amazon.amazonvideo.livingroom` e apresenta screenshots e seção TV. A descrição menciona também celular/web; isso isoladamente não autoriza usar screenshots móveis como referência da TV.
+- A listagem oferece instalação pela loja. Não foi localizado link primário de APK TV independente para download direto. Portanto, nenhum APK foi baixado, descompilado ou executado nesta pesquisa. A existência de espelhos terceiros não comprova distribuição oficial; eles não foram usados como evidência.
+- O HTML público de uma página Prime Video não equivale ao layout nativo Android TV. Não foram usadas credenciais, sessão privada ou contorno de DRM.
+
+Esta pesquisa não valida visualmente a Box, fluidez, FPS, foco físico nem desempenho de imagem. A conferência no aparelho continua separada da compilação e da publicação.

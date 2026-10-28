@@ -21,7 +21,8 @@ import kotlinx.coroutines.flow.first
 
 @Composable internal fun LibraryFilters(collections: List<CollectionEntity>, filter: String,
     onFilter: (String) -> Unit, onManage: () -> Unit, restoreManage: Int = 0, returnFocusEnabled: Boolean = true,
-    entryModifier: Modifier? = null, listState: LazyListState = rememberLazyListState(), modifier: Modifier = Modifier) {
+    entryModifier: Modifier? = null, listState: LazyListState = rememberLazyListState(), modifier: Modifier = Modifier,
+    manageModifier: Modifier = Modifier) {
     val list = listState
     val manage = remember { FocusRequester() }
     LazyRow(modifier.testTag("library-filters"), state = list, horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(3.dp)) {
@@ -31,7 +32,7 @@ import kotlinx.coroutines.flow.first
         }
         item(key = "favorites") { FilterButton("★ Favoritos", "favorites", filter, onFilter) }
         items(collections, key = { it.id }) { FilterButton(it.name, "collection:" + it.id, filter, onFilter) }
-        item(key = "manage") { TvButton("Gerenciar coleções", onManage, Modifier.focusRequester(manage)) }
+        item(key = "manage") { TvButton("Gerenciar coleções", onManage, Modifier.focusRequester(manage).then(manageModifier), transparentBackground = true) }
     }
     LaunchedEffect(restoreManage) {
         if (restoreManage > 0) {
@@ -71,7 +72,30 @@ import kotlinx.coroutines.flow.first
 }
 
 @Composable private fun FilterButton(label: String, key: String, filter: String, onFilter: (String) -> Unit, modifier: Modifier = Modifier) {
-    TvChoice(label, filter == key, { onFilter(key) }, modifier)
+    TvChoice(label, filter == key, { onFilter(key) }, modifier, transparentBackground = true)
+}
+
+/** Secondary browsing controls follow the complete collection, outside the featured image. */
+@Composable internal fun LibraryFooter(
+    collections: List<CollectionEntity>, filter: String, onFilter: (String) -> Unit, onManage: () -> Unit,
+    libraryCount: Int, historyCount: Int, history: Boolean, searchActive: Boolean,
+    onSearch: () -> Unit, onLibrary: () -> Unit, onHistory: () -> Unit,
+    showSearch: Boolean, searchModifier: Modifier = Modifier, manageModifier: Modifier = Modifier,
+    filterListState: LazyListState = rememberLazyListState(),
+) {
+    Column(Modifier.fillMaxWidth().testTag("library-footer").padding(top = 18.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(Modifier.fillMaxWidth().testTag("library-footer-actions"),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LibraryHeaderActions(libraryCount, historyCount, history, searchActive,
+                onSearch, onLibrary, onHistory, searchModifier = searchModifier, showSearch = showSearch)
+        }
+        // The visible hero/search owns section entry. Offscreen filters must never register it.
+        LibraryFilters(collections, filter, onFilter, onManage,
+            returnFocusEnabled = false, entryModifier = Modifier, listState = filterListState,
+            manageModifier = manageModifier)
+    }
 }
 
 @Composable internal fun LibrarySearchDialog(query: String, onQuery: (String) -> Unit,

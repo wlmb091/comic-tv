@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.res.painterResource
 import com.pelican.comictv.R
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,6 +53,9 @@ import com.pelican.comictv.transfer.FtpTransferScreen
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.launch
+
+/** Explicit shell action; kept outside destinations so Max can search from any main section. */
+internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null }
 
 @Composable fun ComicTvApp(container: AppContainer) {
     var recovered by remember { mutableStateOf(false) }
@@ -126,14 +130,27 @@ import kotlinx.coroutines.launch
     val libraryFilter by library.browse.filter.collectAsStateWithLifecycle()
     val downloadsState by container.downloads.state.collectAsStateWithLifecycle()
     fun openDownload(id: String) { nav.navigate(if (id in downloadsState.complete) "downloads" else "downloads?edition=$id") }
+    // A pending action is consumed by LibraryScreen, including when the destination is newly composed.
+    // It is deliberately not saved: returning from details/recreation must not replay a search.
+    var librarySearchPending by remember { mutableStateOf(false) }
+    val openLibrarySearch: () -> Unit = {
+        startupFocusPending = false
+        navigationContentTarget = null
+        librarySearchPending = true
+        if (nav.currentDestination?.route != "library") {
+            nav.navigate("library") { popUpTo("library"); launchSingleTop = true }
+        }
+    }
 
+    CompositionLocalProvider(LocalShellLibrarySearch provides openLibrarySearch) {
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
             var backdropId by remember { mutableStateOf(library.focusedId) }
             TvShell("library", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { launchSingleTop = true } },
                 contentFocusPending = startupFocusPending, focusContentOnEntry = navigationContentTarget == "library", onSectionFocused = { navigationContentTarget = null },
+                onSearch = openLibrarySearch,
                 backdrop = {
-                    if (TvColors.options.preset == ColorPreset.Flix) {
+                    if (TvColors.options.preset == ColorPreset.Flix || TvColors.options.preset == ColorPreset.Max) {
                         CinemaBackdrop(featuredComic(comics, backdropId)?.id, container.library, Modifier.fillMaxSize())
                     }
                 }) {
@@ -142,6 +159,7 @@ import kotlinx.coroutines.launch
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
                     requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
                     query = libraryQuery, filter = libraryFilter, collections = collections, memberships = memberships,
+                    searchRequested = librarySearchPending, onSearchHandled = { librarySearchPending = false },
                     onQuery = library.browse::setQuery, onFilter = library.browse::setFilter,
                     offlineIds = downloadsState.complete,onDownload = ::openDownload, onDeleteOnline = container::deleteOnlineEdition)
             }
@@ -261,11 +279,13 @@ import kotlinx.coroutines.launch
                 previewDescription = if (fromDetails) "Capa da edição" else "Página atual da leitura")
         }
     }
+    }
 }
 
 @Composable internal fun TvShell(selected: String, onNavigate: (String) -> Unit,
     focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false,
-    focusContentOnEntry: Boolean = false, backdrop: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
+    focusContentOnEntry: Boolean = false, onSearch: (() -> Unit)? = null,
+    backdrop: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
     val policy = ThemeNavigationPolicy.forPreset(TvColors.options.preset)
     val sectionFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
@@ -306,24 +326,50 @@ import kotlinx.coroutines.launch
     LaunchedEffect(focusSectionOnEntry) {
         if (focusSectionOnEntry) { openNavigation(); onSectionFocused() }
     }
-    val routes = listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "settings" to "Configurações")
-    val icons = listOf(R.drawable.nav_library, R.drawable.nav_recent, R.drawable.nav_sources, R.drawable.nav_extensions, R.drawable.nav_import, R.drawable.nav_settings)
+    val searchAction = onSearch ?: LocalShellLibrarySearch.current
+    val showLibrarySearch = searchAction != null && (policy == ThemeNavigationPolicy.BottomDock ||
+        (policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"))
+    val routes = (if (showLibrarySearch) listOf("search" to "Buscar") else emptyList()) +
+        listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "settings" to "Configurações")
+    val icons = mapOf("library" to R.drawable.nav_library, "recent" to R.drawable.nav_recent,
+        "sources" to R.drawable.nav_sources, "extensions" to R.drawable.nav_extensions,
+        "import" to R.drawable.nav_import, "settings" to R.drawable.nav_settings)
     val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
     val immersiveLibrary = policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"
     val expanded = focusWithin || policy == ThemeNavigationPolicy.ImmersiveMenu
     val flix = TvColors.options.preset == ColorPreset.Flix
+    val framelessSidebar = flix && !TvColors.options.highContrast
     val iconOnlySidebar = flix && !expanded && !TvColors.options.highContrast
     val expandedWidth = minOf(320.dp, 228.dp * fontScale)
     val horizontal = policy == ThemeNavigationPolicy.TopBar || policy == ThemeNavigationPolicy.BottomDock
     val navigationToContentKey = when (policy) {
         ThemeNavigationPolicy.TopBar -> Key.DirectionDown
         ThemeNavigationPolicy.BottomDock -> Key.DirectionUp
+        ThemeNavigationPolicy.ImmersiveMenu -> Key.DirectionLeft
         else -> Key.DirectionRight
     }
     val entryDirection = when (policy) {
         ThemeNavigationPolicy.TopBar -> androidx.compose.ui.focus.FocusDirection.Up
         ThemeNavigationPolicy.BottomDock -> androidx.compose.ui.focus.FocusDirection.Down
+        ThemeNavigationPolicy.ImmersiveMenu -> androidx.compose.ui.focus.FocusDirection.Right
         else -> androidx.compose.ui.focus.FocusDirection.Left
+    }
+    @Composable fun NavigationIcon(route: String, title: String, modifier: Modifier) {
+        val drawable = icons[route]
+        if (drawable != null) androidx.tv.material3.Icon(painterResource(drawable),
+            if (expanded || horizontal) null else title, modifier)
+        else {
+            val tint = androidx.tv.material3.LocalContentColor.current
+            androidx.compose.foundation.Canvas(modifier) {
+                val stroke = 1.7.dp.toPx()
+                drawCircle(tint, radius = size.minDimension * .27f,
+                    center = androidx.compose.ui.geometry.Offset(size.width * .42f, size.height * .42f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(stroke))
+                drawLine(tint, androidx.compose.ui.geometry.Offset(size.width * .62f, size.height * .62f),
+                    androidx.compose.ui.geometry.Offset(size.width * .86f, size.height * .86f),
+                    strokeWidth = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+        }
     }
     @Composable fun NavigationItem(index: Int, modifier: Modifier = Modifier) {
         val (route, title) = routes[index]
@@ -332,7 +378,8 @@ import kotlinx.coroutines.launch
         val iconScale by animateFloatAsState(if (iconFocused && !TvColors.options.highContrast) 1.08f else 1f,
             tween(120, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "nav-icon-scale")
         androidx.tv.material3.Button(onClick = {
-            if (active) returnToContent(true)
+            if (route == "search") { returnToContent(); searchAction?.invoke() }
+            else if (active) returnToContent(true)
             else { contentFocus.requestFocus(); cinemaMenu = false; onNavigate(route) }
         }, modifier = modifier.heightIn(min = if (policy == ThemeNavigationPolicy.BottomDock) 66.dp * fontScale else 52.dp)
             .focusProperties { canFocus = !contentFocusPending && !focusContentOnEntry }
@@ -351,14 +398,14 @@ import kotlinx.coroutines.launch
             if (policy == ThemeNavigationPolicy.BottomDock) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    androidx.tv.material3.Icon(painterResource(icons[index]), null,
+                    NavigationIcon(route, title,
                         Modifier.size(24.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
                     Text(title, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             } else {
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.width(if (horizontal) 32.dp else 48.dp).height(36.dp), contentAlignment = Alignment.Center) {
-                        androidx.tv.material3.Icon(painterResource(icons[index]), if (expanded || horizontal) null else title,
+                        NavigationIcon(route, title,
                             Modifier.size(if (horizontal) 22.dp else 26.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
                     }
                     if (expanded || horizontal) Text(title, Modifier.weight(1f).padding(start = if (horizontal) 0.dp else 8.dp),
@@ -381,6 +428,8 @@ import kotlinx.coroutines.launch
         // Always return to the current section, regardless of the nearest icon's geometry.
         onEnter = { if (requestedFocusDirection == entryDirection) sectionFocus.requestFocus() }
     }.focusGroup()
+    val flixScrimProgress by animateFloatAsState(if (flix && expanded) 1f else 0f,
+        tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "flix-menu-gradient")
     Box(Modifier.fillMaxSize().background(TvColors.Background).testTag("theme-shell")) {
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
         backdrop()
@@ -400,14 +449,22 @@ import kotlinx.coroutines.launch
                     onEntryLeft = { preferredEntry.cancel(); internalEntry = false },
                     navigationPolicy = policy, onNavigateToMenu = ::openNavigation, content = content)
             }
-            if (flix && expanded) {
+            if (flix && (expanded || flixScrimProgress > 0f)) {
                 Box(Modifier.matchParentSize().testTag("flix-navigation-scrim")
-                    .background(Color.Black.copy(alpha = .68f)))
+                    .background(if (TvColors.options.highContrast) Brush.horizontalGradient(listOf(Color.Black, Color.Black))
+                        else Brush.horizontalGradient(0f to Color.Black.copy(alpha = flixScrimProgress), .28f to Color.Black.copy(alpha = .94f * flixScrimProgress),
+                            .65f to Color.Black.copy(alpha = .5f * flixScrimProgress), 1f to Color.Transparent)))
             }
             Box(Modifier.fillMaxSize().then(shellInsets)) {
                 if (policy == ThemeNavigationPolicy.ImmersiveMenu && !cinemaMenu) {
                     Box(Modifier.align(Alignment.TopEnd).then(if (immersiveLibrary) Modifier.padding(horizontal = 20.dp, vertical = 16.dp) else Modifier)) {
-                        TvButton("Menu", ::openNavigation, Modifier.testTag("cinema-menu"))
+                        TvButton("Menu", ::openNavigation, Modifier.testTag("cinema-menu")
+                            .onPreviewKeyEvent { event ->
+                                if (event.key == Key.DirectionDown) {
+                                    if (event.type == KeyEventType.KeyDown) returnToContent()
+                                    true
+                                } else false
+                            })
                     }
                 }
                 if (horizontal) {
@@ -415,19 +472,20 @@ import kotlinx.coroutines.launch
                         Modifier.align(Alignment.TopCenter).fillMaxWidth().testTag("navigation-top")
                     else Modifier.align(Alignment.BottomCenter).fillMaxWidth(.9f).testTag("navigation-bottom")
                     Row(barModifier.glassPanel(surface = TvColors.FrostedSidebar).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (policy == ThemeNavigationPolicy.TopBar) {
-                            ComicWordmark(Modifier.width(180.dp * fontScale).padding(horizontal = 8.dp))
-                            Spacer(Modifier.width(8.dp))
-                        }
                         Row(navigationModifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             routes.indices.forEach { NavigationItem(it, Modifier.weight(1f)) }
+                        }
+                        if (policy == ThemeNavigationPolicy.TopBar) {
+                            Spacer(Modifier.width(8.dp))
+                            ComicWordmark(Modifier.width(180.dp * fontScale).padding(horizontal = 8.dp).testTag("prime-wordmark"))
                         }
                     }
                 } else if (policy == ThemeNavigationPolicy.Sidebar || cinemaMenu) {
                     val sidebarReflection by animateFloatAsState(if (expanded) 1f else .6f,
                         tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
-                    Box(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight()) {
-                        if (!iconOnlySidebar) Box(Modifier.matchParentSize().testTag("sidebar-panel")
+                    Box(Modifier.align(if (policy == ThemeNavigationPolicy.ImmersiveMenu) Alignment.TopEnd else Alignment.TopStart)
+                        .width(if (expanded) expandedWidth else 64.dp).fillMaxHeight()) {
+                        if (!framelessSidebar) Box(Modifier.matchParentSize().testTag("sidebar-panel")
                             .glassPanel(surface = TvColors.FrostedSidebar, reflection = { sidebarReflection }))
                         Column(Modifier.fillMaxSize()
                             .testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")

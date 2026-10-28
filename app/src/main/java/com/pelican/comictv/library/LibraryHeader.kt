@@ -16,10 +16,11 @@ import com.pelican.comictv.ui.ColorPreset
     libraryCount: Int, historyCount: Int, history: Boolean, searchActive: Boolean,
     onSearch: () -> Unit, onLibrary: () -> Unit, onHistory: () -> Unit,
     libraryModifier: Modifier = Modifier, searchModifier: Modifier = Modifier,
+    showSearch: Boolean = true,
 ) {
-    TvChoice("Buscar", searchActive, onSearch, searchModifier, compact = true)
-    TvChoice("Biblioteca · $libraryCount", !history, onLibrary, libraryModifier, compact = true)
-    TvChoice("Histórico · $historyCount", history, onHistory, compact = true)
+    if (showSearch) TvChoice("Buscar", searchActive, onSearch, searchModifier, compact = true, transparentBackground = true)
+    TvChoice("Biblioteca · $libraryCount", !history, onLibrary, libraryModifier, compact = true, transparentBackground = true)
+    TvChoice("Histórico · $historyCount", history, onHistory, compact = true, transparentBackground = true)
 }
 
 @Composable internal fun LibraryHeader(

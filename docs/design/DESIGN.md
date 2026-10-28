@@ -1,5 +1,13 @@
 # Design final aprovado — Comic TV
 
+## Referência visual atual aprovada —1.2.2
+
+Usuário aprovou explicitamente as cinco imagens em [layouts atualizados](themes/previews-1.2.2/README.md) e pediu replicação com cuidado reforçado no foco dos menus/botões. Elas complementam o lote de fotos abaixo e passam a ser a referência visual mais recente. MarcaPrimeàdireita, Cinema drawerRight/Buscar, Flixgradiente frameless, Maxfullbleed/dock e Comicestante. Foco real único e seleção persistente distinta; preservar funções/dados/acessibilidade, não inserir artes/títulos ilustrativos como dados. Aprovação da proposta não equivale à validação física da implementação.
+
+## Lote final de fotos1.2.2
+
+Usuário autorizou execução após concluir envio. [Recorte e referências](themes/photos-1.2.2/README.md) têm precedência: Flix com menu em degradê/sem caixa, Prime com composição baseada noPrimeVideo, Cinema com drawer àdireita/Buscar interno/foco corrigido e Max fullscreen atéatrás do dock; controles secundários no final da página. Não considerar fotos1.2.1 como aceitação completa da interface.
+
 ## Correção por fotos1.2.1
 
 As fotos do usuário em [correções1.2.1](themes/photos-1.2.1/README.md) têm precedência sobre a implementação1.2.0: fundo amplo automático com capa como alternativa, Cinema sem logo/Menu à direita, Flix sem painel lateral recolhido e com escurecimento ao expandir; controlesPrime/Max na mesma linha. Comic TV original preservado.
