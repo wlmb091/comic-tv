@@ -54,6 +54,9 @@ import kotlinx.coroutines.flow.first
     Row(Modifier.fillMaxWidth().testTag("library-controls-row"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (TvColors.options.preset == ColorPreset.Max) {
+            ComicWordmark(Modifier.width(180.dp * androidx.compose.ui.platform.LocalDensity.current.fontScale.coerceAtLeast(1f)).testTag("library-brand"))
+        }
         LibraryFilters(collections, filter, onFilter, onManage, restoreManage, returnFocusEnabled,
             entryModifier, filterListState, Modifier.weight(.54f))
         // Independent scrolling preserves one controls line without shrinking text or targets.

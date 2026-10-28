@@ -45,7 +45,10 @@ class LibraryControlsRowTest {
         val all = compose.onNodeWithText("Todas").fetchSemanticsNode().boundsInRoot
         val actions = compose.onNodeWithTag("library-header-actions").fetchSemanticsNode().boundsInRoot
         assertTrue("Filtros e ações devem ocupar a mesma linha", abs(all.center.y - actions.center.y) < 2f)
-        compose.onNodeWithTag("library-brand").assertDoesNotExist()
+        if (preset == ColorPreset.Max) {
+            compose.onNodeWithTag("library-brand").assertIsDisplayed()
+            compose.onNodeWithText("COMIC TV").assertIsDisplayed()
+        } else compose.onNodeWithTag("library-brand").assertDoesNotExist()
 
         compose.runOnIdle { restoreManage++ }
         compose.onNodeWithText("Gerenciar coleções").assertIsDisplayed().assertIsFocused()
