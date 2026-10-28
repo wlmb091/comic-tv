@@ -19,3 +19,5 @@ FonteBebasNeue obtida do [repositório Google Fonts](https://github.com/google/f
 Verificação local: build/theme-spec-max-final.log aprovado em3m03/199tarefas;375casos JVM/373aprovados/2ignorados/0falhas/0erros;lint0erros/75avisos. Testes nativos preparados100%/130%/HC e4estados, ainda semexecução. Recompilação específica dos testes de captura após espera porimagem éregistrada embuild/max-capture-compile.log. Revisão estática inicial corrigiu risco de corteRecentes; revisão final semnova regressão de produção. Espera de fundo porseleção foi corrigida posteriormente; carregamento das capas ainda precisa ser observado ao executar.
 
 Usuário escolheu explicitamente“Conferir o visual naBox”, recusando implicitamente a necessidade de configurar aceleraçãoWindows nesta etapa. Preparar1.2.4 assinada para atualização por cima,semclaim deaceitação física. Não instalar driver nemreiniciarWindows; fases visuais seguintes após relato doMax.
+
+1.2.4/code66 publicada eAPK público verificado. STATUSpartial preservado;aguardando conferênciaMax naBox antes da próximaetapavisualPrime. Evidências emdocs/validation/1.2.4.md.

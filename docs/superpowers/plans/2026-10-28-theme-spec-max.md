@@ -20,8 +20,9 @@ Troca de tema emruntime deve atualizarLocalThemeSpec; restauraçãolegacyAmber p
 - [x] Task1: ThemeSpec/variantes/LocalThemeSpec eThemedScaffold; migrar consumidores de posicionamento/hero/cards sem alterar medidas/cor. Testar matriz de cinco temas/legacy e recompilar.
 - [x] Task2: Max: fonte condensadaOFL, título inferior, Recentes4cartões compactos e dock7itens com mínimo14sp; preservar acesso àgrade/rodapé eimagens proporcionais. Testes de geometria/foco.
 - [ ] Task3: Diagnóstico deDisplay/density/configuração e preparar capturas noemuladorTV, se disponível. Sem emulador instalado atualmente: registrar limite e não alegar execução.
-- [ ] Task4: Revisar, construir/testar/lint e produzir relatórioMax com diferenças reais; não avançar aos outros quatro temas semconferência deste.
+- [x] Task4: Revisar, construir/testar/lint e produzir relatórioMax com diferenças reais; não avançar aos outros quatro temas semconferência deste.
 
 Autorização atual: usuário disse“pode prosseguir” após análise dopacote. Esta fase não publica automaticamente uma alegação de fidelidade: relatório distinguirá implementação, testes compilados e execução visual.
 
 Verificação local375casos/0falhas,lint0erros/75avisos,build3m03. Capturas nativas não executadas;emulador softwareoffline semhipervisor. Usuário escolheu conferênciaBox;publicar1.2.4/code66 assinada,registrarpartial eaguardar relatoMax antes deetapasvisuais seguintes. Hubadiado;monetizaçãofutura.
+Publicação1.2.4 concluída/CI40717670982+40720864302 aprovados;APK público conferido. Task3 runtime pendente: usuário escolheuBox;semcapturas doemulador,não marcarMaxmatches.

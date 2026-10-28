@@ -1,5 +1,9 @@
 # Comic TV — decisões persistentes do usuário
 
+- 1.2.4 publicada28/10/2026 às12:56:07BRT/code66,fontea02830c1f437809ae60d54c54dd90c5b0f22122a;CI40717670982/40720864302 aprovados,APK públicoconferido porhash/tamanho/certificado/versão/ABI/alinhamento. FonteThemeSpec+Max,375casos/0falhas,lint0erros/75avisos. STATUSMaxpartial,usuárioescolheuBox para validarfidelidade/foco;nãotestarcomdriver/emuladoroffline,nãoclaimmatches. PróximatemaPrime apósrelatoMax. Hubadiado;monetizaçãofutura. Registrodocs/validation/1.2.4.md.
+
+- Usuário questionou demora por repetirtesteslocal+CI durante1.2.4. Nas próximasrodadas usar verificaçõeslocais focadas no recorte e bateria completa uma vez noCI, ampliando local apenas emfalhas/integração relevante. Medição local desta rodada: suitesJVM somam~6.95s contra3m03 debuild completo; não atribuir todaademora aos testes. Cache de resultadosGradle ainda nãohabilitado; avaliar/aplicar emetapa própria sempularsegurança daassinatura/publicação nemreiniciarCI emandamento.
+
 - ThemeSpec/Max1.2.4 em preparação: usuário escolheu explicitamente conferir ovisual naBox emvez deconfiguraraceleraçãoWindows. PublicarAPK assinadohabitual para atualizarporcima semapagar dados/USB. BaseThemeSpec centralizada;MaxBebas/Recentescompactos14sp/dock7/altura medida, fundo fullbleed;demais4temas semnovavisualnestaetapa.375casos/0falhas,lint0erros/75avisos,nativos compilados;emuladorTV instalado massoftwareoffline/semhipervisor,nãoexecutadotestesnemcapturas. Relatório partial emdocs/result/max/REPORT.md. Nãoinstalardriver/reiniciarWindows, nãoafirmarmatches ouvalidaçãofísica;Hubadiado atéterminar5temas,monetizaçãofutura.
 
 - Resposta explícita duranteThemeSpec/Max: usuário espera monetizar ComicTV futuramente e escolheu concluir PRIMEIRO fidelidade visual dos5temas. Hubnotícias/adaptações fica parafase posterior; avaliar fornecedores/licenças comerciais antes de integrar, sem APIs/chaves novas nesta fase.
