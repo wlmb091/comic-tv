@@ -83,33 +83,33 @@ import kotlinx.coroutines.flow.first
     showSearch: Boolean, searchModifier: Modifier = Modifier, manageModifier: Modifier = Modifier,
     filterListState: LazyListState = rememberLazyListState(),
 ) {
-    Column(Modifier.fillMaxWidth().testTag("library-footer").padding(top = 18.dp, bottom = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        FlowRow(Modifier.fillMaxWidth().testTag("library-footer-actions"),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            LibraryHeaderActions(libraryCount, historyCount, history, searchActive,
-                onSearch, onLibrary, onHistory, searchModifier = searchModifier, showSearch = showSearch)
-        }
-        // The visible hero/search owns section entry. Offscreen filters must never register it.
-        LibraryFilters(collections, filter, onFilter, onManage,
-            returnFocusEnabled = false, entryModifier = Modifier, listState = filterListState,
-            manageModifier = manageModifier)
+    LazyRow(Modifier.fillMaxWidth().testTag("library-footer").padding(top = 12.dp, bottom = 12.dp),
+        state = filterListState, contentPadding = PaddingValues(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (showSearch) item(key = "search") { TvChoice("Buscar", searchActive, onSearch, searchModifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
+        item(key = "library") { TvChoice("Biblioteca · $libraryCount", !history, onLibrary, Modifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
+        item(key = "history") { TvChoice("Histórico · $historyCount", history, onHistory, Modifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
+        item(key = "all") { TvChoice("Todas", filter == "all", { onFilter("all") }, Modifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
+        item(key = "favorites") { TvChoice("★ Favoritos", filter == "favorites", { onFilter("favorites") }, Modifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
+        items(collections, key = { it.id }) { collection -> TvChoice(collection.name, filter == "collection:${collection.id}", { onFilter("collection:${collection.id}") }, Modifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
+        item(key = "manage") { TvChoice("Gerenciar coleções", false, onManage, manageModifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
     }
 }
 
 @Composable internal fun LibrarySearchDialog(query: String, onQuery: (String) -> Unit,
-    results: List<LibrarySearchEntry> = emptyList(), onDismiss: () -> Unit) {
+    results: List<LibrarySearchEntry> = emptyList(), onViewResults: (() -> Unit)? = null, onDismiss: () -> Unit) {
     val first = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     LibraryDialog("Buscar na biblioteca", { keyboard?.hide(); onDismiss() }) {
         Text("Busca por título na lista de capas. O filtro selecionado é mantido.", color = TvColors.Muted)
-        LibraryTextInput(query, onQuery, "Título do quadrinho", Modifier.focusRequester(first)) { keyboard?.hide(); onDismiss() }
+        LibraryTextInput(query, onQuery, "Título do quadrinho", Modifier.focusRequester(first)) { keyboard?.hide(); (onViewResults ?: onDismiss)() }
         Text(if (results.isEmpty()) "Nenhum título combina com a busca." else "${results.size} título(s) encontrado(s)", color = TvColors.Amber)
         results.take(4).forEach { Text(it.title, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
         if (results.size > 4) Text("Mais ${results.size - 4} na lista de capas", color = TvColors.Muted)
-        TvButton("Ver resultados", { keyboard?.hide(); onDismiss() })
+        TvButton("Ver resultados", { keyboard?.hide(); (onViewResults ?: onDismiss)() })
         TvButton("Limpar busca", { onQuery("") })
     }
     LaunchedEffect(Unit) { first.requestFocus() }
 }
+
+internal fun libraryFooterManageIndex(collectionCount: Int, showSearch: Boolean): Int = collectionCount + 4 + if (showSearch) 1 else 0

@@ -54,6 +54,8 @@ import kotlinx.coroutines.delay
         if (enabled && request != null) {
             AsyncImage(request, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
                 onSuccess = { onImageReady() })
+            // Dim only the cover backdrop; foreground content and card covers remain unchanged.
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .15f)))
             Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(
                 Color.Black.copy(alpha = .80f), Color.Black.copy(alpha = .32f), Color.Black.copy(alpha = .04f)))))
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(

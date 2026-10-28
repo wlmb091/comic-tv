@@ -16,7 +16,7 @@ class ThemeSpecTest {
             val spec = ThemeSpec.forPreset(preset)
             assertEquals(navigation, spec.navigation.layout)
             assertEquals(hero, spec.hero.variant)
-            assertEquals(preset != ColorPreset.Amber, spec.footerControls)
+            assertTrue(spec.footerControls)
             assertEquals(preset != ColorPreset.Amber, spec.artwork)
         }
     }

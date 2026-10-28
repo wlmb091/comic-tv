@@ -20,6 +20,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val sidebarInitiallyExpanded: Boolean = false,
     val sidebarExpandedWidthDp: Int = 220, val sidebarCollapsedWidthDp: Int = 64,
     val overlayDurationMs: Int = 220,
+    val staticCollapsedRail: Boolean = false,
 )
 @Immutable internal data class ThemeHeroSpec(
     val variant: HeroVariant, val heightPolicy: HeroHeightPolicy = HeroHeightPolicy.Fraction,
@@ -31,6 +32,8 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val playIcon: Boolean = false,
     val posterWidthDp: Int = 142, val posterHeightDp: Int = 206,
     val posterBorderDp: Int = 1, val posterGapDp: Int = 22,
+    val stretchPoster: Boolean = false,
+    val textOnlyActions: Boolean = false,
 ) { val editorial get() = variant == HeroVariant.PosterLeft }
 @Immutable internal data class ThemeCardSpec(
     val continueStyle: ContinueCardStyle = ContinueCardStyle.ThumbnailRow,
@@ -42,6 +45,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val gridHorizontalPaddingDp: Int = 12, val recentSurface: Long? = null,
     val gridVerticalPaddingDp: Int? = null,
     val recentBorder: Long? = null,
+    val stretchRecentCover: Boolean = false, val stretchCollectionCover: Boolean = false,
 )
 @Immutable internal data class ThemeFocusSpec(
     val buttonBorderDp: Int = 2, val highContrastBorderDp: Int = 3,
@@ -88,39 +92,42 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     progressWidthDp = 280), ThemeCardSpec(), ThemeTypographySpec(28, 32), colors)
             when (preset) {
                 ColorPreset.Amber -> editorial.copy(
+                    navigation = editorial.navigation.copy(libraryBrand = true, staticCollapsedRail = true),
+                    footerControls = true,
                     hero = editorial.hero.copy(minimumHeightDp = 194, titleMaxLines = 2,
-                        posterWidthDp = 147, posterHeightDp = 170, posterBorderDp = 2,
+                        posterWidthDp = 190, posterHeightDp = 250, stretchPoster = true, posterBorderDp = 2,
                         posterGapDp = 15, progressWidthDp = 225, contentGapDp = 8, playIcon = true),
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.Compact,
                         collectionStyle = CollectionCardStyle.Square, gridMinimumWidthDp = 146,
                         scaleGridWithText = true, recentWidthDp = 248, recentHeightDp = 90,
                         recentThumbnailWidthDp = 82.5f, recentThumbnailHeightDp = 51,
-                        recentPaddingDp = 8, recentGapDp = 8),
+                        recentPaddingDp = 8, recentGapDp = 8, stretchRecentCover = true),
                     typography = ThemeTypographySpec(33, 37, cardTitleSp = 14,
                         cardStatusSp = 14, cardLineHeightSp = 18, badgeSp = 14),
                     focus = ThemeFocusSpec(buttonBorderDp = 2, cardBorderDp = 2),
                     colors = colors.copy(outlinedHeroAction = true, heroPrimarySurface = 0x99000000))
                 ColorPreset.Flix -> editorial.copy(
                     navigation = ThemeNavigationSpec(ThemeNavigationPolicy.Sidebar, framelessSidebar = true, shellBackdrop = true,
-                        sidebarInitiallyExpanded = true),
+                        sidebarInitiallyExpanded = true, searchInNavigation = true),
                     hero = ThemeHeroSpec(HeroVariant.FullbleedText, viewportFraction = .72f,
                         minimumHeightDp = 284, bottomAligned = true, titleMaxLines = 2,
-                        playIcon = true, verticalPaddingDp = 18, contentGapDp = 8),
+                        playIcon = true, verticalPaddingDp = 18, contentGapDp = 8, textOnlyActions = true),
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.ArtLarge,
                         collectionStyle = CollectionCardStyle.Poster, recentWidthDp = 180,
-                        recentHeightDp = 114, gridMinimumWidthDp = 140, scaleGridWithText = true),
+                        recentHeightDp = 114, gridMinimumWidthDp = 140, scaleGridWithText = true, stretchRecentCover = true),
                     typography = ThemeTypographySpec(57, 54, ThemeTitleFamily.Bebas,
                         titleExtraBold = false, cardTitleSp = 16, cardStatusSp = 14,
                         cardLineHeightSp = 18, badgeSp = 14),
                     colors = colors.copy(focusAccent = 0xFFE50914, filledHeroAction = true,
                         heroPrimarySurface = 0xFFB20710),
-                    footerControls = true, topSearch = true, artwork = true)
+                    footerControls = true, topSearch = false, artwork = true)
                 ColorPreset.Prime -> editorial.copy(
                     navigation = ThemeNavigationSpec(ThemeNavigationPolicy.TopBar, shellBackdrop = true, searchInNavigation = true),
                     hero = ThemeHeroSpec(HeroVariant.FullbleedCarousel, viewportFraction = .70f, minimumHeightDp = 284, titleMaxLines = 2),
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.Art16x9,
                         collectionStyle = CollectionCardStyle.Mini, gridMinimumWidthDp = 203,
-                        scaleGridWithText = true, recentWidthDp = 203, recentHeightDp = 114),
+                        scaleGridWithText = true, recentWidthDp = 203, recentHeightDp = 114,
+                        stretchRecentCover = true, stretchCollectionCover = true),
                     typography = ThemeTypographySpec(54, 56, ThemeTitleFamily.Barlow,
                         cardTitleSp = 16, cardStatusSp = 14, badgeSp = 14), footerControls = true, artwork = true)
                 ColorPreset.Max -> editorial.copy(
@@ -132,7 +139,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     hero = ThemeHeroSpec(HeroVariant.FullbleedText, HeroHeightPolicy.ReservedReadingRow,
                         viewportInsetDp = 196, minimumHeightDp = 180, bottomAligned = true, titleMaxLines = 2,
                         horizontalPaddingDp = 0, verticalPaddingDp = 6, contentGapDp = 8,
-                        textWidthFraction = .68f, progressWidthDp = 255),
+                        textWidthFraction = .68f, progressWidthDp = 255, textOnlyActions = true),
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.Compact,
                         collectionStyle = CollectionCardStyle.Poster,
                         gridMinimumWidthDp = 156, scaleGridWithText = true, recentWidthDp = 203,
@@ -153,7 +160,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     hero = ThemeHeroSpec(HeroVariant.FullbleedText, HeroHeightPolicy.ViewportInset,
                         viewportInsetDp = 32, bottomAligned = true, horizontalPaddingDp = 32,
                         verticalPaddingDp = 38, textWidthFraction = .65f, contentGapDp = 13,
-                        titleMaxLines = 2),
+                        titleMaxLines = 2, textOnlyActions = true),
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.GlassSerif,
                         recentWidthDp = 207, recentHeightDp = 96,
                         recentThumbnailWidthDp = 48f, recentThumbnailHeightDp = 81,

@@ -48,6 +48,7 @@ internal fun maxExploreEntries(comics: List<ComicEntity>, collections: List<Coll
     memberships: List<CollectionMembership>, repository: LibraryRepository, filter: String,
     onFilter: (String) -> Unit, onOpen: (String) -> Unit,
     state: LazyListState, onItemFocused: (String, String?) -> Unit,
+    onCollectionOpen: (String) -> Unit = {},
     restoreKey: String? = null, restoreRequest: Int = 0, onRestoreHandled: () -> Unit = {},
 ) {
     val entries = remember(comics, collections, memberships) { maxExploreEntries(comics, collections, memberships) }
@@ -81,7 +82,7 @@ internal fun maxExploreEntries(comics: List<ComicEntity>, collections: List<Coll
                 }
                 val active = entry.collectionId != null && filter == "collection:${entry.collectionId}"
                 Card(onClick = {
-                    if (entry.collectionId != null) onFilter(if (active) "all" else "collection:${entry.collectionId}")
+                    if (entry.collectionId != null) onCollectionOpen(entry.collectionId)
                     else entry.comicId?.let(onOpen)
                 }, modifier = Modifier.width(116.dp).testTag("max-explore-${entry.key}")
                     .focusRequester(requester).onGloballyPositioned { positioned[entry.key] = true }
@@ -90,6 +91,7 @@ internal fun maxExploreEntries(comics: List<ComicEntity>, collections: List<Coll
                         if (it.isFocused) onItemFocused(entry.key, entry.comicId)
                     }.semantics { selected = active },
                     shape = CardDefaults.shape(RoundedCornerShape(8.dp)),
+                    border = CardDefaults.border(border = Border.None, focusedBorder = Border.None),
                     colors = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent),
                     scale = CardDefaults.scale(focusedScale = 1.03f)) {
                     Column(Modifier.fillMaxWidth().padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally,

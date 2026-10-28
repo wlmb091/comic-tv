@@ -42,7 +42,7 @@ import com.pelican.comictv.ui.*
                 Box(Modifier.width(hero.posterWidthDp.dp).height(hero.posterHeightDp.dp)
                     .border(hero.posterBorderDp.dp, TvColors.FocusAccent, RoundedCornerShape(theme.shapes.posterRadiusDp.dp))
                     .background(Color.Black, RoundedCornerShape(6.dp)).padding(3.dp)) {
-                    AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = if (hero.stretchPoster) ContentScale.FillBounds else ContentScale.Fit)
                 }
             }
             Column(Modifier.fillMaxWidth(hero.textWidthFraction),
@@ -61,8 +61,8 @@ import com.pelican.comictv.ui.*
                     if (comic.lastRead > 0 && comic.pageCount > 0) ProgressTrack((comic.currentPage + 1f) / comic.pageCount,
                         Modifier.widthIn(max = hero.progressWidthDp.dp).fillMaxWidth())
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, readModifier.then(actionFocus), primary = theme.colors.outlinedHeroAction || theme.colors.filledHeroAction, transparentBackground = !editorial, heroAction = true)
-                        TvButton("Ver detalhes", { onOpen(comic.id) }, actionFocus, transparentBackground = !editorial, heroAction = true)
+                        TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, readModifier.then(actionFocus), primary = theme.colors.outlinedHeroAction || theme.colors.filledHeroAction, transparentBackground = !editorial, heroAction = true, textOnlyWhenUnfocused = hero.textOnlyActions)
+                        TvButton("Ver detalhes", { onOpen(comic.id) }, actionFocus, transparentBackground = !editorial, heroAction = true, textOnlyWhenUnfocused = hero.textOnlyActions)
                     }
                 } else {
                     Text("Adicione suas edições ou explore as fontes online.", color = TvColors.Muted, fontSize = 16.sp)

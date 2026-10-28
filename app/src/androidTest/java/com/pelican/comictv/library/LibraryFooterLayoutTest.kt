@@ -32,6 +32,7 @@ class LibraryFooterLayoutTest {
     private fun fixture(preset: ColorPreset, focusedId: String? = null,
         searchEvents: MutableIntState = mutableIntStateOf(0), screenKey: MutableIntState = mutableIntStateOf(0),
         collectionData: List<CollectionEntity> = emptyList(), navigateDetails: Boolean = false,
+        membershipData: List<CollectionMembership> = emptyList(), shellSearch: Boolean = false,
         body: () -> Unit) = runBlocking {
         val real = InstrumentationRegistry.getInstrumentation().targetContext
         val root = File(real.cacheDir, "footer-layout-${System.nanoTime()}").apply { mkdirs() }
@@ -56,11 +57,14 @@ class LibraryFooterLayoutTest {
                         if (details) TvButton("Voltar dos detalhes", { details = false })
                         else savedScreens.SaveableStateProvider("library") {
                             key(screenKey.intValue) {
+                                CompositionLocalProvider(LocalShellLibrarySearch provides
+                                    (if (shellSearch) ({ searchEvents.intValue++ }) else null)) {
                                 LibraryScreen(books, repository, currentFocusedId, { currentFocusedId = it },
                                     { if (navigateDetails) details = true }, {},
                                     requestInitialFocus = initial, onInitialFocus = { initial = false },
                                     query = query, onQuery = { query = it }, filter = filter, onFilter = { filter = it },
-                                    collections = collectionData, searchRequest = searchEvents.intValue)
+                                    collections = collectionData.toList(), memberships = membershipData, searchRequest = searchEvents.intValue)
+                                }
                             }
                         }
                     }
@@ -77,43 +81,43 @@ class LibraryFooterLayoutTest {
     }
 
     private fun footerFollowsEveryCover(preset: ColorPreset) = fixture(preset) {
-        if (preset == ColorPreset.Flix) {
-            compose.onNodeWithText("Buscar").assertIsDisplayed().assertIsFocused()
-        } else {
-            compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
-            compose.onNodeWithText("Buscar").assertDoesNotExist()
-        }
+        compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
+        compose.onNodeWithText("Buscar").assertDoesNotExist()
         compose.onNodeWithText("Todas").assertDoesNotExist()
         compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
         compose.onNodeWithTag("library-footer").assertIsDisplayed()
         compose.onNodeWithText("Biblioteca · 24").assertIsDisplayed()
         compose.onNodeWithText("Histórico · 1").assertIsDisplayed()
         compose.onNodeWithText("Todas").assertIsDisplayed()
-        val lastCover = compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-        val footer = compose.onNodeWithTag("library-footer").fetchSemanticsNode().boundsInRoot
-        assertTrue("O rodapé deve seguir a última capa da coleção", lastCover.bottom <= footer.top)
+        if (preset == ColorPreset.Max) {
+            compose.onNodeWithTag("library-cover-footer-23").assertDoesNotExist()
+            compose.onNodeWithText("Sua coleção · 24").assertDoesNotExist()
+        } else {
+            val lastCover = compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            val footer = compose.onNodeWithTag("library-footer").fetchSemanticsNode().boundsInRoot
+            assertTrue("O rodapé deve seguir a última capa da coleção", lastCover.bottom <= footer.top)
+        }
         if (preset == ColorPreset.Cinema) compose.onNodeWithText("Buscar").assertDoesNotExist()
         if (preset == ColorPreset.Max) compose.onNodeWithText("Buscar").assertIsDisplayed()
     }
 
-    @Test fun flixKeepsOnlySearchAboveAndPlacesControlsAfterCollection() = footerFollowsEveryCover(ColorPreset.Flix)
+    @Test fun flixKeepsSearchOutOfHomeAndPlacesControlsAfterCollection() = footerFollowsEveryCover(ColorPreset.Flix)
     @Test fun cinemaKeepsControlsAtEndAndSearchInShell() = footerFollowsEveryCover(ColorPreset.Cinema)
     @Test fun maxPlacesSearchAndAllBrowsingControlsAfterCollection() = footerFollowsEveryCover(ColorPreset.Max)
     @Test fun primeStartsAtReadingAndKeepsSearchInShellAndSecondaryControlsAtEnd() = footerFollowsEveryCover(ColorPreset.Prime)
 
-    @Test fun maxSearchReturnsToFooterWhenFilteringShortensTheCollection() = fixture(ColorPreset.Max) {
+    @Test fun maxSearchShowsEmptyResultsWhenFilteringRemovesEveryMatch() = fixture(ColorPreset.Max) {
         compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
         compose.onNodeWithText("Buscar").performClick()
         compose.onNodeWithContentDescription("Título do quadrinho").performTextInput("Sem correspondência")
         compose.onNodeWithText("Ver resultados").performClick()
-        compose.onNodeWithText("Buscar").assertIsDisplayed().assertIsFocused()
-        compose.onNodeWithTag("library-footer").assertIsDisplayed()
-        compose.onNodeWithText("Todas").assertIsDisplayed()
+        compose.onNodeWithText("Nenhum quadrinho encontrado").assertIsDisplayed()
+        compose.onNodeWithText("Mostrar todas").assertIsDisplayed().assertIsFocused()
     }
 
     @Test fun collectionManagerReturnsToItsFooterButton() = fixture(ColorPreset.Flix) {
         compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
-        compose.onNodeWithTag("library-filters").performScrollToNode(hasText("Gerenciar coleções"))
+        compose.onNodeWithTag("library-footer").performScrollToNode(hasText("Gerenciar coleções"))
         compose.onNodeWithText("Gerenciar coleções").performClick()
         compose.onNodeWithText("Criar coleção").assertIsFocused()
         compose.onNodeWithText("Fechar").performClick()
@@ -133,9 +137,11 @@ class LibraryFooterLayoutTest {
         compose.onNodeWithText("Continuar leitura").assertIsNotDisplayed()
     }
 
-    @Test fun returningFromDetailsRestoresTheCoverAfterRecentRows() = fixture(ColorPreset.Max, "footer-23") {
-        compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().assertIsFocused()
-        compose.onNodeWithText("Continuar leitura").assertIsNotDisplayed()
+    @Test fun maxAllLibraryRemainsAvailableFromHomeFooter() = fixture(ColorPreset.Max) {
+        compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
+        compose.onNodeWithText("Biblioteca · 24").performClick()
+        compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-cover-footer-23"))
+        compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed()
     }
 
     @Test fun maxHistoryUsesLargePortraitCoversAndKeepsFocusAt130Percent() = fixture(ColorPreset.Max) {
@@ -161,6 +167,12 @@ class LibraryFooterLayoutTest {
     }
 
     private fun collectionCoverKeepsPortraitGeometry(preset: ColorPreset) = fixture(preset, "footer-23") {
+        if (preset == ColorPreset.Max) {
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
+            compose.onNodeWithText("Biblioteca · 24").performClick()
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-cover-footer-23"))
+            compose.onNodeWithTag("library-cover-footer-23").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        }
         val bounds = compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().assertIsFocused()
             .fetchSemanticsNode().boundsInRoot
         assertTrue("A coleção mantém capas verticais", bounds.height > bounds.width)
@@ -234,16 +246,126 @@ class LibraryFooterLayoutTest {
             compose.onNodeWithTag("max-explore-row").performScrollToNode(hasTestTag("max-explore-collection-explore-12"))
             val circle = compose.onNodeWithTag("max-explore-collection-explore-12")
             circle.performSemanticsAction(SemanticsActions.RequestFocus) { it() }.assertIsFocused()
-            circle.performKeyInput { pressKey(Key.DirectionCenter) }.assertIsFocused().assertIsSelected()
             val left = circle.fetchSemanticsNode().boundsInRoot.left
+            circle.performKeyInput { pressKey(Key.DirectionCenter) }
+            compose.onNodeWithTag("max-collection-page").assertExists()
+            compose.onNodeWithTag("max-collection-empty").assertIsDisplayed()
             compose.runOnIdle { searchEvents.intValue++ }
             compose.onNodeWithContentDescription("Título do quadrinho").assertIsDisplayed()
             compose.onNodeWithText("Ver resultados").performClick()
-            circle.assertIsDisplayed().assertIsFocused().assertIsSelected()
+            compose.onNodeWithTag("max-collection-page").assertExists()
+            compose.onNodeWithText("Voltar").assertIsFocused().performClick()
+            circle.assertIsDisplayed().assertIsFocused()
             assertTrue("Busca restaura o deslocamento da faixa circular", kotlin.math.abs(left - circle.fetchSemanticsNode().boundsInRoot.left) < 2f)
             compose.onAllNodes(isFocused()).assertCountEquals(1)
         }
     }
+
+    @Test fun maxCollectionDetailsReturnsToPageThenItsHomeCircle() =
+        fixture(ColorPreset.Max, collectionData = listOf(CollectionEntity("owned", "Minhas edições", "minhas edicoes")),
+            navigateDetails = true, membershipData = books.map { CollectionMembership(it.id, "owned") }) {
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("max-explore"))
+            val circle = compose.onNodeWithTag("max-explore-collection-owned")
+            circle.performSemanticsAction(SemanticsActions.RequestFocus) { it() }.performClick()
+            compose.onNodeWithTag("max-collection-page").performScrollToNode(hasTestTag("max-collection-cover-footer-20"))
+            val book = compose.onNodeWithTag("max-collection-cover-footer-20")
+            book.performSemanticsAction(SemanticsActions.RequestFocus) { it() }.performClick()
+            compose.onNodeWithText("Voltar dos detalhes").performClick()
+            book.assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithTag("max-collection-page").performScrollToNode(hasText("Voltar"))
+            compose.onNodeWithText("Voltar").performClick()
+            circle.assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithTag("library-cover-footer-20").assertDoesNotExist()
+        }
+
+    @Test fun deletingAnOpenCollectionReturnsHomeWithoutRemovingBooks() {
+        val collections = mutableStateListOf(CollectionEntity("removed", "Removida", "removida"))
+        fixture(ColorPreset.Max, collectionData = collections) {
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("max-explore"))
+            compose.onNodeWithTag("max-explore-collection-removed").performClick()
+            compose.onNodeWithTag("max-collection-empty").assertIsDisplayed()
+            compose.runOnIdle { collections.clear() }
+            compose.onNodeWithTag("max-collection-page").assertDoesNotExist()
+            compose.onNodeWithTag("library-grid").assertExists()
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
+            compose.onNodeWithText("Biblioteca · 24").performClick()
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-cover-footer-23"))
+            compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed()
+        }
+    }
+
+    @Test fun maxHomeSearchResultsRevealMatchingLibraryCover() {
+        val searchEvents = mutableIntStateOf(0)
+        fixture(ColorPreset.Max, searchEvents = searchEvents) {
+            compose.onNodeWithTag("library-cover-footer-23").assertDoesNotExist()
+            compose.runOnIdle { searchEvents.intValue++ }
+            compose.onNodeWithContentDescription("Título do quadrinho").performTextInput("Edição 23")
+            compose.onNodeWithText("Ver resultados").performClick()
+            compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithTag("library-cover-footer-22").assertDoesNotExist()
+        }
+    }
+
+    @Test fun maxShellSearchWithoutMatchesFocusesVisibleClearAction() {
+        val searchEvents = mutableIntStateOf(0)
+        fixture(ColorPreset.Max, searchEvents = searchEvents, shellSearch = true) {
+            compose.runOnIdle { searchEvents.intValue++ }
+            compose.onNodeWithContentDescription("Título do quadrinho").performTextInput("Nenhum título existe")
+            compose.onNodeWithText("Ver resultados").performClick()
+            compose.onNodeWithText("Nenhum quadrinho encontrado").assertIsDisplayed()
+            compose.onNodeWithText("Mostrar todas").assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithText("Mostrar todas").performClick()
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-cover-footer-23"))
+            compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed()
+        }
+    }
+
+    @Test fun maxShellCollectionSearchWithoutMatchesStaysOnPageAndReturnsHome() {
+        val searchEvents = mutableIntStateOf(0)
+        fixture(ColorPreset.Max, searchEvents = searchEvents, shellSearch = true,
+            collectionData = listOf(CollectionEntity("shell-empty", "Coleção vazia", "colecao vazia"))) {
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("max-explore"))
+            val circle = compose.onNodeWithTag("max-explore-collection-shell-empty")
+            circle.performSemanticsAction(SemanticsActions.RequestFocus) { it() }.performClick()
+            compose.runOnIdle { searchEvents.intValue++ }
+            compose.onNodeWithContentDescription("Título do quadrinho").performTextInput("Nenhum título existe")
+            compose.onNodeWithText("Ver resultados").performClick()
+            compose.onNodeWithTag("max-collection-empty").assertIsDisplayed()
+            compose.onNodeWithText("Voltar").assertIsFocused().performClick()
+            circle.assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithTag("library-cover-footer-0").assertDoesNotExist()
+        }
+    }
+
+    @Test fun maxEmptySearchDoesNotRevealHomeGrid() {
+        val searchEvents = mutableIntStateOf(0)
+        fixture(ColorPreset.Max, searchEvents = searchEvents) {
+            compose.runOnIdle { searchEvents.intValue++ }
+            compose.onNodeWithText("Ver resultados").performClick()
+            compose.onNodeWithTag("library-cover-footer-0").assertDoesNotExist()
+        }
+    }
+
+    @Test fun maxCollectionHoldKeepsOptionsAndRestoresItsCard() =
+        fixture(ColorPreset.Max, collectionData = listOf(CollectionEntity("hold", "Menu de edição", "menu de edicao")),
+            navigateDetails = true, membershipData = books.map { CollectionMembership(it.id, "hold") }) {
+            compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("max-explore"))
+            compose.onNodeWithTag("max-explore-collection-hold")
+                .performSemanticsAction(SemanticsActions.RequestFocus) { it() }.performClick()
+            val book = compose.onNodeWithTag("max-collection-cover-footer-0")
+            book.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            book.performKeyInput { keyDown(Key.DirectionCenter) }
+            // The shared hold controller intentionally uses Android monotonic real time.
+            android.os.SystemClock.sleep(1100)
+            compose.mainClock.advanceTimeBy(1100)
+            compose.onNodeWithText("Abrir detalhes").assertIsDisplayed()
+            compose.onNodeWithText("Voltar dos detalhes").assertDoesNotExist()
+            compose.onNodeWithText("Fechar").performClick()
+            book.assertIsDisplayed().assertIsFocused()
+            book.performKeyInput { keyUp(Key.DirectionCenter); pressKey(Key.DirectionCenter) }
+            compose.onNodeWithText("Voltar dos detalhes").assertIsDisplayed().performClick()
+            book.assertIsDisplayed().assertIsFocused()
+        }
 
     @Test fun maxHeroSecondaryFocusDoesNotKeepAnOldExplorerSearchOrigin() {
         val searchEvents = mutableIntStateOf(0)
@@ -272,7 +394,7 @@ class LibraryFooterLayoutTest {
             compose.onNodeWithText("Voltar dos detalhes").assertIsDisplayed().performClick()
             circle.assertIsDisplayed().assertIsFocused()
             assertTrue("Detalhes restaura o deslocamento da faixa circular", kotlin.math.abs(left - circle.fetchSemanticsNode().boundsInRoot.left) < 2f)
-            compose.onNodeWithTag("library-cover-footer-10").assertIsNotDisplayed()
+            compose.onNodeWithTag("library-cover-footer-10").assertDoesNotExist()
             compose.onAllNodes(isFocused()).assertCountEquals(1)
         }
 

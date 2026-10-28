@@ -24,6 +24,13 @@ class MaxExploreEntriesTest {
         assertEquals(emptyList<ExploreEntry>(), maxExploreEntries(emptyList(), emptyList(), emptyList()))
     }
 
+    @Test fun maxHomeFooterOmitsHeadingAndCoversButHistoryAndOtherThemesKeepThem() {
+        assertEquals(4, libraryGridFooterIndex(false, 3, 24, true, collectionVisible = false))
+        assertEquals(2, libraryGridFooterIndex(false, 0, 0, true, collectionVisible = false))
+        assertEquals(29, libraryGridFooterIndex(false, 3, 24, true))
+        assertEquals(26, libraryGridFooterIndex(true, 3, 24))
+    }
+
     @Test fun optionalExplorerDoesNotChangeRecentRowIndexAndMovesEveryCoverAndFooterOnce() {
         assertEquals(5, libraryGridHeaderItems(false, 3, true))
         assertEquals(3, libraryGridRecentRowIndex(true))

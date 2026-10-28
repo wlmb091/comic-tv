@@ -561,9 +561,9 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     val sidebarReflection by animateFloatAsState(if (expanded) 1f else .6f,
                         tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
                     Box(Modifier.align(if (policy == ThemeNavigationPolicy.ImmersiveMenu) Alignment.TopEnd else Alignment.TopStart)
-                        .width(expandedWidth).fillMaxHeight().graphicsLayer {
+                        .width(if (theme.navigation.staticCollapsedRail && !expanded) railWidth else expandedWidth).fillMaxHeight().graphicsLayer {
                             // Constant layout bounds: the overlay moves without measuring the content again.
-                            val hiddenWidth = if (policy == ThemeNavigationPolicy.ImmersiveMenu) size.width else size.width - railWidth.toPx()
+                            val hiddenWidth = if (theme.navigation.staticCollapsedRail && !expanded) 0f else if (policy == ThemeNavigationPolicy.ImmersiveMenu) size.width else size.width - railWidth.toPx()
                             translationX = (1f - overlayProgress) * hiddenWidth *
                                 if (policy == ThemeNavigationPolicy.ImmersiveMenu) 1f else -1f
                         }) {
