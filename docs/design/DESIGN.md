@@ -1,5 +1,9 @@
 # Design final aprovado — Comic TV
 
+## Correção por fotos1.2.1
+
+As fotos do usuário em [correções1.2.1](themes/photos-1.2.1/README.md) têm precedência sobre a implementação1.2.0: fundo amplo automático com capa como alternativa, Cinema sem logo/Menu à direita, Flix sem painel lateral recolhido e com escurecimento ao expandir; controlesPrime/Max na mesma linha. Comic TV original preservado.
+
 ## Aprovação atual — cinco layouts1.2.0
 
 Em27/10/2026 o usuário aprovou os cinco temas e sua implementação com layouts próprios. A referência atual é [Cinco layouts aprovados](themes/README.md), com uma imagem local para Comic TV, Flix, Prime, Max e Cinema. Essa aprovação substitui a composição única e as restrições antigas de manter propostas gerais apenas como estudo. Preservar as regras de acessibilidade, dados reais e identidade abaixo. Última decisão: vidro80% (alto contraste100%); excluir Lima/Rosa/Laranja das escolhas preservando leitura de IDs legados.

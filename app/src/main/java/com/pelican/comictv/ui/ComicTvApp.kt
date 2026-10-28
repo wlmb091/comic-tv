@@ -129,10 +129,16 @@ import kotlinx.coroutines.launch
 
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
+            var backdropId by remember { mutableStateOf(library.focusedId) }
             TvShell("library", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { launchSingleTop = true } },
-                contentFocusPending = startupFocusPending, focusContentOnEntry = navigationContentTarget == "library", onSectionFocused = { navigationContentTarget = null }) {
+                contentFocusPending = startupFocusPending, focusContentOnEntry = navigationContentTarget == "library", onSectionFocused = { navigationContentTarget = null },
+                backdrop = {
+                    if (TvColors.options.preset == ColorPreset.Flix) {
+                        CinemaBackdrop(featuredComic(comics, backdropId)?.id, container.library, Modifier.fillMaxSize())
+                    }
+                }) {
                 LibraryScreen(comics, container.library, library.focusedId,
-                    onFocus = { library.focusedId = it }, onOpen = { nav.navigate("details/$it") },
+                    onFocus = { library.focusedId = it; backdropId = it }, onOpen = { nav.navigate("details/$it") },
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
                     requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
                     query = libraryQuery, filter = libraryFilter, collections = collections, memberships = memberships,
@@ -259,7 +265,7 @@ import kotlinx.coroutines.launch
 
 @Composable internal fun TvShell(selected: String, onNavigate: (String) -> Unit,
     focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false,
-    focusContentOnEntry: Boolean = false, content: @Composable () -> Unit) {
+    focusContentOnEntry: Boolean = false, backdrop: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
     val policy = ThemeNavigationPolicy.forPreset(TvColors.options.preset)
     val sectionFocus = remember { FocusRequester() }
     val contentFocus = remember { FocusRequester() }
@@ -305,6 +311,8 @@ import kotlinx.coroutines.launch
     val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
     val immersiveLibrary = policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"
     val expanded = focusWithin || policy == ThemeNavigationPolicy.ImmersiveMenu
+    val flix = TvColors.options.preset == ColorPreset.Flix
+    val iconOnlySidebar = flix && !expanded && !TvColors.options.highContrast
     val expandedWidth = minOf(320.dp, 228.dp * fontScale)
     val horizontal = policy == ThemeNavigationPolicy.TopBar || policy == ThemeNavigationPolicy.BottomDock
     val navigationToContentKey = when (policy) {
@@ -337,7 +345,7 @@ import kotlinx.coroutines.launch
             border = androidx.tv.material3.ButtonDefaults.border(focusedBorder = androidx.tv.material3.Border(
                 androidx.compose.foundation.BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber))),
             colors = androidx.tv.material3.ButtonDefaults.colors(
-                containerColor = if (active) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
+                containerColor = if (active && !iconOnlySidebar) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
                 contentColor = if (active) TvColors.Amber else Color.White,
                 focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
             if (policy == ThemeNavigationPolicy.BottomDock) {
@@ -373,10 +381,11 @@ import kotlinx.coroutines.launch
         // Always return to the current section, regardless of the nearest icon's geometry.
         onEnter = { if (requestedFocusDirection == entryDirection) sectionFocus.requestFocus() }
     }.focusGroup()
-    Box(Modifier.fillMaxSize().background(TvColors.Background)) {
+    Box(Modifier.fillMaxSize().background(TvColors.Background).testTag("theme-shell")) {
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
-        Box(Modifier.fillMaxSize().then(if (immersiveLibrary) Modifier
-            else Modifier.padding(horizontal = 20.dp, vertical = 16.dp))) {
+        backdrop()
+        val shellInsets = if (immersiveLibrary) Modifier else Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
+        Box(Modifier.fillMaxSize()) {
             val contentPadding = when (policy) {
                 ThemeNavigationPolicy.Sidebar -> PaddingValues(start = 80.dp)
                 ThemeNavigationPolicy.TopBar -> PaddingValues(top = 72.dp * fontScale)
@@ -386,45 +395,52 @@ import kotlinx.coroutines.launch
             CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry,
                 LocalSectionContentEntry provides (focusContentOnEntry || internalEntry),
                 LocalContentNavigation provides ::navigateWithinContent) {
-                TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().padding(contentPadding)
+                TvContentEntry(contentFocus, sectionFocus, Modifier.fillMaxSize().then(shellInsets).padding(contentPadding)
                     .onFocusChanged { atContentEntry = it.isFocused },
                     onEntryLeft = { preferredEntry.cancel(); internalEntry = false },
                     navigationPolicy = policy, onNavigateToMenu = ::openNavigation, content = content)
             }
-            if (policy == ThemeNavigationPolicy.ImmersiveMenu && !cinemaMenu) {
-                Row(Modifier.align(Alignment.TopStart).then(if (immersiveLibrary) Modifier.padding(horizontal = 20.dp, vertical = 16.dp) else Modifier), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    TvButton("Menu", ::openNavigation, Modifier.testTag("cinema-menu"))
-                    ComicWordmark(Modifier.width(180.dp * fontScale))
-                }
+            if (flix && expanded) {
+                Box(Modifier.matchParentSize().testTag("flix-navigation-scrim")
+                    .background(Color.Black.copy(alpha = .68f)))
             }
-            if (horizontal) {
-                val barModifier = if (policy == ThemeNavigationPolicy.TopBar)
-                    Modifier.align(Alignment.TopCenter).fillMaxWidth().testTag("navigation-top")
-                else Modifier.align(Alignment.BottomCenter).fillMaxWidth(.9f).testTag("navigation-bottom")
-                Row(barModifier.glassPanel(surface = TvColors.FrostedSidebar).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (policy == ThemeNavigationPolicy.TopBar) {
-                        ComicWordmark(Modifier.width(180.dp * fontScale).padding(horizontal = 8.dp))
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    Row(navigationModifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        routes.indices.forEach { NavigationItem(it, Modifier.weight(1f)) }
+            Box(Modifier.fillMaxSize().then(shellInsets)) {
+                if (policy == ThemeNavigationPolicy.ImmersiveMenu && !cinemaMenu) {
+                    Box(Modifier.align(Alignment.TopEnd).then(if (immersiveLibrary) Modifier.padding(horizontal = 20.dp, vertical = 16.dp) else Modifier)) {
+                        TvButton("Menu", ::openNavigation, Modifier.testTag("cinema-menu"))
                     }
                 }
-            } else if (policy == ThemeNavigationPolicy.Sidebar || cinemaMenu) {
-                val sidebarReflection by animateFloatAsState(if (expanded) 1f else .6f,
-                    tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
-                Column(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight()
-                    .testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
-                    .glassPanel(surface = TvColors.FrostedSidebar, reflection = { sidebarReflection })
-                    .then(navigationModifier).verticalScroll(rememberScrollState()).padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
-                        if (expanded) ComicWordmark(Modifier.fillMaxWidth().heightIn(min = 44.dp), centered = true)
-                        else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
-                            Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
+                if (horizontal) {
+                    val barModifier = if (policy == ThemeNavigationPolicy.TopBar)
+                        Modifier.align(Alignment.TopCenter).fillMaxWidth().testTag("navigation-top")
+                    else Modifier.align(Alignment.BottomCenter).fillMaxWidth(.9f).testTag("navigation-bottom")
+                    Row(barModifier.glassPanel(surface = TvColors.FrostedSidebar).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (policy == ThemeNavigationPolicy.TopBar) {
+                            ComicWordmark(Modifier.width(180.dp * fontScale).padding(horizontal = 8.dp))
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Row(navigationModifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            routes.indices.forEach { NavigationItem(it, Modifier.weight(1f)) }
+                        }
                     }
-                    routes.indices.forEach { NavigationItem(it, Modifier.fillMaxWidth()) }
+                } else if (policy == ThemeNavigationPolicy.Sidebar || cinemaMenu) {
+                    val sidebarReflection by animateFloatAsState(if (expanded) 1f else .6f,
+                        tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
+                    Box(Modifier.width(if (expanded) expandedWidth else 64.dp).fillMaxHeight()) {
+                        if (!iconOnlySidebar) Box(Modifier.matchParentSize().testTag("sidebar-panel")
+                            .glassPanel(surface = TvColors.FrostedSidebar, reflection = { sidebarReflection }))
+                        Column(Modifier.fillMaxSize()
+                            .testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
+                            .then(navigationModifier).verticalScroll(rememberScrollState()).padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (policy != ThemeNavigationPolicy.ImmersiveMenu) Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
+                                if (expanded) ComicWordmark(Modifier.fillMaxWidth().heightIn(min = 44.dp), centered = true)
+                                else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
+                                    Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)
+                            }
+                            routes.indices.forEach { NavigationItem(it, Modifier.fillMaxWidth()) }
+                        }
+                    }
                 }
             }
         }

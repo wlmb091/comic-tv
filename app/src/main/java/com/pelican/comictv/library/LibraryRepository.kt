@@ -20,6 +20,8 @@ import com.pelican.comictv.performance.AppTimings
 import com.pelican.comictv.performance.LoadStage
 import com.pelican.comictv.cinema.validateCinemaArtwork
 
+internal data class LibraryBackdropImage(val file: File, val width: Int, val height: Int)
+
 class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val coverGenerator: CoverGenerator = BitmapCoverGenerator(),
     private val collectionDao: CollectionDao? = null,
@@ -41,6 +43,54 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
 
     suspend fun cinemaArtwork(id: String): File? = withContext(Dispatchers.IO) {
         mutex.withLock { if (dao.get(id) == null || !cinemaDirectory.exists()) null else cinemaStore.file(id) }
+    }
+
+    /** Local files only. Backdrop preparation never resolves a source or downloads a page. */
+    internal suspend fun libraryBackdrop(id: String): LibraryBackdropImage? = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            if (dao.get(id) == null) return@withLock null
+            val active = currentCoroutineContext()
+            runInterruptible {
+                active.ensureActive()
+                try {
+                    if (cinemaDirectory.exists()) backdropImage(cinemaStore.file(id))?.let { return@runInterruptible it }
+                } catch (_: IOException) { active.ensureActive() }
+                // Full first pages preserve more detail than the separately generated 480×720 cover.
+                backdropImage(File(pageDirectory, "$id-0"))?.let { return@runInterruptible it }
+                if (com.pelican.comictv.sources.OnlineIdentity.isOnline(id)) {
+                    // Read only the already downloaded page, without package-wide hashing or network IO.
+                    try {
+                        val offline = com.pelican.comictv.offline.OfflineStore(File(context.filesDir, "offline"))
+                        if (offline.hasPackage(id)) backdropImage(offline.page(id, 0))?.let { return@runInterruptible it }
+                    } catch (_: Exception) { active.ensureActive() }
+                } else {
+                    val original = store.original(id)
+                    if (original.isFile) {
+                        try {
+                            val first = archive.index(original).firstOrNull()
+                            active.ensureActive()
+                            if (first != null && !first.key.startsWith("epub:text:")) {
+                                val full = cache.materialize("$id-${first.index}", setOfNotNull(protectedPage),
+                                    write = { archive.extract(original, first, it); active.ensureActive() },
+                                    validate = { validateDimensions(it) })
+                                backdropImage(full)?.let { return@runInterruptible it }
+                            }
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { active.ensureActive() /* Keep the stored cover usable. */ }
+                    }
+                }
+                active.ensureActive()
+                backdropImage(cover(id))
+            }
+        }
+    }
+
+    private fun backdropImage(file: File?): LibraryBackdropImage? {
+        if (file?.isFile != true) return null
+        return try {
+            val bounds = validateDimensions(file)
+            LibraryBackdropImage(file, bounds.outWidth, bounds.outHeight)
+        } catch (_: IOException) { null }
     }
 
     suspend fun importCinemaArtwork(id: String, uri: Uri): File = withContext(Dispatchers.IO) {

@@ -4,9 +4,9 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
-## Versão1.2.0
+## Versão1.2.1
 
-Cinco layouts próprios: Comic TV/estante, Flix/lateral, Prime/menu superior, Max/dock inferior e Cinema/imersivo. Arte horizontal manual separada da capa, vidro80% e remoção de Lima/Rosa/Laranja das escolhas com migração de preferências. Veja [notas e limites físicos](docs/releases/1.2.0.md) e [referências aprovadas](docs/design/themes/README.md).
+Correções por fotos: fundo amplo automático com arte horizontal ou capa nos quatro temas cinematográficos; Cinema sem logo/Menu à direita, Flix só ícones recolhido e controlesPrime/Max na mesma linha. Comic TV original preservado. Veja [notas e limites físicos](docs/releases/1.2.1.md) e [fotos e regras aprovadas](docs/design/themes/photos-1.2.1/README.md).
 
 ## Versão 1.1.21
 

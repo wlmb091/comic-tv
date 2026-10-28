@@ -17,4 +17,17 @@ object CinemaImagePolicy {
         val factor = minOf(1.0, sqrt(pixels.toDouble() / (width.toLong() * height)))
         return (width * factor).toInt().coerceAtLeast(1) to (height * factor).toInt().coerceAtLeast(1)
     }
+
+    /** Crop needs the source aspect ratio, including the portion outside the viewport. */
+    fun sourceDecodeSize(viewWidth: Int, viewHeight: Int, sourceWidth: Int, sourceHeight: Int,
+        lowMemory: Boolean): Pair<Int, Int> {
+        require(sourceWidth > 0 && sourceHeight > 0)
+        val scaleToFill = maxOf(viewWidth.coerceIn(1, 8192).toDouble() / sourceWidth,
+            viewHeight.coerceIn(1, 8192).toDouble() / sourceHeight)
+        val pixels = if (lowMemory) 1920L * 1080 else 3840L * 2160
+        val scale = minOf(1.0, scaleToFill,
+            sqrt(pixels.toDouble() / (sourceWidth.toLong() * sourceHeight)))
+        return (sourceWidth * scale).toInt().coerceAtLeast(1) to
+            (sourceHeight * scale).toInt().coerceAtLeast(1)
+    }
 }

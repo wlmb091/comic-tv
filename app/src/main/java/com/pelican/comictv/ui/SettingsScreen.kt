@@ -97,9 +97,7 @@ import kotlinx.coroutines.sync.withLock
                     ThemePresetCard(preset, options.preset == preset, { save { it.copy(preset = preset) } })
                 } }
                 settingsRow("cinema-title") { Text("Arte cinematográfica", fontSize = 23.sp) }
-                settingsRow("cinema-toggle") { TvButton("Arte cinematográfica opcional: " + if (options.cinemaMode) "ligada" else "desligada",
-                    { save { it.copy(cinemaMode = !it.cinemaMode) } }) }
-                settingsRow("cinema-description") { Text("Usa a arte horizontal escolhida manualmente em Detalhes → Mais opções para acompanhar a edição em foco na biblioteca. Tema e organização visual são escolhas independentes. O Tema Cinema mantém sua apresentação imersiva. Sem arte, usa o fundo do tema; alto contraste preserva o fundo preto.", color = TvColors.Muted) }
+                settingsRow("cinema-description") { Text("Flix, Prime, Max e Cinema mostram automaticamente o fundo da edição em foco. A arte horizontal escolhida em Detalhes → Mais opções tem prioridade; quando não houver, será usada a própria capa, ampliada com proporção preservada e recorte para preencher a área. Alto contraste mantém o fundo preto. O Comic TV original mantém sua estante.", color = TvColors.Muted) }
                 settingsRow("background-title") { Text("Fundo dos detalhes", fontSize = 23.sp) }
                 settingsRow("background-toggle") { TvButton(if (options.coverBackground) "Fundo: capa desfocada" else "Fundo: identidade Comic TV",
                     { save { it.copy(coverBackground = !it.coverBackground) } }) }

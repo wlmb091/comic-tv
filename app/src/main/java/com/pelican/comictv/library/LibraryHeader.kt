@@ -12,6 +12,16 @@ import com.pelican.comictv.ui.TvChoice
 import com.pelican.comictv.ui.TvColors
 import com.pelican.comictv.ui.ColorPreset
 
+@Composable internal fun LibraryHeaderActions(
+    libraryCount: Int, historyCount: Int, history: Boolean, searchActive: Boolean,
+    onSearch: () -> Unit, onLibrary: () -> Unit, onHistory: () -> Unit,
+    libraryModifier: Modifier = Modifier, searchModifier: Modifier = Modifier,
+) {
+    TvChoice("Buscar", searchActive, onSearch, searchModifier, compact = true)
+    TvChoice("Biblioteca · $libraryCount", !history, onLibrary, libraryModifier, compact = true)
+    TvChoice("Histórico · $historyCount", history, onHistory, compact = true)
+}
+
 @Composable internal fun LibraryHeader(
     libraryCount: Int, historyCount: Int, history: Boolean, searchActive: Boolean,
     onSearch: () -> Unit, onLibrary: () -> Unit, onHistory: () -> Unit,
@@ -19,9 +29,8 @@ import com.pelican.comictv.ui.ColorPreset
 ) {
     val scale = LocalDensity.current.fontScale.coerceAtLeast(1f)
     val actions: @Composable () -> Unit = {
-        TvChoice("Buscar", searchActive, onSearch, searchModifier, compact = true)
-        TvChoice("Biblioteca · $libraryCount", !history, onLibrary, libraryModifier, compact = true)
-        TvChoice("Histórico · $historyCount", history, onHistory, compact = true)
+        LibraryHeaderActions(libraryCount, historyCount, history, searchActive,
+            onSearch, onLibrary, onHistory, libraryModifier, searchModifier)
     }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val showBrand = TvColors.options.preset in listOf(ColorPreset.Amber, ColorPreset.Max,

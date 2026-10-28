@@ -1,12 +1,15 @@
 package com.pelican.comictv.library
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.*
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -18,10 +21,10 @@ import kotlinx.coroutines.flow.first
 
 @Composable internal fun LibraryFilters(collections: List<CollectionEntity>, filter: String,
     onFilter: (String) -> Unit, onManage: () -> Unit, restoreManage: Int = 0, returnFocusEnabled: Boolean = true,
-    entryModifier: Modifier? = null, listState: LazyListState = rememberLazyListState()) {
+    entryModifier: Modifier? = null, listState: LazyListState = rememberLazyListState(), modifier: Modifier = Modifier) {
     val list = listState
     val manage = remember { FocusRequester() }
-    LazyRow(Modifier.testTag("library-filters"), state = list, horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(3.dp)) {
+    LazyRow(modifier.testTag("library-filters"), state = list, horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(3.dp)) {
         item(key = "all") {
             val first = entryModifier ?: preferredContentEntryModifier(enabled = returnFocusEnabled)
             FilterButton("Todas", "all", filter, onFilter, first)
@@ -35,6 +38,31 @@ import kotlinx.coroutines.flow.first
             list.scrollToItem(collections.size + 2)
             snapshotFlow { list.layoutInfo.visibleItemsInfo.any { it.key == "manage" } }.first { it }
             manage.requestFocus()
+        }
+    }
+}
+
+/** Prime and Max keep filters and library actions on one line, including at130% text. */
+@Composable internal fun LibraryControlsRow(
+    collections: List<CollectionEntity>, filter: String, onFilter: (String) -> Unit, onManage: () -> Unit,
+    libraryCount: Int, historyCount: Int, history: Boolean, searchActive: Boolean,
+    onSearch: () -> Unit, onLibrary: () -> Unit, onHistory: () -> Unit,
+    restoreManage: Int = 0, returnFocusEnabled: Boolean = true,
+    entryModifier: Modifier = Modifier, searchModifier: Modifier = Modifier,
+    filterListState: LazyListState = rememberLazyListState(),
+) {
+    Row(Modifier.fillMaxWidth().testTag("library-controls-row"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        LibraryFilters(collections, filter, onFilter, onManage, restoreManage, returnFocusEnabled,
+            entryModifier, filterListState, Modifier.weight(.54f))
+        // Independent scrolling preserves one controls line without shrinking text or targets.
+        Row(Modifier.weight(.46f).horizontalScroll(rememberScrollState())
+            .padding(3.dp).testTag("library-header-actions"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LibraryHeaderActions(libraryCount, historyCount, history, searchActive,
+                onSearch, onLibrary, onHistory, searchModifier = searchModifier)
         }
     }
 }

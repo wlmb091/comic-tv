@@ -36,7 +36,9 @@ import kotlinx.coroutines.launch
     offlineIds: Set<String> = emptySet(), onDownload: ((String) -> Unit)? = null,
     onDeleteOnline: (suspend (String) -> Boolean)? = null,
 ) {
-    val cinema = TvColors.options.preset == ColorPreset.Cinema
+    val preset = TvColors.options.preset
+    val cinema = preset == ColorPreset.Cinema
+    val singleControlsRow = preset == ColorPreset.Prime || preset == ColorPreset.Max
     val grid = rememberLazyGridState()
     val pageAtTop by remember(grid) { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
     val filterList = rememberLazyListState()
@@ -56,6 +58,13 @@ import kotlinx.coroutines.launch
     val menuScope = rememberCoroutineScope()
     val headerFocus = remember { FocusRequester() }
     val searchFocus = remember { FocusRequester() }
+    suspend fun focusHeaderControl() {
+        if (singleControlsRow) {
+            filterList.scrollToItem(0)
+            snapshotFlow { filterList.layoutInfo.visibleItemsInfo.any { it.key == "all" } }.first { it }
+        }
+        headerFocus.requestFocus()
+    }
     var searching by remember { mutableStateOf(false) }
     var managing by remember { mutableStateOf(false) }
     var restoreControl by remember { mutableIntStateOf(0) }
@@ -76,7 +85,7 @@ import kotlinx.coroutines.launch
         if (requestInitialFocus) {
             grid.scrollToItem(0)
             snapshotFlow { grid.layoutInfo.visibleItemsInfo.any { it.key == "library-header" } }.first { it }
-            headerFocus.requestFocus()
+            focusHeaderControl()
             onInitialFocus()
         }
     }
@@ -88,7 +97,7 @@ import kotlinx.coroutines.launch
                 grid.scrollToItem(0)
                 optionsFor = null
                 withFrameNanos { }
-                headerFocus.requestFocus()
+                focusHeaderControl()
             } })
     }
     val visible = remember(history, recent, comics, matching) { (if (history) recent else comics).filter { it.id in matching } }
@@ -104,7 +113,7 @@ import kotlinx.coroutines.launch
         if (index < 0) {
             grid.scrollToItem(0)
             withFrameNanos { }
-            headerFocus.requestFocus()
+            focusHeaderControl()
             restored = true
             return@LaunchedEffect
         }
@@ -119,25 +128,35 @@ import kotlinx.coroutines.launch
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val cinemaHeroHeight = maxHeight - 32.dp
-    if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
+    // Flix is hosted by TvShell so its art also continues behind the collapsed sidebar.
+    if (cinema || singleControlsRow) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
     LazyVerticalGrid(
         columns = GridCells.Adaptive(140.dp), state = grid,
         modifier = Modifier.fillMaxSize().focusRestorer(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 16.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = if (singleControlsRow) 8.dp else 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(if (singleControlsRow) 10.dp else 18.dp)) {
                 if (cinema && !history) LibraryHero(featured, repository,
                     onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport,
                     modifier = Modifier.heightIn(min = cinemaHeroHeight),
                     readModifier = Modifier.focusRequester(headerFocus).then(firstFilter))
-                LibraryHeader(comics.size, recent.size, history, searching || query.isNotBlank(),
-                    { searching = true }, { history = false }, { history = true },
-                    if (cinema && !history) Modifier else Modifier.focusRequester(headerFocus), Modifier.focusRequester(searchFocus))
-                LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage,
-                    returnFocusEnabled = pageAtTop, entryModifier = if (cinema && !history) Modifier else firstFilter, listState = filterList)
+                if (singleControlsRow) {
+                    LibraryControlsRow(collections, filter, onFilter, { managing = true },
+                        comics.size, recent.size, history, searching || query.isNotBlank(),
+                        { searching = true }, { history = false }, { history = true },
+                        restoreManage = restoreManage, returnFocusEnabled = pageAtTop,
+                        entryModifier = Modifier.focusRequester(headerFocus).then(firstFilter),
+                        searchModifier = Modifier.focusRequester(searchFocus), filterListState = filterList)
+                } else {
+                    LibraryHeader(comics.size, recent.size, history, searching || query.isNotBlank(),
+                        { searching = true }, { history = false }, { history = true },
+                        if (cinema && !history) Modifier else Modifier.focusRequester(headerFocus), Modifier.focusRequester(searchFocus))
+                    LibraryFilters(collections, filter, onFilter, { managing = true }, restoreManage,
+                        returnFocusEnabled = pageAtTop, entryModifier = if (cinema && !history) Modifier else firstFilter, listState = filterList)
+                }
                 if (!cinema && !history) LibraryHero(featured, repository,
                     onRead = { focusComic(it); onRead(it) }, onOpen = { focusComic(it); onOpen(it) }, onImport = onImport)
             }

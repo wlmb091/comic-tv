@@ -21,4 +21,17 @@ class CinemaImagePolicyTest {
             assertTrue(w.toLong()*h <= if(low)1920L*1080 else 3840L*2160)
         }
     }
+
+    @Test fun portraitFallbackIncludesCroppedPixelsInTheDecodeBudget() {
+        assertEquals(1000 to 1500, CinemaImagePolicy.sourceDecodeSize(1920,1080,1000,1500,false))
+        assertEquals(1920 to 2880, CinemaImagePolicy.sourceDecodeSize(1920,1080,4000,6000,false))
+        for (low in listOf(true,false)) {
+            for ((sourceWidth,sourceHeight) in listOf(4000 to 6000, 10000 to 10000, 16000 to 1000)) {
+                val (w,h) = CinemaImagePolicy.sourceDecodeSize(3840,2160,sourceWidth,sourceHeight,low)
+                assertTrue(w <= sourceWidth && h <= sourceHeight)
+                assertTrue(w.toLong()*h <= if(low)1920L*1080 else 3840L*2160)
+                assertEquals(sourceWidth.toDouble()/sourceHeight, w.toDouble()/h, .02)
+            }
+        }
+    }
 }

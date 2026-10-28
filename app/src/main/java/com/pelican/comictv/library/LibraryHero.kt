@@ -26,7 +26,6 @@ import com.pelican.comictv.ui.*
     val cinema = preset == ColorPreset.Cinema
     val editorial = preset == ColorPreset.Amber || preset in listOf(ColorPreset.Green, ColorPreset.Blue, ColorPreset.Violet)
     Box(modifier.fillMaxWidth().heightIn(min = if (editorial) 206.dp else 230.dp)) {
-        if (!editorial && !cinema) CinemaBackdrop(comic?.id, repository, Modifier.matchParentSize())
         Row(Modifier.align(if (cinema) Alignment.BottomStart else Alignment.CenterStart)
             .fillMaxWidth().padding(horizontal = if (cinema) 32.dp else 14.dp, vertical = if (cinema) 38.dp else 12.dp),
             horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.CenterVertically) {
