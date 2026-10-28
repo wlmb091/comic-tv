@@ -68,7 +68,7 @@ class LibraryFooterLayoutTest {
     }
 
     private fun footerFollowsEveryCover(preset: ColorPreset) = fixture(preset) {
-        if (preset == ColorPreset.Flix || preset == ColorPreset.Prime) {
+        if (preset == ColorPreset.Flix) {
             compose.onNodeWithText("Buscar").assertIsDisplayed().assertIsFocused()
         } else {
             compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
@@ -90,7 +90,7 @@ class LibraryFooterLayoutTest {
     @Test fun flixKeepsOnlySearchAboveAndPlacesControlsAfterCollection() = footerFollowsEveryCover(ColorPreset.Flix)
     @Test fun cinemaKeepsControlsAtEndAndSearchInShell() = footerFollowsEveryCover(ColorPreset.Cinema)
     @Test fun maxPlacesSearchAndAllBrowsingControlsAfterCollection() = footerFollowsEveryCover(ColorPreset.Max)
-    @Test fun primeKeepsStandaloneSearchAndSecondaryControlsAtEnd() = footerFollowsEveryCover(ColorPreset.Prime)
+    @Test fun primeStartsAtReadingAndKeepsSearchInShellAndSecondaryControlsAtEnd() = footerFollowsEveryCover(ColorPreset.Prime)
 
     @Test fun maxSearchReturnsToFooterWhenFilteringShortensTheCollection() = fixture(ColorPreset.Max) {
         compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
@@ -127,6 +127,56 @@ class LibraryFooterLayoutTest {
     @Test fun returningFromDetailsRestoresTheCoverAfterRecentRows() = fixture(ColorPreset.Max, "footer-23") {
         compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().assertIsFocused()
         compose.onNodeWithText("Continuar leitura").assertIsNotDisplayed()
+    }
+
+    @Test fun maxHistoryUsesCompactHorizontalCardsAndKeepsTheCoverFocusableAt130Percent() = fixture(ColorPreset.Max) {
+        compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-footer"))
+        compose.onNodeWithText("Histórico · 1").performClick()
+        compose.onNodeWithTag("library-grid").performScrollToNode(hasTestTag("library-cover-footer-0"))
+        val card = compose.onNodeWithTag("library-cover-footer-0")
+        card.performSemanticsAction(SemanticsActions.RequestFocus) { it() }.assertIsFocused()
+        val bounds = card.fetchSemanticsNode().boundsInRoot
+        val thumbnail = compose.onNodeWithTag("library-thumbnail-footer-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val title = compose.onNodeWithTag("library-title-footer-0", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue("HistóricoMax usa cartão horizontal compacto", bounds.width > bounds.height * 1.6f)
+        assertTrue("Capa vertical inteira à esquerda dos metadados", thumbnail.height > thumbnail.width && thumbnail.right < title.left)
+        assertTrue("Título e miniatura ficam dentro do cartão", title.right <= bounds.right && thumbnail.bottom <= bounds.bottom)
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
+    }
+
+    @Test fun maxHeroKeepsReadingActionsAtItsBottomAt130Percent() = fixture(ColorPreset.Max) {
+        val hero = compose.onNodeWithTag("library-hero").fetchSemanticsNode().boundsInRoot
+        val title = compose.onNodeWithTag("library-hero-title", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val read = compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue("AçõesMax ficam na base do destaque, próximas da próxima faixa", read.center.y > hero.center.y && read.bottom <= hero.bottom)
+        assertTrue("Título precede leitura sem sobrepor a ação", title.bottom <= read.top)
+    }
+
+    private fun collectionCoverKeepsPortraitGeometry(preset: ColorPreset) = fixture(preset, "footer-23") {
+        val bounds = compose.onNodeWithTag("library-cover-footer-23").assertIsDisplayed().assertIsFocused()
+            .fetchSemanticsNode().boundsInRoot
+        assertTrue("SóMax muda a grade para cartões horizontais", bounds.height > bounds.width)
+    }
+
+    @Test fun comicCollectionKeepsPortraitCards() = collectionCoverKeepsPortraitGeometry(ColorPreset.Amber)
+    @Test fun flixCollectionKeepsPortraitCards() = collectionCoverKeepsPortraitGeometry(ColorPreset.Flix)
+    @Test fun primeCollectionKeepsPortraitCards() = collectionCoverKeepsPortraitGeometry(ColorPreset.Prime)
+    @Test fun cinemaCollectionKeepsPortraitCards() = collectionCoverKeepsPortraitGeometry(ColorPreset.Cinema)
+
+    @Test fun primeShellSearchReturnsToReadingWhenThereIsNoVisibleEditionOrigin() {
+        val searchEvents = mutableIntStateOf(0)
+        fixture(ColorPreset.Prime, searchEvents = searchEvents) {
+            compose.onNodeWithTag("library-top-search").assertDoesNotExist()
+            compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
+            compose.runOnIdle { searchEvents.intValue++ }
+            compose.onNodeWithContentDescription("Título do quadrinho").assertIsDisplayed()
+            compose.onNodeWithContentDescription("Título do quadrinho").performTextInput("Sem correspondência")
+            compose.onNodeWithText("Ver resultados").performClick()
+            compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
+            compose.onNodeWithTag("library-top-search").assertDoesNotExist()
+            compose.onAllNodes(isFocused()).assertCountEquals(1)
+        }
     }
 
     @Test fun cinemaShellSearchRestoresScrolledCoverAndDoesNotReplayAfterReentry() {

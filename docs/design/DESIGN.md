@@ -1,5 +1,9 @@
 # Design final aprovado — Comic TV
 
+## Correções por fotos —1.2.3
+
+As [fotos atuais](themes/photos-1.2.3/README.md) corrigemPrime/Max/Cinema: Prime fullbleed/menu transparente centralizado/Buscar no topo/carrossel preservado; Max cartões horizontais compactos/dock menor/destaque inferior; Cinema Menu e painel escuros comoContinuarleitura com marca apenas no expandido. Preservar foco único e retorno. Fotos1.2.2 não significam aceitação física completa da implementação.
+
 ## Referência visual atual aprovada —1.2.2
 
 Usuário aprovou explicitamente as cinco imagens em [layouts atualizados](themes/previews-1.2.2/README.md) e pediu replicação com cuidado reforçado no foco dos menus/botões. Elas complementam o lote de fotos abaixo e passam a ser a referência visual mais recente. MarcaPrimeàdireita, Cinema drawerRight/Buscar, Flixgradiente frameless, Maxfullbleed/dock e Comicestante. Foco real único e seleção persistente distinta; preservar funções/dados/acessibilidade, não inserir artes/títulos ilustrativos como dados. Aprovação da proposta não equivale à validação física da implementação.

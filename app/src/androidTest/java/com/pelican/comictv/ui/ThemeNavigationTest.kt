@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.semantics.SemanticsActions
@@ -13,6 +14,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlin.math.abs
 
 @OptIn(ExperimentalTestApi::class)
 class ThemeNavigationTest {
@@ -102,6 +104,86 @@ class ThemeNavigationTest {
         }
     }
 
+    @Test fun primeBackdropCoversViewportAndTransparentNavigationRemainsCentredAt130Percent() {
+        setShell(ColorPreset.Prime, highContrast = false)
+        val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
+        val backdrop = compose.onNodeWithTag("test-shell-backdrop").fetchSemanticsNode().boundsInRoot
+        val viewport = compose.onNodeWithTag("prime-navigation-viewport").fetchSemanticsNode().boundsInRoot
+        val brand = compose.onNodeWithTag("prime-wordmark").fetchSemanticsNode().boundsInRoot
+        assertTrue("Arte Prime alcança as quatro bordas da tela", backdrop == shell)
+        compose.onNodeWithTag("prime-navigation-panel").assertDoesNotExist()
+        assertTrue("Categorias centradas na tela mesmo com a marca à direita", abs(viewport.center.x - shell.center.x) <= 1f)
+        assertTrue("Categorias não invadem a marca", viewport.right < brand.left)
+        assertTrue("Marca permanece dentro da tela", brand.right <= shell.right)
+        assertWordmarkFits()
+    }
+
+    @Test fun primeSearchCategoryUsesGlobalCallbackFromEveryMainSectionAt130Percent() {
+        var route by mutableStateOf("library")
+        var searches = 0
+        var navigations = 0
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Prime, textPercent = 130)) {
+            CompositionLocalProvider(LocalShellLibrarySearch provides { searches++ }) {
+                key(route) {
+                    TvShell(route, { navigations++ }) { TvButton("Conteúdo", {}, preferredContentEntryModifier()) }
+                }
+            }
+        } }
+        listOf("library", "recent", "sources", "extensions", "import", "settings").forEachIndexed { index, section ->
+            compose.runOnIdle { route = section }
+            compose.onNodeWithTag("nav-search").performScrollTo().assertIsDisplayed().assertIsNotSelected().performClick()
+            compose.onNodeWithTag("nav-$section").assertIsSelected()
+            compose.runOnIdle { assertTrue(searches == index + 1 && navigations == 0) }
+        }
+    }
+
+    @Test fun primeLabelsScrollWithoutClippingAtLargeAndroidAndAppFontScales() {
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides androidx.compose.ui.unit.Density(density.density, 1.4f)) {
+                ComicTvTheme(AppearanceOptions(preset = ColorPreset.Prime, textPercent = 130)) {
+                    TvShell("library", {}, onSearch = {}) { TvButton("Conteúdo", {}, preferredContentEntryModifier()) }
+                }
+            }
+        }
+        listOf("Buscar", "Biblioteca", "Novidades", "Catálogo", "Extensões", "Importar", "Configurações").forEach { label ->
+            compose.onNodeWithText(label).performScrollTo().assertIsDisplayed()
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(label).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue("Rótulo inteiro: $label", layouts.isNotEmpty() && layouts.none { it.hasVisualOverflow })
+        }
+        assertWordmarkFits()
+    }
+
+    @Test fun primeHighContrastRetainsOpaqueNavigationSurface() {
+        setShell(ColorPreset.Prime)
+        compose.onNodeWithTag("prime-navigation-panel").assertExists()
+        compose.onNodeWithTag("navigation-top").assertExists()
+    }
+
+    @Test fun maxCompactDockPreservesTargetsAndContentClearanceAt130Percent() {
+        var density = 0f
+        var scale = 0f
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Max, textPercent = 130)) {
+            density = LocalDensity.current.density
+            scale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+            TvShell("library", {}, onSearch = {}) { TvButton("Conteúdo", {}, preferredContentEntryModifier()) }
+        } }
+        val dock = compose.onNodeWithTag("navigation-bottom").fetchSemanticsNode().boundsInRoot
+        val content = compose.onNodeWithTag("content-entry").fetchSemanticsNode().boundsInRoot
+        assertTrue("Dock compacto sem cobrir o conteúdo", content.bottom <= dock.top)
+        assertTrue("Dock usa altura compacta mesmo a130%", dock.height <= 74f * scale * density + 1f)
+        listOf("search", "library", "recent", "sources", "extensions", "import", "settings").forEach { section ->
+            val item = compose.onNodeWithTag("nav-$section").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            assertTrue("Alvo do dock conserva48dp: $section", item.height >= 48f * density && item.width >= 48f * density)
+        }
+        listOf("Buscar", "Biblioteca", "Novidades", "Catálogo", "Extensões", "Importar", "Configurações").forEach { label ->
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(label).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue("Rótulo do dock inteiro a130%: $label", layouts.isNotEmpty() && layouts.none { it.hasVisualOverflow })
+        }
+    }
+
     @Test fun cinemaRightOpensMenuOnRightAndLeftDismissesIt() {
         setShell(ColorPreset.Cinema)
         compose.onNodeWithText("COMIC TV").assertDoesNotExist()
@@ -112,10 +194,16 @@ class ThemeNavigationTest {
         val menu = compose.onNodeWithTag("sidebar-expanded").fetchSemanticsNode().boundsInRoot
         val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
         assertTrue("Menu expandido segue o botão à direita", menu.center.x > shell.center.x)
-        compose.onNodeWithText("COMIC TV").assertDoesNotExist()
+        compose.onNodeWithText("COMIC TV").assertIsDisplayed()
+        assertWordmarkFits()
+        val brand = compose.onNodeWithText("COMIC TV").fetchSemanticsNode().boundsInRoot
+        val library = compose.onNodeWithTag("nav-library").fetchSemanticsNode().boundsInRoot
+        assertTrue("Marca reaparece apenas no topo do menu expandido", brand.bottom <= library.top)
         compose.onNodeWithTag("nav-library").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Primeiro controle").assertIsFocused()
         compose.onNodeWithTag("sidebar-expanded").assertDoesNotExist()
+        compose.onNodeWithText("COMIC TV").assertDoesNotExist()
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
     }
 
     @Test fun flixIconsOverlayFullShellBackdropAndExpandedMenuDimsContent() {

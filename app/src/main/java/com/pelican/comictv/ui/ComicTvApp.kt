@@ -4,8 +4,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -54,7 +56,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.launch
 
-/** Explicit shell action; kept outside destinations so Max can search from any main section. */
+/** Explicit shell action so horizontal navigation can search from any main section. */
 internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null }
 
 @Composable fun ComicTvApp(container: AppContainer) {
@@ -150,7 +152,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 contentFocusPending = startupFocusPending, focusContentOnEntry = navigationContentTarget == "library", onSectionFocused = { navigationContentTarget = null },
                 onSearch = openLibrarySearch,
                 backdrop = {
-                    if (TvColors.options.preset == ColorPreset.Flix || TvColors.options.preset == ColorPreset.Max) {
+                    if (TvColors.options.preset in setOf(ColorPreset.Flix, ColorPreset.Prime, ColorPreset.Max)) {
                         CinemaBackdrop(featuredComic(comics, backdropId)?.id, container.library, Modifier.fillMaxSize())
                     }
                 }) {
@@ -327,7 +329,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         if (focusSectionOnEntry) { openNavigation(); onSectionFocused() }
     }
     val searchAction = onSearch ?: LocalShellLibrarySearch.current
-    val showLibrarySearch = searchAction != null && (policy == ThemeNavigationPolicy.BottomDock ||
+    val showLibrarySearch = searchAction != null && (policy == ThemeNavigationPolicy.TopBar || policy == ThemeNavigationPolicy.BottomDock ||
         (policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"))
     val routes = (if (showLibrarySearch) listOf("search" to "Buscar") else emptyList()) +
         listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "settings" to "Configurações")
@@ -381,7 +383,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             if (route == "search") { returnToContent(); searchAction?.invoke() }
             else if (active) returnToContent(true)
             else { contentFocus.requestFocus(); cinemaMenu = false; onNavigate(route) }
-        }, modifier = modifier.heightIn(min = if (policy == ThemeNavigationPolicy.BottomDock) 66.dp * fontScale else 52.dp)
+        }, modifier = modifier.heightIn(min = if (horizontal) 52.dp * fontScale else 52.dp)
             .focusProperties { canFocus = !contentFocusPending && !focusContentOnEntry }
             .testTag("nav-" + route).onFocusChanged { iconFocused = it.isFocused }
             .semantics { this.selected = active }
@@ -392,15 +394,23 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             border = androidx.tv.material3.ButtonDefaults.border(focusedBorder = androidx.tv.material3.Border(
                 androidx.compose.foundation.BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber))),
             colors = androidx.tv.material3.ButtonDefaults.colors(
-                containerColor = if (active && !iconOnlySidebar) TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
+                containerColor = if (active && !iconOnlySidebar && policy != ThemeNavigationPolicy.TopBar)
+                    TvColors.Amber.copy(alpha = .15f) else Color.Transparent,
                 contentColor = if (active) TvColors.Amber else Color.White,
                 focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
-            if (policy == ThemeNavigationPolicy.BottomDock) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+            if (policy == ThemeNavigationPolicy.TopBar) {
+                Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (route == "search") NavigationIcon(route, title, Modifier.size(18.dp))
+                    Text(title, fontSize = 13.sp, maxLines = 1, softWrap = false)
+                }
+            } else if (policy == ThemeNavigationPolicy.BottomDock) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     NavigationIcon(route, title,
                         Modifier.size(24.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
-                    Text(title, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text(title, fontSize = 12.sp, maxLines = 1, softWrap = false,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             } else {
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -438,7 +448,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             val contentPadding = when (policy) {
                 ThemeNavigationPolicy.Sidebar -> PaddingValues(start = 80.dp)
                 ThemeNavigationPolicy.TopBar -> PaddingValues(top = 72.dp * fontScale)
-                ThemeNavigationPolicy.BottomDock -> PaddingValues(bottom = 88.dp * fontScale)
+                ThemeNavigationPolicy.BottomDock -> PaddingValues(bottom = 74.dp * fontScale)
                 ThemeNavigationPolicy.ImmersiveMenu -> if (immersiveLibrary) PaddingValues(0.dp) else PaddingValues(top = 64.dp * fontScale)
             }
             CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry,
@@ -464,20 +474,31 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                                     if (event.type == KeyEventType.KeyDown) returnToContent()
                                     true
                                 } else false
-                            })
+                            }, transparentBackground = true)
                     }
                 }
-                if (horizontal) {
-                    val barModifier = if (policy == ThemeNavigationPolicy.TopBar)
-                        Modifier.align(Alignment.TopCenter).fillMaxWidth().testTag("navigation-top")
-                    else Modifier.align(Alignment.BottomCenter).fillMaxWidth(.9f).testTag("navigation-bottom")
-                    Row(barModifier.glassPanel(surface = TvColors.FrostedSidebar).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (policy == ThemeNavigationPolicy.TopBar) {
+                    val brandWidth = 150.dp * fontScale
+                    // Equal gutters keep the menu centred on the screen, independently of the right-hand brand.
+                    // Scrolling preserves every label and target at large Android/app font scales.
+                    Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().testTag("navigation-top")) {
+                        if (TvColors.options.highContrast) Box(Modifier.matchParentSize()
+                            .testTag("prime-navigation-panel").glassPanel(surface = TvColors.FrostedSidebar))
+                        Row(Modifier.align(Alignment.Center).padding(horizontal = brandWidth + 12.dp)
+                            .fillMaxWidth().testTag("prime-navigation-viewport")
+                            .horizontalScroll(rememberScrollState()).then(navigationModifier),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            routes.indices.forEach { NavigationItem(it) }
+                        }
+                        ComicWordmark(Modifier.align(Alignment.CenterEnd).width(brandWidth)
+                            .testTag("prime-wordmark"))
+                    }
+                } else if (policy == ThemeNavigationPolicy.BottomDock) {
+                    Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth(.9f).testTag("navigation-bottom")
+                        .glassPanel(surface = TvColors.FrostedSidebar).padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Row(navigationModifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             routes.indices.forEach { NavigationItem(it, Modifier.weight(1f)) }
-                        }
-                        if (policy == ThemeNavigationPolicy.TopBar) {
-                            Spacer(Modifier.width(8.dp))
-                            ComicWordmark(Modifier.width(180.dp * fontScale).padding(horizontal = 8.dp).testTag("prime-wordmark"))
                         }
                     }
                 } else if (policy == ThemeNavigationPolicy.Sidebar || cinemaMenu) {
@@ -485,13 +506,19 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
                     Box(Modifier.align(if (policy == ThemeNavigationPolicy.ImmersiveMenu) Alignment.TopEnd else Alignment.TopStart)
                         .width(if (expanded) expandedWidth else 64.dp).fillMaxHeight()) {
-                        if (!framelessSidebar) Box(Modifier.matchParentSize().testTag("sidebar-panel")
-                            .glassPanel(surface = TvColors.FrostedSidebar, reflection = { sidebarReflection }))
+                        if (!framelessSidebar) {
+                            val panel = if (policy == ThemeNavigationPolicy.ImmersiveMenu) {
+                                val shape = RoundedCornerShape(8.dp)
+                                Modifier.background(transparentButtonSurface(TvColors.options) ?: TvColors.ButtonSurface, shape)
+                                    .border(1.dp, if (TvColors.options.highContrast) Color.White else Color.White.copy(alpha = .28f), shape)
+                            } else Modifier.glassPanel(surface = TvColors.FrostedSidebar, reflection = { sidebarReflection })
+                            Box(Modifier.matchParentSize().testTag("sidebar-panel").then(panel))
+                        }
                         Column(Modifier.fillMaxSize()
                             .testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
                             .then(navigationModifier).verticalScroll(rememberScrollState()).padding(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (policy != ThemeNavigationPolicy.ImmersiveMenu) Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
+                            Box(Modifier.fillMaxWidth().heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
                                 if (expanded) ComicWordmark(Modifier.fillMaxWidth().heightIn(min = 44.dp), centered = true)
                                 else androidx.tv.material3.Icon(painterResource(R.drawable.brand_mark), "Comic TV",
                                     Modifier.size(38.dp).align(Alignment.Center), tint = TvColors.Amber)

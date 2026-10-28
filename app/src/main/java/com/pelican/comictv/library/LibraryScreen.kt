@@ -44,7 +44,7 @@ import kotlinx.coroutines.launch
     val cinema = preset == ColorPreset.Cinema
     val textScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
     val footerControls = preset in listOf(ColorPreset.Flix, ColorPreset.Prime, ColorPreset.Max, ColorPreset.Cinema)
-    val topSearch = preset == ColorPreset.Flix || preset == ColorPreset.Prime
+    val topSearch = preset == ColorPreset.Flix
     val grid = rememberLazyGridState()
     val pageAtTop by remember(grid) { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
     val filterList = rememberLazyListState()
@@ -220,12 +220,15 @@ import kotlinx.coroutines.launch
     val streamingHeroHeight = when (preset) {
         ColorPreset.Cinema -> maxHeight - 32.dp
         ColorPreset.Prime -> maxHeight * .70f
+        // Leave room for the brand and the compact reading row above Max's dock.
+        // The hero still grows naturally when enlarged text needs more height.
+        ColorPreset.Max -> (maxHeight - 204.dp).coerceAtLeast(260.dp)
         else -> maxHeight * .63f
     }
-    // Flix/Max are hosted by TvShell so the image continues behind their navigation.
-    if (cinema || preset == ColorPreset.Prime) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
+    // Flix/Prime/Max share TvShell's full-viewport artwork, including navigation.
+    if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(140.dp), state = grid,
+        columns = GridCells.Adaptive(if (preset == ColorPreset.Max) 220.dp * textScale else 140.dp), state = grid,
         modifier = Modifier.fillMaxSize().focusRestorer().testTag("library-grid"),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = if (footerControls) 8.dp else 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -326,9 +329,30 @@ import kotlinx.coroutines.launch
                 scale = CardDefaults.scale(focusedScale = 1.03f),
                 shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
                 border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
-                colors = CardDefaults.colors(containerColor = TvColors.Panel),
+                colors = if (preset == ColorPreset.Max) CardDefaults.colors(
+                    containerColor = Color.Transparent, focusedContainerColor = Color.Transparent)
+                    else CardDefaults.colors(containerColor = TvColors.Panel),
             ) {
-                Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Panel)) {
+                if (preset == ColorPreset.Max) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 96.dp).glassPanel().padding(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.width(52.dp).height(76.dp)) {
+                            AsyncImage(repository.cover(comic.id), null, Modifier.fillMaxSize()
+                                .testTag("library-thumbnail-${comic.id}"), contentScale = ContentScale.Fit)
+                            if (comic.favorite) Text("★", Modifier.align(Alignment.TopEnd)
+                                .background(Color.Black.copy(alpha = .8f)).padding(2.dp)
+                                .semantics { contentDescription = "Favorito" }, color = TvColors.Amber, fontSize = 16.sp)
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(comic.title, Modifier.testTag("library-title-${comic.id}"), minLines = 2, maxLines = 2,
+                                overflow = TextOverflow.Ellipsis, fontSize = 16.sp, lineHeight = 20.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                            Text(readingStatus(comic), color = TvColors.Muted, fontSize = 13.sp)
+                            if (comic.lastRead > 0) ProgressTrack(readingFraction(comic), Modifier.fillMaxWidth())
+                            if (comic.id in offlineIds) Text("OFFLINE", fontSize = 11.sp, color = TvColors.Amber)
+                        }
+                    }
+                } else Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Panel)) {
                     AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                     if (comic.id in offlineIds) Text("OFFLINE",Modifier.align(Alignment.TopStart).background(Color.Black.copy(alpha = .85f)).padding(5.dp),fontSize = 11.sp,color = TvColors.Amber)
                     if (comic.favorite) Text("★", Modifier.align(Alignment.TopEnd).background(Color.Black.copy(alpha = .8f)).padding(6.dp)

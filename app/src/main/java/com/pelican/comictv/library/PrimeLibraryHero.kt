@@ -10,7 +10,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -46,12 +45,6 @@ import com.pelican.comictv.ui.TvColors
         val visibleChoices = choices.take(if (wide) 3 else 2)
         val cardWidth = (maxWidth * if (wide) .165f else .20f).coerceIn(82.dp, 136.dp)
         if (highContrast) Box(Modifier.matchParentSize().background(Color.Black))
-        else {
-            Box(Modifier.matchParentSize().background(Brush.horizontalGradient(listOf(
-                TvColors.Background.copy(alpha = .82f), TvColors.Background.copy(alpha = .35f), Color.Transparent))))
-            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(
-                Color.Transparent, TvColors.Background.copy(alpha = .12f), TvColors.Background))))
-        }
         Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 24.dp, bottom = 24.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(if (wide) .43f else .51f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
