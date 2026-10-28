@@ -12,8 +12,10 @@ Dados/IDs/progresso/backup/downloads/USB/leitor preservados;Hubadiado/monetizaç
 - [x] BarrasComic/Flix/Cinema:overlay/translação220ms,degradê,semremedirconteúdo;Comictrilhopadrão,Flixabertopadrão,Cinemafechado;direções/Back/fecharaoconfirmar;retornarúltimofoco/offsetquando fecha semtrocaderota.
 - [x] Flix/Comic/Cinema: tipografia/hero/Recentes/coleção próprias conformeespecificação,centrandoemvariantes;marcasoriginais/capasíntegras,seleçãonãosimulafoco. Comicquadrados,Flixcartõesarte,Cinemavidroserif.
 - [x] Revisãoconjunta/checagenslocaisfocadas(compilar+testesrecorte),bateria completa únicaCI. Cachedebuildseguro,semalterarsegregaçãoassinatura.
-- [ ] Publicar1.2.5/code67 evalidarAPKpúblico. ConferênciavisualfinalnaBox,semparadasporaprovaçãointermediária.
+- [x] Publicar1.2.5/code67 evalidarAPKpúblico. ConferênciavisualfinalnaBox,semparadasporaprovaçãointermediária.
 
 Relatórios por tarefa embuild; commits/CI/publicação pelo integrador. Implementadores nãoexecutambuildconcorrente. Documentar limites deblur/capturas/transparência comhonestidade.
 
 Complemento aprovado: Maxcomcírculosdecoleções/capaslocaisabaixodohero,semmetadadosinventados. RevisãoidentificouorigensdecírculosnoDetails/Busca ecallbackheroSecundário: corrigidoscomeventos explícitos/nativostestes. Local28casosafetados/0falhas; main/AndroidTestcompile aprovados. Últimocallbackrecompilado1m15. Fullcore/mihon/app+release/lint/SQL/ABI somenteCI.
+
+Publicação1.2.5/code67 verificada;CI40730061575/40733225493 aprovados,hash/certificado/tamanho/versão/ABI/alinhamentoconferidos. Os5temas implementados no mesmopacote. Conferênciavisual/foco naBox pelo usuário,semaprovaçãointermediária. Detalhesemdocs/validation/1.2.5.md.
