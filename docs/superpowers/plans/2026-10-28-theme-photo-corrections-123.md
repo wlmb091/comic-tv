@@ -10,10 +10,10 @@ Preservar carrosselPrime aprovado, rotas/dados/USB/originais, texto85–130%, al
 
 - [x] Registrar lote atual e escopo persistente.
 - [x] ShellPrime: fundo raiz, navegação transparente/centrada com marcaàdireita eBuscar; Maxdock52dp×escala/reserva74dp×escala. Implementadorprime_max_shell123, sem build/commit; revisão integrada pendente.
-- [ ] ConteúdoPrime: retirarBusca/fundo/degradê próprios mantendo carrossel; Maxgrade/Histórico horizontais/destaque maisbaixo. Implementadorprime_max_content123.
+- [x] ConteúdoPrime: retirarBusca/fundo/degradê próprios mantendo carrossel; Maxgrade/Histórico horizontais/destaque maisbaixo. Implementadorprime_max_content123.
 - [x] Cinema: Menu/painel compartilham material deContinuarleitura, sem reflexo claro; marca no topo expandido, retorno/foco preservados.
-- [ ] Revisão independente do pacote e correções necessárias.
-- [ ] Build/testes/lint e compilação de testes nativos, verificações de publicação/dados/ABI adequadas.
-- [ ] Publicar1.2.3/code65 peloCI e conferirAPK público por manifesto/hash/tamanho/certificado/ABI/alinhamento.
+- [x] Revisão independente parcial semP1/P2, interrompida por limite do serviço; revisão estática final pelo implementador. GeometriaMax corrigida no registro:3colunas a960dp com margens.
+- [x] Build/testes/lint e compilação de testes nativos, verificações de publicação/dados/ABI adequadas.
+- [x] Publicar1.2.3/code65 peloCI e conferirAPK público por manifesto/hash/tamanho/certificado/ABI/alinhamento.
 
 Diagnóstico: molduraPrime vem de backdrop dentro do conteúdo com insets e glassPanel do topo; retânguloHero vem de gradientes locais. Maxfoto está noHistórico com gradeportrait alta e rolagem ativa; reduzir apenasRecentes não resolveria. Cinema usava sidebar#404040/80%+reflexo enquanto ações usam preto68%; reutilizar o material das ações. Ruling: manter rolagem/restauração reais em vez de zerar posição para imitar captura — preserva navegação anterior, usuário confere tela no topo.
