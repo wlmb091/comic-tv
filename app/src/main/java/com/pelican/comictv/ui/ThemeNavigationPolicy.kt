@@ -5,11 +5,6 @@ internal enum class ThemeNavigationPolicy {
     Sidebar, TopBar, BottomDock, ImmersiveMenu;
 
     companion object {
-        fun forPreset(preset: ColorPreset): ThemeNavigationPolicy = when (preset) {
-            ColorPreset.Prime -> TopBar
-            ColorPreset.Max -> BottomDock
-            ColorPreset.Cinema -> ImmersiveMenu
-            else -> Sidebar
-        }
+        fun forPreset(preset: ColorPreset): ThemeNavigationPolicy = ThemeSpec.forPreset(preset).navigation.layout
     }
 }

@@ -30,6 +30,14 @@ class ComicTvApplication : Application(), SingletonImageLoader.Factory {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.DEBUG) {
+            @Suppress("DEPRECATION")
+            val display = android.util.DisplayMetrics().also { windowManager.defaultDisplay.getRealMetrics(it) }
+            val configuration = resources.configuration
+            android.util.Log.i("ComicTvDisplay", "realPx=${display.widthPixels}x${display.heightPixels}; " +
+                "densityDpi=${display.densityDpi}; appDp=${configuration.screenWidthDp}x${configuration.screenHeightDp}; " +
+                "fontScale=${configuration.fontScale}")
+        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())

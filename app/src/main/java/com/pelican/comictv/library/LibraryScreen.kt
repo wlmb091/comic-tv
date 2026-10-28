@@ -1,6 +1,7 @@
 package com.pelican.comictv.library
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -40,11 +41,12 @@ import kotlinx.coroutines.launch
     searchRequest: Int = 0,
     searchRequested: Boolean = false, onSearchHandled: () -> Unit = {},
 ) {
-    val preset = TvColors.options.preset
-    val cinema = preset == ColorPreset.Cinema
+    val theme = LocalThemeSpec.current
+    val cinema = theme.navigation.layout == ThemeNavigationPolicy.ImmersiveMenu
+    val horizontalCards = theme.cards.collectionStyle == CollectionCardStyle.Horizontal
     val textScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
-    val footerControls = preset in listOf(ColorPreset.Flix, ColorPreset.Prime, ColorPreset.Max, ColorPreset.Cinema)
-    val topSearch = preset == ColorPreset.Flix
+    val footerControls = theme.footerControls
+    val topSearch = theme.topSearch
     val grid = rememberLazyGridState()
     val pageAtTop by remember(grid) { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
     val filterList = rememberLazyListState()
@@ -217,27 +219,26 @@ import kotlinx.coroutines.launch
         restored = true
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-    val streamingHeroHeight = when (preset) {
-        ColorPreset.Cinema -> maxHeight - 32.dp
-        ColorPreset.Prime -> maxHeight * .70f
-        // Leave room for the brand and the compact reading row above Max's dock.
-        // The hero still grows naturally when enlarged text needs more height.
-        ColorPreset.Max -> (maxHeight - 204.dp).coerceAtLeast(260.dp)
-        else -> maxHeight * .63f
+    val streamingHeroHeight = when (theme.hero.heightPolicy) {
+        HeroHeightPolicy.ViewportInset -> maxHeight - theme.hero.viewportInsetDp.dp
+        HeroHeightPolicy.ReservedReadingRow -> (maxHeight - theme.hero.viewportInsetDp.dp)
+            .coerceAtLeast(theme.hero.minimumHeightDp.dp)
+        HeroHeightPolicy.Fraction -> maxHeight * theme.hero.viewportFraction
     }
     // Flix/Prime/Max share TvShell's full-viewport artwork, including navigation.
     if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(if (preset == ColorPreset.Max) 220.dp * textScale else 140.dp), state = grid,
+        columns = GridCells.Adaptive(theme.cards.gridMinimumWidthDp.dp * (if (theme.cards.scaleGridWithText) textScale else 1f)), state = grid,
         modifier = Modifier.fillMaxSize().focusRestorer().testTag("library-grid"),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = if (footerControls) 8.dp else 16.dp),
+        contentPadding = PaddingValues(horizontal = theme.cards.gridHorizontalPaddingDp.dp,
+            vertical = (theme.cards.gridVerticalPaddingDp ?: if (footerControls) 8 else 16).dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(if (footerControls) 10.dp else 18.dp)) {
                 if (footerControls) {
-                    if (preset == ColorPreset.Max) ComicWordmark(Modifier.width(180.dp * textScale).heightIn(min = 38.dp).testTag("library-brand"))
+                    if (theme.navigation.libraryBrand) ComicWordmark(Modifier.width(180.dp * textScale).heightIn(min = 38.dp).testTag("library-brand"))
                     if (topSearch) FlowRow(Modifier.fillMaxWidth().testTag("library-top-search"),
                         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
                         TvChoice("Buscar", searching || query.isNotBlank(), { openSearch() },
@@ -274,19 +275,23 @@ import kotlinx.coroutines.launch
                             .onGloballyPositioned { positioned = comic.id } else Modifier
                         Card(
                             onClick = { focusComic(comic.id); onOpen(comic.id) },
-                            modifier = restoreModifier.then(libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsRecent = true; optionsFor = comic })).width(288.dp).onFocusChanged { if (it.isFocused) focusComic(comic.id) },
-                            border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
-                            shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
-                            scale = CardDefaults.scale(focusedScale = 1.025f),
+                            modifier = restoreModifier.then(libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsRecent = true; optionsFor = comic })).width(theme.cards.recentWidthDp.dp).testTag("library-recent-${comic.id}").onFocusChanged { if (it.isFocused) focusComic(comic.id) },
+                            border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
+                            shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(theme.shapes.controlRadiusDp.dp)),
+                            scale = CardDefaults.scale(focusedScale = theme.focus.recentScale),
                             colors = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent),
                         ) {
-                            Row(Modifier.fillMaxWidth().glassPanel().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            val material = if (theme.cards.recentSurface != null && !TvColors.options.highContrast) {
+                                Modifier.background(Color(theme.cards.recentSurface), androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
+                                    .border(1.dp, Color(theme.cards.recentBorder!!), androidx.compose.foundation.shape.RoundedCornerShape(9.dp))
+                            } else Modifier.glassPanel()
+                            Row(Modifier.fillMaxWidth().heightIn(min = theme.cards.recentHeightDp.dp).then(material).padding(theme.cards.recentPaddingDp.dp), horizontalArrangement = Arrangement.spacedBy(theme.cards.recentGapDp.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
-                                AsyncImage(repository.cover(comic.id), null, Modifier.width(44.dp).height(64.dp), contentScale = ContentScale.Fit)
+                                AsyncImage(repository.cover(comic.id), null, Modifier.width(theme.cards.recentThumbnailWidthDp.dp).height(theme.cards.recentThumbnailHeightDp.dp), contentScale = ContentScale.Fit)
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(comic.title, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 16.sp,
-                                        lineHeight = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                                    Text(readingStatus(comic), color = TvColors.Muted, fontSize = 13.sp)
+                                    Text(comic.title, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = theme.typography.cardTitleSp.sp,
+                                        lineHeight = theme.typography.cardLineHeightSp.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                    Text(readingStatus(comic), color = TvColors.Muted, fontSize = theme.typography.cardStatusSp.sp)
                                     ProgressTrack(readingFraction(comic), Modifier.fillMaxWidth())
                                 }
                             }
@@ -326,14 +331,14 @@ import kotlinx.coroutines.launch
             Card(
                 onClick = { focusComic(comic.id); onOpen(comic.id) },
                 modifier = restoreModifier.then(libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsRecent = false; optionsFor = comic })).testTag("library-cover-${comic.id}").onFocusChanged { if (it.isFocused) focusComic(comic.id) },
-                scale = CardDefaults.scale(focusedScale = 1.03f),
-                shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
-                border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber))),
-                colors = if (preset == ColorPreset.Max) CardDefaults.colors(
+                scale = CardDefaults.scale(focusedScale = theme.focus.collectionScale),
+                shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(theme.shapes.controlRadiusDp.dp)),
+                border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
+                colors = if (horizontalCards) CardDefaults.colors(
                     containerColor = Color.Transparent, focusedContainerColor = Color.Transparent)
                     else CardDefaults.colors(containerColor = TvColors.Panel),
             ) {
-                if (preset == ColorPreset.Max) {
+                if (horizontalCards) {
                     Row(Modifier.fillMaxWidth().heightIn(min = 96.dp).glassPanel().padding(10.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.width(52.dp).height(76.dp)) {
@@ -347,9 +352,9 @@ import kotlinx.coroutines.launch
                             Text(comic.title, Modifier.testTag("library-title-${comic.id}"), minLines = 2, maxLines = 2,
                                 overflow = TextOverflow.Ellipsis, fontSize = 16.sp, lineHeight = 20.sp,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-                            Text(readingStatus(comic), color = TvColors.Muted, fontSize = 13.sp)
+                            Text(readingStatus(comic), color = TvColors.Muted, fontSize = theme.typography.cardStatusSp.sp)
                             if (comic.lastRead > 0) ProgressTrack(readingFraction(comic), Modifier.fillMaxWidth())
-                            if (comic.id in offlineIds) Text("OFFLINE", fontSize = 11.sp, color = TvColors.Amber)
+                            if (comic.id in offlineIds) Text("OFFLINE", fontSize = theme.typography.badgeSp.sp, color = TvColors.Amber)
                         }
                     }
                 } else Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Panel)) {
@@ -373,7 +378,7 @@ import kotlinx.coroutines.launch
                 LibraryFooter(collections, filter, onFilter, { managing = true },
                     comics.size, recent.size, history, searching || query.isNotBlank(),
                     { openSearch() }, { history = false }, { history = true },
-                    showSearch = preset == ColorPreset.Max && !shellSearchAvailable,
+                    showSearch = theme.navigation.layout == ThemeNavigationPolicy.BottomDock && !shellSearchAvailable,
                     searchModifier = Modifier.focusRequester(searchFocus), manageModifier = Modifier.focusRequester(manageFocus),
                     filterListState = filterList)
             }

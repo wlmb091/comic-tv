@@ -10,6 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.Font
+import com.pelican.comictv.R
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,17 +26,17 @@ import com.pelican.comictv.ui.*
     modifier: Modifier = Modifier, readModifier: Modifier = Modifier,
     comics: List<ComicEntity> = emptyList(), onSelect: (String) -> Unit = {},
 ) {
-    val preset = TvColors.options.preset
-    if (preset == ColorPreset.Prime) {
+    val theme = LocalThemeSpec.current
+    val hero = theme.hero
+    if (hero.variant == HeroVariant.FullbleedCarousel) {
         PrimeLibraryHero(comic, comics, repository, onRead, onOpen, onImport, onSelect, modifier, readModifier)
         return
     }
-    val cinema = preset == ColorPreset.Cinema
-    val max = preset == ColorPreset.Max
-    val editorial = preset == ColorPreset.Amber || preset in listOf(ColorPreset.Green, ColorPreset.Blue, ColorPreset.Violet)
-    Box(modifier.fillMaxWidth().heightIn(min = if (editorial) 206.dp else if (max) 260.dp else 230.dp).testTag("library-hero")) {
-        Row(Modifier.align(if (cinema || max) Alignment.BottomStart else Alignment.CenterStart)
-            .fillMaxWidth().padding(horizontal = if (cinema) 32.dp else 14.dp, vertical = if (cinema) 38.dp else 12.dp),
+    val cinema = theme.navigation.layout == ThemeNavigationPolicy.ImmersiveMenu
+    val editorial = hero.editorial
+    Box(modifier.fillMaxWidth().heightIn(min = hero.minimumHeightDp.dp).testTag("library-hero")) {
+        Row(Modifier.align(if (hero.bottomAligned) Alignment.BottomStart else Alignment.CenterStart)
+            .fillMaxWidth().padding(horizontal = hero.horizontalPaddingDp.dp, vertical = hero.verticalPaddingDp.dp),
             horizontalArrangement = Arrangement.spacedBy(22.dp), verticalAlignment = Alignment.CenterVertically) {
             if (editorial && comic != null) {
                 Box(Modifier.width(142.dp).height(206.dp)
@@ -43,28 +45,32 @@ import com.pelican.comictv.ui.*
                     AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                 }
             }
-            Column(Modifier.fillMaxWidth(if (editorial) .94f else if (cinema) .65f else .61f),
-                verticalArrangement = Arrangement.spacedBy(if (cinema) 13.dp else 10.dp)) {
+            Column(Modifier.fillMaxWidth(hero.textWidthFraction),
+                verticalArrangement = Arrangement.spacedBy(hero.contentGapDp.dp)) {
                 if (editorial) Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUE SUA HISTÓRIA" else "SUA PRÓXIMA HISTÓRIA",
                     color = TvColors.Amber, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text(comic?.title ?: "Seu universo de quadrinhos", Modifier.testTag("library-hero-title"),
-                    fontSize = if (cinema) 42.sp else if (editorial) 28.sp else 34.sp,
-                    lineHeight = if (cinema) 46.sp else if (editorial) 32.sp else 37.sp,
-                    fontFamily = if (cinema) FontFamily.Serif else FontFamily.Default,
-                    fontWeight = if (cinema) FontWeight.Normal else FontWeight.ExtraBold,
-                    maxLines = if (max) 2 else 3, overflow = TextOverflow.Ellipsis)
+                    fontSize = theme.typography.titleSp.sp,
+                    lineHeight = theme.typography.titleLineHeightSp.sp,
+                    fontFamily = when (theme.typography.titleFamily) {
+                        ThemeTitleFamily.Serif -> FontFamily.Serif
+                        ThemeTitleFamily.Bebas -> FontFamily(Font(R.font.bebas_neue_regular))
+                        ThemeTitleFamily.Default -> FontFamily.Default
+                    },
+                    fontWeight = if (theme.typography.titleExtraBold) FontWeight.ExtraBold else FontWeight.Normal,
+                    maxLines = hero.titleMaxLines, overflow = TextOverflow.Ellipsis)
                 if (comic != null) {
                     Text(if (comic.lastRead > 0) "Página ${comic.currentPage + 1} de ${comic.pageCount}"
                         else "${comic.pageCount} páginas para explorar", color = TvColors.Muted, fontSize = 15.sp)
                     if (comic.lastRead > 0 && comic.pageCount > 0) ProgressTrack((comic.currentPage + 1f) / comic.pageCount,
-                        Modifier.widthIn(max = if (editorial) 280.dp else 240.dp).fillMaxWidth())
+                        Modifier.widthIn(max = hero.progressWidthDp.dp).fillMaxWidth())
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, readModifier, transparentBackground = !editorial)
-                        TvButton("Ver detalhes", { onOpen(comic.id) }, transparentBackground = !editorial)
+                        TvButton(if (comic.lastRead > 0) "Continuar leitura" else "Começar leitura", { onRead(comic.id) }, readModifier, primary = theme.colors.outlinedHeroAction, transparentBackground = !editorial, heroAction = true)
+                        TvButton("Ver detalhes", { onOpen(comic.id) }, transparentBackground = !editorial, heroAction = true)
                     }
                 } else {
                     Text("Adicione suas edições ou explore as fontes online.", color = TvColors.Muted, fontSize = 16.sp)
-                    TvButton("Importar quadrinhos", onImport, readModifier, transparentBackground = !editorial)
+                    TvButton("Importar quadrinhos", onImport, readModifier, primary = theme.colors.outlinedHeroAction, transparentBackground = !editorial, heroAction = true)
                 }
                 if (cinema) Text("↓ Biblioteca    ·    → Menu", color = TvColors.Muted, fontSize = 13.sp)
             }

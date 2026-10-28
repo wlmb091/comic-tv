@@ -171,6 +171,9 @@ class ThemeNavigationTest {
         } }
         val dock = compose.onNodeWithTag("navigation-bottom").fetchSemanticsNode().boundsInRoot
         val content = compose.onNodeWithTag("content-entry").fetchSemanticsNode().boundsInRoot
+        val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
+        assertTrue("Dock respects horizontal safe area", dock.left >= shell.left + 47f * density && dock.right <= shell.right - 47f * density)
+        assertTrue("Dock respects bottom safe area", dock.bottom <= shell.bottom - 26f * density)
         assertTrue("Dock compacto sem cobrir o conteúdo", content.bottom <= dock.top)
         assertTrue("Dock usa altura compacta mesmo a130%", dock.height <= 74f * scale * density + 1f)
         listOf("search", "library", "recent", "sources", "extensions", "import", "settings").forEach { section ->
@@ -181,6 +184,7 @@ class ThemeNavigationTest {
             val layouts = mutableListOf<TextLayoutResult>()
             compose.onNodeWithText(label).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
             assertTrue("Rótulo do dock inteiro a130%: $label", layouts.isNotEmpty() && layouts.none { it.hasVisualOverflow })
+            assertTrue("Dock labels keep minimum14sp: $label", layouts.all { it.layoutInput.style.fontSize.value >= 14f })
         }
     }
 

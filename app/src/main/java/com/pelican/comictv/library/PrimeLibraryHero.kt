@@ -24,6 +24,7 @@ import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import com.pelican.comictv.ui.LocalThemeSpec
 import com.pelican.comictv.ui.ProgressTrack
 import com.pelican.comictv.ui.TvButton
 import com.pelican.comictv.ui.TvColors
@@ -34,12 +35,13 @@ import com.pelican.comictv.ui.TvColors
     onRead: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
     onSelect: (String) -> Unit, modifier: Modifier = Modifier, readModifier: Modifier = Modifier,
 ) {
+    val theme = LocalThemeSpec.current
     // The strip does not reorder when focus changes the selected banner edition.
-    val choices = remember(comics, if (comics.isEmpty()) comic else null) {
-        (comics.ifEmpty { listOfNotNull(comic) }).distinctBy { it.id }.take(3)
+    val choices = remember(comics, if (comics.isEmpty()) comic else null, theme.hero.carouselChoices) {
+        (comics.ifEmpty { listOfNotNull(comic) }).distinctBy { it.id }.take(theme.hero.carouselChoices)
     }
     val highContrast = TvColors.options.highContrast
-    BoxWithConstraints(modifier.fillMaxWidth().heightIn(min = 284.dp)) {
+    BoxWithConstraints(modifier.fillMaxWidth().heightIn(min = theme.hero.minimumHeightDp.dp)) {
         val fontScale = LocalDensity.current.fontScale
         val wide = maxWidth >= 720.dp * fontScale
         val visibleChoices = choices.take(if (wide) 3 else 2)
@@ -50,7 +52,7 @@ import com.pelican.comictv.ui.TvColors
             Column(Modifier.weight(if (wide) .43f else .51f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUAR SUA LEITURA" else "NA SUA BIBLIOTECA",
                     color = TvColors.Amber, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text(comic?.title ?: "Seu universo de quadrinhos", fontSize = 32.sp, lineHeight = 36.sp,
+                Text(comic?.title ?: "Seu universo de quadrinhos", fontSize = theme.typography.titleSp.sp, lineHeight = theme.typography.titleLineHeightSp.sp,
                     fontWeight = FontWeight.ExtraBold, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 if (comic != null) {
                     Text(if (comic.lastRead > 0) "Página ${comic.currentPage + 1} de ${comic.pageCount}"
