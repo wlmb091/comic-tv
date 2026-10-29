@@ -152,10 +152,15 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     CompositionLocalProvider(LocalShellLibrarySearch provides openLibrarySearch) {
     NavHost(navController = nav, startDestination = "library") {
         composable("library") {
-            var backdropId by remember { mutableStateOf(library.focusedId) }
+            var heroInteraction by remember { mutableStateOf(false) }
+            var shellInteraction by remember { mutableStateOf(false) }
+            val autoplay = TvColors.options.preset in setOf(ColorPreset.Flix, ColorPreset.Max, ColorPreset.Cinema)
+            val carousel = rememberHeroCarousel(comics.map { it.id }, featuredComic(comics, library.focusedId)?.id,
+                enabled = autoplay && !TvColors.options.highContrast, paused = heroInteraction || shellInteraction)
+            val backdropId = if (autoplay) carousel.id else library.focusedId
             TvShell("library", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { launchSingleTop = true } },
                 contentFocusPending = startupFocusPending, focusContentOnEntry = navigationContentTarget == "library", onSectionFocused = { navigationContentTarget = null },
-                onSearch = openLibrarySearch,
+                onSearch = openLibrarySearch, onMenuInteractionChanged = { shellInteraction = it },
                 backdrop = {
                     if (LocalThemeSpec.current.navigation.shellBackdrop) {
                         CinemaBackdrop(featuredComic(comics, backdropId)?.id, container.library, Modifier.fillMaxSize())
@@ -170,6 +175,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 }
                 LibraryScreen(comics, container.library, library.focusedId,
                     homeSources = homePreviews,
+                    featuredIdOverride = if (autoplay) carousel.id else null,
+                    onHeroInteractionChanged = { heroInteraction = it },
                     onSourceSection = { latest ->
                         val route = if (latest) "recent" else "sources"
                         startupFocusPending = false; navigationContentTarget = route; nav.navigate(route)
@@ -179,7 +186,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         startupFocusPending = false; navigationContentTarget = route
                         homeTitlePending = title; nav.navigate(route)
                     },
-                    onFocus = { library.focusedId = it; backdropId = it }, onOpen = { nav.navigate("details/$it") },
+                    onFocus = { library.focusedId = it; carousel.select(it) }, onOpen = { nav.navigate("details/$it") },
                     onImport = { nav.navigate("import") }, onRead = { nav.navigate("reader/$it") },
                     requestInitialFocus = startupFocusPending, onInitialFocus = { startupFocusPending = false },
                     query = libraryQuery, filter = libraryFilter, collections = collections, memberships = memberships,
@@ -315,14 +322,16 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
 @Composable internal fun TvShell(selected: String, onNavigate: (String) -> Unit,
     focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false,
     focusContentOnEntry: Boolean = false, onSearch: (() -> Unit)? = null,
+    onMenuInteractionChanged: (Boolean) -> Unit = {},
     backdrop: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
     ThemedScaffold(selected, onNavigate, focusSectionOnEntry, onSectionFocused, contentFocusPending,
-        focusContentOnEntry, onSearch, backdrop, content)
+        focusContentOnEntry, onSearch, onMenuInteractionChanged, backdrop, content)
 }
 
 @Composable internal fun ThemedScaffold(selected: String, onNavigate: (String) -> Unit,
     focusSectionOnEntry: Boolean = false, onSectionFocused: () -> Unit = {}, contentFocusPending: Boolean = false,
     focusContentOnEntry: Boolean = false, onSearch: (() -> Unit)? = null,
+    onMenuInteractionChanged: (Boolean) -> Unit = {},
     backdrop: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
     val theme = LocalThemeSpec.current
     val policy = theme.navigation.layout
@@ -402,6 +411,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     val fontScale = density.fontScale.coerceAtLeast(1f)
     var measuredDockHeight by remember { mutableStateOf(74.dp) }
     val immersiveLibrary = policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"
+    SideEffect { onMenuInteractionChanged(overlayOpen || focusWithin) }
     val expanded = overlayOpen
     val flix = theme.navigation.framelessSidebar
     val framelessSidebar = flix && !TvColors.options.highContrast
@@ -441,6 +451,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         enabled: Boolean = true) {
         val (route, title) = routes[index]
         val active = route == selected
+        val textOnlyTop = policy == ThemeNavigationPolicy.TopBar && !TvColors.options.highContrast
         var iconFocused by remember(route) { mutableStateOf(false) }
         val iconScale by animateFloatAsState(if (iconFocused && !TvColors.options.highContrast) theme.navigation.iconFocusScale else 1f,
             tween(theme.motion.navigationIconMs, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "nav-icon-scale")
@@ -456,13 +467,14 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             contentPadding = PaddingValues(0.dp),
             shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
             scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = if (policy == ThemeNavigationPolicy.BottomDock) theme.navigation.dockFocusScale else 1f),
-            border = androidx.tv.material3.ButtonDefaults.border(focusedBorder = androidx.tv.material3.Border(
+            border = androidx.tv.material3.ButtonDefaults.border(focusedBorder = if (textOnlyTop) androidx.tv.material3.Border.None else androidx.tv.material3.Border(
                 androidx.compose.foundation.BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.FocusAccent))),
             colors = androidx.tv.material3.ButtonDefaults.colors(
                 containerColor = if (active && !iconOnlySidebar && policy != ThemeNavigationPolicy.TopBar)
                     TvColors.Amber.copy(alpha = if (policy == ThemeNavigationPolicy.BottomDock) theme.navigation.dockActiveAlpha else .15f) else Color.Transparent,
                 contentColor = if (active) TvColors.Amber else Color.White,
-                focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
+                focusedContainerColor = if (textOnlyTop) Color.Transparent else TvColors.Action,
+                focusedContentColor = if (textOnlyTop) Color(0xFF9DE8FF) else TvColors.OnAction)) {
             if (policy == ThemeNavigationPolicy.TopBar) {
                 Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -520,7 +532,9 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         }) {
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
         backdrop()
-        val shellInsets = if (immersiveLibrary) Modifier else Modifier.padding(horizontal = theme.navigation.safeHorizontalDp.dp, vertical = theme.navigation.safeVerticalDp.dp)
+        val shellInsets = if (immersiveLibrary) Modifier else if (policy == ThemeNavigationPolicy.TopBar && selected == "library")
+            Modifier.padding(start = theme.navigation.safeHorizontalDp.dp, end = theme.navigation.safeHorizontalDp.dp, top = theme.navigation.safeVerticalDp.dp)
+            else Modifier.padding(horizontal = theme.navigation.safeHorizontalDp.dp, vertical = theme.navigation.safeVerticalDp.dp)
         Box(Modifier.fillMaxSize()) {
             val contentPadding = when (policy) {
                 ThemeNavigationPolicy.Sidebar -> PaddingValues(start = railWidth + 16.dp)

@@ -21,3 +21,11 @@ internal object HomeBringIntoViewSpec : androidx.compose.foundation.gestures.Bri
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float =
         homeBringIntoViewDistance(offset, size, containerSize)
 }
+
+/** Explorer is directly below the hero, before the recent heading/row. */
+internal fun homeSourceRowIndex(recentCount: Int, explorer: Boolean, latest: Boolean): Int =
+    3 + (if (recentCount > 0) 2 else 0) + (if (explorer) 1 else 0) + (if (latest) 1 else 0)
+
+/** The header includes non-focusable title/art above its actions: reveal it as a unit. */
+internal fun homeHeaderBringIntoViewDistance(offset: Float, size: Float, container: Float, headerHasFocus: Boolean): Float =
+    if (headerHasFocus) 0f else homeBringIntoViewDistance(offset, size, container)

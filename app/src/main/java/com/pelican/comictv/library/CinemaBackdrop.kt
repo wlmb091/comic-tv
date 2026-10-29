@@ -1,5 +1,7 @@
 package com.pelican.comictv.library
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import android.app.ActivityManager
 import android.content.Context
 import androidx.compose.foundation.background
@@ -14,7 +16,6 @@ import androidx.compose.ui.platform.LocalDensity
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
-import coil3.request.crossfade
 import com.pelican.comictv.cinema.CinemaImagePolicy
 import com.pelican.comictv.ui.LocalThemeSpec
 import com.pelican.comictv.ui.TvColors
@@ -26,9 +27,9 @@ import kotlinx.coroutines.delay
     val revision by repository.cinemaRevision.collectAsState()
     val theme = LocalThemeSpec.current
     val enabled = theme.artwork && !TvColors.options.highContrast
-    var artwork by remember(id, revision, enabled) { mutableStateOf<LibraryBackdropImage?>(null) }
+    var artwork by remember(repository, enabled) { mutableStateOf<LibraryBackdropImage?>(null) }
     LaunchedEffect(id, revision, enabled) {
-        artwork = null
+        if (!enabled || id == null) artwork = null
         if (enabled && id != null) {
             delay(theme.motion.artworkSettleMs)
             try { artwork = repository.libraryBackdrop(id) }
@@ -40,20 +41,21 @@ import kotlinx.coroutines.delay
         val context = LocalContext.current
         val density = LocalDensity.current
         val manager = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager }
-        val size = artwork?.let { CinemaImagePolicy.sourceDecodeSize(with(density) { maxWidth.roundToPx() },
-            with(density) { maxHeight.roundToPx() }, it.width, it.height, manager?.isLowRamDevice == true) }
-        val request = remember(context, artwork, revision, size, theme.motion.artworkCrossfadeMs) { artwork?.let {
-            val targetSize = requireNotNull(size)
-            ImageRequest.Builder(context).data(it.file).size(targetSize.first, targetSize.second)
-                .crossfade(theme.motion.artworkCrossfadeMs)
-                .precision(coil3.size.Precision.EXACT)
-                // Decode the bounded source aspect ratio; only drawing crops to the viewport.
-                .scale(coil3.size.Scale.FIT)
-                .memoryCachePolicy(CachePolicy.DISABLED).diskCachePolicy(CachePolicy.DISABLED).build()
-        } }
-        if (enabled && request != null) {
-            AsyncImage(request, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
-                onSuccess = { onImageReady() })
+        if (enabled) {
+            // Only the old and new bounded decode coexist during this short opacity transition.
+            // Compose's animation duration scale also honors Android's reduced/disabled animations.
+            Crossfade(artwork, modifier = Modifier.fillMaxSize(), animationSpec = tween(theme.motion.artworkCrossfadeMs), label = "hero-artwork") { image ->
+                val size = image?.let { CinemaImagePolicy.sourceDecodeSize(with(density) { maxWidth.roundToPx() },
+                    with(density) { maxHeight.roundToPx() }, it.width, it.height, manager?.isLowRamDevice == true) }
+                val request = remember(context, image, revision, size) { image?.let {
+                    val targetSize = requireNotNull(size)
+                    ImageRequest.Builder(context).data(it.file).size(targetSize.first, targetSize.second)
+                        .precision(coil3.size.Precision.EXACT).scale(coil3.size.Scale.FIT)
+                        .memoryCachePolicy(CachePolicy.DISABLED).diskCachePolicy(CachePolicy.DISABLED).build()
+                } }
+                if (request != null) AsyncImage(request, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                    onSuccess = { onImageReady() })
+            }
             // Dim only the cover backdrop; foreground content and card covers remain unchanged.
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .15f)))
             Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(

@@ -39,7 +39,7 @@ import com.pelican.comictv.ui.*
             .fillMaxWidth().padding(horizontal = hero.horizontalPaddingDp.dp, vertical = hero.verticalPaddingDp.dp),
             horizontalArrangement = Arrangement.spacedBy(hero.posterGapDp.dp), verticalAlignment = Alignment.CenterVertically) {
             if (editorial && comic != null) {
-                Box(Modifier.width(hero.posterWidthDp.dp).height(hero.posterHeightDp.dp)
+                Box(Modifier.width(hero.posterWidthDp.dp).height(hero.posterHeightDp.dp).testTag("library-hero-poster")
                     .border(hero.posterBorderDp.dp, TvColors.FocusAccent, RoundedCornerShape(theme.shapes.posterRadiusDp.dp))
                     .background(Color.Black, RoundedCornerShape(6.dp)).padding(3.dp)) {
                     AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = if (hero.cropPoster) ContentScale.Crop else ContentScale.Fit)

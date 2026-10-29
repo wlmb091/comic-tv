@@ -42,7 +42,7 @@ class ThemeSpecTest {
     @Test fun primeHasCondensedTitleAndLandscapeReadingCardsWithoutChangingCarousel() {
         val prime = ThemeSpec.forPreset(ColorPreset.Prime)
         assertEquals(ThemeTitleFamily.Barlow, prime.typography.titleFamily)
-        assertEquals(54, prime.typography.titleSp)
+        assertEquals(48, prime.typography.titleSp)
         assertEquals(2, prime.hero.titleMaxLines)
         assertEquals(ContinueCardStyle.Art16x9, prime.cards.continueStyle)
         assertEquals(CollectionCardStyle.Mini, prime.cards.collectionStyle)
@@ -105,8 +105,8 @@ class ThemeSpecTest {
     @Test fun maxCondensedTitleAndFocusPreserveApprovedDirection() {
         val max = ThemeSpec.forPreset(ColorPreset.Max)
         assertEquals(ThemeTitleFamily.Bebas, max.typography.titleFamily)
-        assertEquals(45, max.typography.titleSp)
-        assertEquals(49, max.typography.titleLineHeightSp)
+        assertEquals(40, max.typography.titleSp)
+        assertEquals(44, max.typography.titleLineHeightSp)
         assertEquals(2, max.hero.titleMaxLines)
         assertEquals(0xFF9B6DFF, max.colors.focusAccent)
         assertTrue(max.colors.outlinedHeroAction)

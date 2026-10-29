@@ -1,6 +1,7 @@
 package com.pelican.comictv.library
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -13,7 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.*
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.*
@@ -37,6 +40,8 @@ import kotlinx.coroutines.launch
     searchRequest: Int = 0,
     searchRequested: Boolean = false, onSearchHandled: () -> Unit = {},
     homeSources: com.pelican.comictv.sources.HomeSourcePreviews = com.pelican.comictv.sources.HomeSourcePreviews(),
+    featuredIdOverride: String? = null,
+    onHeroInteractionChanged: (Boolean) -> Unit = {},
     onSourceSection: (Boolean) -> Unit = {},
     onSourceTitle: (com.pelican.comictv.sources.OnlineTitle, Boolean) -> Unit = { _, _ -> },
 ) {
@@ -88,7 +93,7 @@ import kotlinx.coroutines.launch
     fun clearExplorerOrigin() { explorerOriginKey = null; explorerRestoreKey = null }
     fun focusComic(id: String) { restored = true; clearExplorerOrigin(); homeOriginRow = null; homeOriginItem = null; featuredId = id; onFocus(id) }
     fun focusHomeComic(id: String, row: String) { focusComic(id); homeOriginRow = row; homeOriginItem = id }
-    val featured = featuredComic(comics, featuredId)
+    val featured = featuredComic(comics, featuredIdOverride ?: featuredId)
     val recent = remember(comics) { comics.filter { it.lastRead > 0 && !it.hiddenFromHistory }.sortedByDescending { it.lastRead } }
     var optionsFor by remember { mutableStateOf<ComicEntity?>(null) }
     var optionsRecent by remember { mutableStateOf(false) }
@@ -117,7 +122,7 @@ import kotlinx.coroutines.launch
     val visible = remember(history, recent, comics, matching) { (if (history) recent else comics).filter { it.id in matching } }
     val showExplorer = theme.exploreCollections && (comics.isNotEmpty() || collections.isNotEmpty()) && !history
     val collectionVisible = homeRows || !maxLayout || history || fullLibrary
-    val headerItems = libraryGridHeaderItems(history, recent.size, showExplorer && !homeRows, collectionVisible)
+    val headerItems = libraryGridHeaderItems(history, recent.size, showExplorer, collectionVisible)
     val footerIndex = if (homeRows) homeGridFooterIndex(recent.size, showExplorer)
         else libraryGridFooterIndex(history, recent.size, visible.size, showExplorer, collectionVisible)
     val explorerEntries = remember(theme.exploreCollections, comics, collections, memberships) {
@@ -141,7 +146,7 @@ import kotlinx.coroutines.launch
             return
         }
         // Reveal only on an explicit return. Emissions never create new restore requests.
-        if (grid.layoutInfo.visibleItemsInfo.none { it.key == "max-explore" }) grid.scrollToItem(if (homeRows) footerIndex - 1 else 1)
+        if (grid.layoutInfo.visibleItemsInfo.none { it.key == "max-explore" }) grid.scrollToItem(1)
         snapshotFlow { grid.layoutInfo.visibleItemsInfo.any { it.key == "max-explore" } }.first { it }
         explorerOriginKey = key
         explorerRestoreKey = key
@@ -168,7 +173,7 @@ import kotlinx.coroutines.launch
         target = id
         val key = if (fromRecent) "recent-row" else if (homeRows) "home-collection-row" else id
         if (grid.layoutInfo.visibleItemsInfo.none { it.key == key }) {
-            grid.scrollToItem(if (fromRecent) libraryGridRecentRowIndex(showExplorer && !homeRows) else if (homeRows) headerItems else headerItems + index)
+            grid.scrollToItem(if (fromRecent) libraryGridRecentRowIndex(showExplorer) else if (homeRows) headerItems else headerItems + index)
         }
         if (fromRecent && recentList.layoutInfo.visibleItemsInfo.none { it.key == id }) recentList.scrollToItem(index.coerceAtMost(if (homeRows) HOME_PREVIEW_LIMIT - 1 else Int.MAX_VALUE))
         if (!fromRecent && homeRows && collectionList.layoutInfo.visibleItemsInfo.none { it.key == id }) collectionList.scrollToItem(index.coerceAtMost(HOME_PREVIEW_LIMIT - 1))
@@ -192,7 +197,7 @@ import kotlinx.coroutines.launch
             targetRecent = recentOrigin
             positioned = null
             target = if (recentOrigin) "recent-more" else "collection-more"
-            grid.scrollToItem(if (recentOrigin) libraryGridRecentRowIndex() else headerItems)
+            grid.scrollToItem(if (recentOrigin) libraryGridRecentRowIndex(showExplorer) else headerItems)
             val list = if (recentOrigin) recentList else collectionList
             list.scrollToItem(if (recentOrigin) recent.size.coerceAtMost(HOME_PREVIEW_LIMIT) else visible.size.coerceAtMost(HOME_PREVIEW_LIMIT))
             snapshotFlow { positioned == target }.first { it }
@@ -309,7 +314,7 @@ import kotlinx.coroutines.launch
         if (activeCollectionId != null || sectionEntry || restored || searching || searchRequested) return@LaunchedEffect
         if (homeRows && homeOriginRow in listOf("catalog", "latest")) {
             restored = true
-            grid.scrollToItem(footerIndex - (if (showExplorer) 1 else 0) - (if (homeOriginRow == "catalog") 2 else 1))
+            grid.scrollToItem(homeSourceRowIndex(recent.size, showExplorer, homeOriginRow == "latest"))
             sourceRestoreItem = homeOriginItem
             sourceRestoreRow = homeOriginRow
             return@LaunchedEffect
@@ -370,6 +375,17 @@ import kotlinx.coroutines.launch
     LaunchedEffect(activeCollectionId, collections) {
         if (activeCollectionId != null && collections.none { it.id == activeCollectionId }) returnHome()
     }
+    var headerHasFocus by remember { mutableStateOf(false) }
+    var heroKeyHeld by remember { mutableStateOf(false) }
+    val heroInteractionCallback by rememberUpdatedState(onHeroInteractionChanged)
+    val heroInteraction = heroKeyHeld || searching || managing || optionsFor != null || fullLibrary || activeCollectionId != null || !pageAtTop
+    LaunchedEffect(heroInteraction) { heroInteractionCallback(heroInteraction) }
+    DisposableEffect(Unit) { onDispose { heroInteractionCallback(false) } }
+    LaunchedEffect(headerHasFocus) {
+        // A header action is below the non-focusable title/poster; restore the entire header.
+        // Only actual focus entry triggers this, never new database/carousel emissions.
+        if (headerHasFocus && footerControls) grid.scrollToItem(0)
+    }
     val activeCollection = collections.firstOrNull { it.id == activeCollectionId }
     if (maxLayout && activeCollection != null) {
         MaxCollectionPage(activeCollection, comics.filter { it.id in memberIndex[activeCollection.id].orEmpty() },
@@ -386,8 +402,17 @@ import kotlinx.coroutines.launch
     }
     // Flix/Prime/Max share TvShell's full-viewport artwork, including navigation.
     if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
+    var consumeHeaderUp by remember { mutableStateOf(false) }
+    var headerHeightPx by remember { mutableIntStateOf(0) }
+    val homeBringIntoView = remember {
+        object : androidx.compose.foundation.gestures.BringIntoViewSpec {
+            override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float =
+                homeHeaderBringIntoViewDistance(offset, size, containerSize,
+                    headerHasFocus && headerHeightPx + grid.layoutInfo.beforeContentPadding <= containerSize)
+        }
+    }
     CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides
-        if (homeRows) HomeBringIntoViewSpec else androidx.compose.foundation.gestures.LocalBringIntoViewSpec.current) {
+        if (footerControls) homeBringIntoView else androidx.compose.foundation.gestures.LocalBringIntoViewSpec.current) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(theme.cards.gridMinimumWidthDp.dp * (if (theme.cards.scaleGridWithText) textScale else 1f)), state = grid,
         modifier = Modifier.fillMaxSize().focusRestorer().testTag("library-grid"),
@@ -398,7 +423,25 @@ import kotlinx.coroutines.launch
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(if (footerControls) 10.dp else 18.dp)) {
+            Column(Modifier.testTag("library-header").onSizeChanged { headerHeightPx = it.height }
+                .onFocusChanged {
+                    headerHasFocus = it.hasFocus
+                    if (!it.hasFocus) heroKeyHeld = false
+                }
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown) heroKeyHeld = true
+                    else if (event.type == KeyEventType.KeyUp) heroKeyHeld = false
+                    if (event.key != Key.DirectionUp) false
+                    else if (event.type == KeyEventType.KeyUp && consumeHeaderUp) {
+                        consumeHeaderUp = false
+                        true
+                    } else if (event.type == KeyEventType.KeyDown && (consumeHeaderUp || !pageAtTop)) {
+                        consumeHeaderUp = true
+                        menuScope.launch { grid.scrollToItem(0) }
+                        true
+                    } else false
+                }.focusGroup(),
+                verticalArrangement = Arrangement.spacedBy(if (footerControls) 10.dp else 18.dp)) {
                 if (footerControls) {
                     if (theme.navigation.libraryBrand) ComicWordmark(Modifier.width(180.dp * textScale).heightIn(min = 38.dp).testTag("library-brand"))
                     if (topSearch) FlowRow(Modifier.fillMaxWidth().testTag("library-top-search"),
@@ -423,7 +466,7 @@ import kotlinx.coroutines.launch
                 }
             }
         }
-        if (showExplorer && !homeRows) {
+        if (showExplorer) {
             item(key = "max-explore", span = { GridItemSpan(maxLineSpan) }) {
                 MaxExploreRow(comics, collections, memberships, repository, filter, onFilter,
                     onCollectionOpen = { id -> navigateWithinContent {
@@ -543,14 +586,6 @@ import kotlinx.coroutines.launch
                         restoreKey = if (sourceRestoreRow == row) sourceRestoreItem else null,
                         onRestored = { sourceRestoreRow = null; sourceRestoreItem = null })
                 }
-            }
-            if (showExplorer) item(key = "max-explore", span = { GridItemSpan(maxLineSpan) }) {
-                MaxExploreRow(comics, collections, memberships, repository, filter, onFilter,
-                    onCollectionOpen = { id -> navigateWithinContent { collectionFocusedId = null; activeCollectionId = id; collectionFocusRequest++ } },
-                    onOpen = { featuredId = it; onFocus(it); onOpen(it) }, state = explorerList,
-                    onItemFocused = { key, comicId -> homeOriginRow = null; homeOriginItem = null; explorerOriginKey = key; comicId?.let { featuredId = it; onFocus(it) } },
-                    restoreKey = explorerRestoreKey, restoreRequest = explorerRestoreRequest,
-                    onRestoreHandled = { explorerRestoreKey = null })
             }
         }
         if (footerControls) {

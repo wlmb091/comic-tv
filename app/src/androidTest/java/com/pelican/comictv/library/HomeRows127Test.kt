@@ -66,16 +66,17 @@ class HomeRows127Test {
     private fun orderedBoundedRows(preset: ColorPreset) = fixture(preset) {
         compose.onNodeWithText("Continuar leitura").assertIsDisplayed()
         val grid = compose.onNodeWithTag("library-grid")
-        grid.performScrollToIndex(2)
+        val extra = if (preset == ColorPreset.Max) 1 else 0
+        grid.performScrollToIndex(2 + extra)
         compose.onNodeWithTag("library-recent-home-0").assertIsDisplayed()
-        grid.performScrollToIndex(4)
+        grid.performScrollToIndex(4 + extra)
         compose.onNodeWithTag("home-collection-row").assertIsDisplayed().performScrollToIndex(12)
         compose.onNodeWithTag("home-collection-more").assertIsDisplayed()
         compose.onNodeWithTag("home-collection-home-12").assertDoesNotExist()
-        grid.performScrollToIndex(5)
+        grid.performScrollToIndex(5 + extra)
         compose.onNodeWithTag("home-source-Catálogo").assertIsDisplayed().performScrollToIndex(12)
         compose.onNodeWithText("Fonte 12").assertDoesNotExist()
-        grid.performScrollToIndex(6)
+        grid.performScrollToIndex(6 + extra)
         compose.onNodeWithTag("home-source-Novidades").assertIsDisplayed()
     }
 
@@ -98,7 +99,7 @@ class HomeRows127Test {
     }
 
     @Test fun collectionMoreKeepsCompleteGridReachable() = fixture(ColorPreset.Max) {
-        compose.onNodeWithTag("library-grid").performScrollToIndex(4)
+        compose.onNodeWithTag("library-grid").performScrollToIndex(5)
         compose.onNodeWithTag("home-collection-row").performScrollToIndex(12)
         compose.onNodeWithTag("home-collection-more").performClick()
         compose.onNodeWithTag("library-cover-home-0").assertIsDisplayed().assertIsFocused()
@@ -114,6 +115,35 @@ class HomeRows127Test {
         assertTrue(title.top >= 20f)
         compose.onNodeWithText("Continuar leitura").assertIsFocused()
     }
+    private fun headerReturnsToTop(preset: ColorPreset, percent: Int = 100) = fixture(preset, percent) {
+        val action = compose.onNodeWithText("Continuar leitura").assertIsFocused()
+        val title = compose.onNodeWithTag("library-hero-title").assertIsDisplayed()
+        val initialTop = title.fetchSemanticsNode().boundsInRoot.top
+        val viewportTop = compose.onNodeWithTag("library-grid").fetchSemanticsNode().boundsInRoot.top
+        assertTrue("Startup must preserve the title above focused actions", initialTop >= viewportTop + 19f)
+        if (preset == ColorPreset.Amber) {
+            val poster = compose.onNodeWithTag("library-hero-poster").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+            val viewport = compose.onNodeWithTag("library-grid").fetchSemanticsNode().boundsInRoot
+            assertTrue("Comic cover must start below the top margin", poster.top >= viewport.top + 19f)
+            assertTrue("Comic cover must remain fully within the viewport", poster.bottom <= viewport.bottom)
+        }
+        // Keep focus on the action, reproducing the no-higher-focus-target case from the videos.
+        compose.onNodeWithTag("library-grid").performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 60f) }
+        action.performKeyInput { pressKey(Key.DirectionUp) }
+        action.assertIsFocused()
+        val returnedTop = title.fetchSemanticsNode().boundsInRoot.top
+        assertEquals(initialTop, returnedTop, 2f)
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
+        action.performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(isFocused()).assert(hasAnyAncestor(hasTestTag("library-header")).not())
+    }
+
+    @Test fun flixStartupAndUpRevealWholeHeader() = headerReturnsToTop(ColorPreset.Flix)
+    @Test fun maxStartupAndUpRevealWholeHeader() = headerReturnsToTop(ColorPreset.Max)
+    @Test fun cinemaStartupAndUpRevealWholeHeader() = headerReturnsToTop(ColorPreset.Cinema)
+    @Test fun comicStartupAndUpRevealWholePoster() = headerReturnsToTop(ColorPreset.Amber)
+    @Test fun cinemaEnlargedTextStillAllowsUpThenDown() = headerReturnsToTop(ColorPreset.Cinema, 130)
+
     @Test fun dpadMovesAcrossCoversAndDownToNextRows() = fixture(ColorPreset.Flix) {
         compose.onNodeWithTag("library-grid").performScrollToIndex(4)
         val first = compose.onNodeWithTag("home-collection-home-0")
@@ -126,8 +156,8 @@ class HomeRows127Test {
         compose.onAllNodes(isFocused() and hasAnyAncestor(hasTestTag("home-source-Novidades"))).assertCountEquals(1)
     }
 
-    @Test fun sourceMoreReturnsToItsOriginWithoutTakingLocalCoverFocus() = fixture(ColorPreset.Prime) {
-        compose.onNodeWithTag("library-grid").performScrollToIndex(5)
+    private fun sourceMoreReturnsToOrigin(preset: ColorPreset) = fixture(preset) {
+        compose.onNodeWithTag("library-grid").performScrollToIndex(if (preset == ColorPreset.Max) 6 else 5)
         compose.onNodeWithTag("home-source-Catálogo").performScrollToIndex(12)
         val more = compose.onNode(hasText("Ver mais") and hasAnyAncestor(hasTestTag("home-source-Catálogo")))
         more.performSemanticsAction(SemanticsActions.RequestFocus) { it() }.performClick()
@@ -135,6 +165,9 @@ class HomeRows127Test {
         more.assertIsDisplayed().assertIsFocused()
         compose.onAllNodes(isFocused()).assertCountEquals(1)
     }
+
+    @Test fun sourceMoreReturnsToItsOriginWithoutTakingLocalCoverFocus() = sourceMoreReturnsToOrigin(ColorPreset.Prime)
+    @Test fun maxSourceMoreRestoresAfterExplorerMovedAboveRecent() = sourceMoreReturnsToOrigin(ColorPreset.Max)
 
     @Test fun sourcePreviewHighContrastKeepsTextAndSuppressesArtwork() = fixture(ColorPreset.Prime, highContrast = true) {
         compose.onNodeWithTag("library-grid").performScrollToIndex(5)
