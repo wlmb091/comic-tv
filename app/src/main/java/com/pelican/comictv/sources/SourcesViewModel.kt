@@ -18,6 +18,39 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     private val _homePreviews = MutableStateFlow(HomeSourcePreviews())
     val homePreviews = _homePreviews.asStateFlow()
 
+    /** Explicit source membership and pinned trust checks also apply to background discovery. */
+    private fun requireSearchSource(source: SourceHandle) {
+        require(source in state.value.sources) { "A fonte não está mais disponível." }
+        val installed = state.value.installed.firstOrNull { it.packageName == source.packageName && it.compatible }
+        require(installed != null && preferences.repositories().any { it.fingerprint in installed.fingerprints }) {
+            "A extensão não pertence a um repositório confiável."
+        }
+    }
+    fun globalSearchSources(): List<SourceHandle> = state.value.sources.filter { source ->
+        runCatching { requireSearchSource(source) }.isSuccess
+    }
+    suspend fun globalSearchPage(source: SourceHandle, query: String, latest: Boolean): List<OnlineTitle> {
+        requireSearchSource(source)
+        val result = fetchCatalog(CatalogSearchQuery(source, query.take(300), latest))
+        currentCoroutineContext().ensureActive(); requireSearchSource(source)
+        return result.titles.take(12)
+    }
+    suspend fun globalSearchLibraryLinks(ids: List<String>) = online.globalSearchLibraryLinks(ids)
+
+    /** A result click is an explicit source choice; discovery itself never saves a selection. */
+    fun showGlobalSearchDetails(source: SourceHandle, title: OnlineTitle) = task {
+        requireSearchSource(source)
+        withContext(Dispatchers.IO) { preferences.saveSelectedSource(source) }
+        currentCoroutineContext().ensureActive()
+        _state.update { it.copy(activeSource = source, managerPage = null, selectedRepository = null,
+            details = null, titles = emptyList(), catalogLoaded = false) }
+        val details = sourceRequest(SourceRequest.Details) { engine.details(source, title) }
+        currentCoroutineContext().ensureActive(); requireSearchSource(source)
+        _state.update { it.copy(details = details) }
+    }
+    fun leaveGlobalSearchDetails() { job?.cancel(); _state.update { it.copy(details = null, busy = false) } }
+    fun pauseGlobalSearchDetails() { job?.cancel(); _state.update { it.copy(busy = false) } }
+
     /** Independent first-page samples: never changes catalog mode, pagination, selection or focus. */
     suspend fun collectHomePreviews() {
         state.map { Triple(it.activeSource, it.sourceRevision, it.sourcesRefreshing || it.busy) }.distinctUntilChanged().collectLatest { (source, generation, blocked) ->

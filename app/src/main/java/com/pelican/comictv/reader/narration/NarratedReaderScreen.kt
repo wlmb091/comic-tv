@@ -17,6 +17,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Text
 import com.pelican.comictv.reader.ReaderViewModel
+import com.pelican.comictv.reader.LocalReaderRotated
+import com.pelican.comictv.reader.readerLogicalKey
 import com.pelican.comictv.reader.narrationDigest
 import com.pelican.comictv.ui.*
 import java.io.File
@@ -24,6 +26,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable internal fun NarratedReaderScreen(reader: ReaderViewModel, pdf: File?, onBack: () -> Unit) {
+    val rotated = LocalReaderRotated.current
     val context = LocalContext.current
     val app = context.applicationContext
     var settings by remember { mutableStateOf(LocalTranslationSettings.read(app)) }
@@ -89,16 +92,17 @@ import kotlinx.coroutines.launch
     }
     Column(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 36.dp, vertical = 20.dp)
         .onPreviewKeyEvent { event ->
-            if (controls || configure) false else when (event.key) {
+            val key = readerLogicalKey(event.key, rotated)
+            if (controls || configure) false else when (key) {
                 Key.DirectionUp, Key.DirectionDown -> {
                     if (event.type == KeyEventType.KeyDown) {
                         controller.pause()
                         scope.launch { scroll.scrollTo((scroll.value + (scroll.viewportSize * .65f).toInt() *
-                            if (event.key == Key.DirectionDown) 1 else -1).coerceIn(0, scroll.maxValue)) }
+                            if (key == Key.DirectionDown) 1 else -1).coerceIn(0, scroll.maxValue)) }
                     }; true
                 }
                 Key.DirectionLeft, Key.DirectionRight -> {
-                    if (event.type == KeyEventType.KeyDown) controller.pageStep(if (event.key == Key.DirectionRight) 1 else -1)
+                    if (event.type == KeyEventType.KeyDown) controller.pageStep(if (key == Key.DirectionRight) 1 else -1)
                     true
                 }
                 Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> {

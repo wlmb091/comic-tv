@@ -140,17 +140,43 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     // It is deliberately not saved: returning from details/recreation must not replay a search.
     var homeTitlePending by remember { mutableStateOf<OnlineTitle?>(null) }
     var librarySearchPending by remember { mutableStateOf(false) }
+    var globalSearchHit by remember { mutableStateOf<com.pelican.comictv.search.SearchHit?>(null) }
     val openLibrarySearch: () -> Unit = {
         startupFocusPending = false
         navigationContentTarget = null
-        librarySearchPending = true
-        if (nav.currentDestination?.route != "library") {
-            nav.navigate("library") { popUpTo("library"); launchSingleTop = true }
-        }
+        nav.navigate("global-search") { launchSingleTop = true }
     }
 
     CompositionLocalProvider(LocalShellLibrarySearch provides openLibrarySearch) {
     NavHost(navController = nav, startDestination = "library") {
+        composable("global-search") {
+            val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory)
+            com.pelican.comictv.search.GlobalSearchScreen(comics, downloadsState.complete, sources,
+                localCover = container.library::cover,
+                onLocal = { nav.navigate("details/$it") },
+                onOnline = { hit -> globalSearchHit = hit; sources.showGlobalSearchDetails(hit.source, hit.title); nav.navigate("global-search-details") },
+                onExtensions = { nav.navigate("extensions") }, onBack = { nav.popBackStack() },
+                onBrowserOpen = { nav.navigate("browser") },
+                extraResults = { query -> com.pelican.comictv.metadata.MetadataEntry(query) { title -> nav.navigate("work-metadata?title=" + android.net.Uri.encode(title)) } })
+        }
+        composable("work-metadata?title={title}", arguments = listOf(navArgument("title") { type = NavType.StringType; defaultValue = "" })) { entry ->
+            com.pelican.comictv.metadata.MetadataScreen(entry.arguments?.getString("title").orEmpty()) { nav.popBackStack() }
+        }
+        composable("global-search-details") {
+            val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory)
+            val sourceState by sources.state.collectAsStateWithLifecycle()
+            androidx.activity.compose.BackHandler { sources.leaveGlobalSearchDetails(); nav.popBackStack() }
+            DisposableEffect(sources) { onDispose { sources.pauseGlobalSearchDetails() } }
+            Column(Modifier.fillMaxSize().background(TvColors.Background).padding(28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (sourceState.details != null) SourcesScreen(sources, onRead = { nav.navigate("reader/$it") }, onInstall = installExtension,
+                    onDetailsBack = { sources.leaveGlobalSearchDetails(); nav.popBackStack() })
+                else {
+                    Text(if (sourceState.busy) "Abrindo título…" else sourceState.message ?: "O título não está disponível.")
+                    if (!sourceState.busy) globalSearchHit?.let { hit -> TvButton("Tentar novamente", { sources.showGlobalSearchDetails(hit.source, hit.title) }) }
+                    TvButton("Voltar à busca", { sources.leaveGlobalSearchDetails(); nav.popBackStack() })
+                }
+            }
+        }
         composable("library") {
             var heroInteraction by remember { mutableStateOf(false) }
             var shellInteraction by remember { mutableStateOf(false) }
@@ -204,8 +230,12 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 ImportScreen(busy, message, onMessage = library::message,
                     onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } },
                     onLocalTransfer = { nav.navigate("local-transfer") }, onFtpTransfer = { nav.navigate("ftp-transfer") },
-                    onCancelImport = library::cancelImport)
+                    onCancelImport = library::cancelImport, onBrowser = { nav.navigate("browser") })
             }
+        }
+        composable("browser") {
+            com.pelican.comictv.browser.BrowserScreen(container.library, onBack = { nav.popBackStack() },
+                onRead = { nav.navigate("reader/$it") }, onDetails = { nav.navigate("details/$it") })
         }
         composable("local-transfer") {
             val context = LocalContext.current.applicationContext
@@ -263,6 +293,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             val id = entry.arguments?.getString("id")!!
             DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo, loadRelated = container.online::related,
                 onDeleteOnline = container::deleteOnlineEdition,
+                onAboutWork = { title -> nav.navigate("work-metadata?title=" + android.net.Uri.encode(title)) },
                 onEditions = if (id.startsWith("online-")) ({ nav.navigate("online-editions/$id?from=details") }) else null,
                 offlineAvailable = id in downloadsState.complete, onDownload = {openDownload(id)}, onRelated = { selected ->
                     if (selected.libraryId != null) nav.navigate("details/" + selected.libraryId)
@@ -490,8 +521,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 containerColor = if (active && !iconOnlySidebar && policy != ThemeNavigationPolicy.TopBar)
                     TvColors.Amber.copy(alpha = if (policy == ThemeNavigationPolicy.BottomDock) theme.navigation.dockActiveAlpha else .15f) else Color.Transparent,
                 contentColor = if (textOnlyTop && active) Color(0xFF17496A) else if (active) TvColors.Amber else Color.White,
-                focusedContainerColor = if (textOnlyTop) Color.Transparent else TvColors.Action,
-                focusedContentColor = if (textOnlyTop) Color(0xFF9DE8FF) else TvColors.OnAction)) {
+                focusedContainerColor = if (textOnlyTop) Color.Transparent else if (route == "search" && TvColors.options.preset == ColorPreset.Flix && !TvColors.options.highContrast) TvColors.ButtonSurface else TvColors.Action,
+                focusedContentColor = if (textOnlyTop) Color(0xFF9DE8FF) else if (route == "search" && TvColors.options.preset == ColorPreset.Flix && !TvColors.options.highContrast) Color.White else TvColors.OnAction)) {
             if (policy == ThemeNavigationPolicy.TopBar) {
                 Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -670,9 +701,9 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     if (TvColors.options.highContrast) {
         TvButton("Menu", onClick, modifier)
     } else androidx.tv.material3.Button(onClick, modifier.heightIn(min = 48.dp),
-        colors = androidx.tv.material3.ButtonDefaults.colors(containerColor = Color.Transparent,
-            contentColor = Color.White, focusedContainerColor = Color.Transparent,
-            focusedContentColor = Color(0xFF101010)),
+        colors = androidx.tv.material3.ButtonDefaults.colors(containerColor = Color(0xFF181818),
+            contentColor = Color.White, focusedContainerColor = Color(0xFF181818),
+            focusedContentColor = Color.White),
         border = androidx.tv.material3.ButtonDefaults.border(border = androidx.tv.material3.Border.None,
             focusedBorder = androidx.tv.material3.Border.None),
         scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1.05f)) {

@@ -4,6 +4,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ThemeSpecTest {
+    @Test fun comicPosterKeepsPortraitFrameWhenViewportBudgetShrinks() {
+        val hero = ThemeSpec.forPreset(ColorPreset.Amber).hero
+        listOf(null, 300f, 250f, 210f, 150f, 80f).forEach { limit ->
+            val (width, height) = homePosterSizeDp(hero.posterWidthDp.toFloat(), hero.posterHeightDp.toFloat(), limit)
+            assertEquals(190f / 250f, width / height, .0001f)
+            assertTrue(height in 150f..250f)
+            assertTrue(width < height)
+        }
+        assertEquals(190f to 250f, homePosterSizeDp(190f, 250f, null))
+    }
+
     @Test fun fiveThemesKeepTheirShippedComposition() {
         val expected = listOf(
             Triple(ColorPreset.Amber, ThemeNavigationPolicy.Sidebar, HeroVariant.PosterLeft),

@@ -41,6 +41,7 @@ import kotlinx.coroutines.CancellationException
     showRelated: Boolean = false,
     offlineAvailable: Boolean = false, onDownload: (() -> Unit)? = null,
     onEditions: (() -> Unit)? = null,
+    onAboutWork: ((String) -> Unit)? = null,
     onDeleteOnline: (suspend (String) -> Boolean)? = null,
 ) {
     var comic by remember(id) { mutableStateOf<ComicEntity?>(null) }
@@ -192,6 +193,7 @@ import kotlinx.coroutines.CancellationException
                 comic?.let { item ->
                     TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
                         { clearPendingFocus(); afterDiscoveryStopped(onRead) }, Modifier.focusRequester(first), primary = true)
+                    if (onAboutWork != null) TvButton("Sobre a obra · metadados e notas", { clearPendingFocus(); afterDiscoveryStopped { onAboutWork(item.title) } })
                     if (isOnline && onEditions != null) {
                         TvButton("Capítulos / edições", { clearPendingFocus(); afterDiscoveryStopped(onEditions) })
                     }

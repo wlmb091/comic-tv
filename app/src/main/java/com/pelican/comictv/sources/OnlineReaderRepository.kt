@@ -73,6 +73,18 @@ class OnlineReaderRepository(
         require(OnlineIdentity.isOnline(id)) { "Identificador online inválido." }
         mutex.withLock { read(id).editionInfo() }
     }
+    /** Exact durable title identities; matching display names alone do not establish a link. */
+    internal suspend fun globalSearchLibraryLinks(ids: List<String>): Map<String, String> = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            buildMap {
+                for (id in ids.filter(OnlineIdentity::isOnline)) {
+                    currentCoroutineContext().ensureActive()
+                    val record = try { read(id) } catch (_: Exception) { continue }
+                    put("${record.source.packageName}:${record.source.id}:${record.title.key}", id)
+                }
+            }
+        }
+    }
     /** Read-only discovery. Never opens pages or updates reading progress. */
     suspend fun related(id: String): RelatedResult = withContext(Dispatchers.IO) {
         if (!OnlineIdentity.isOnline(id)) return@withContext RelatedResult(emptyList(),

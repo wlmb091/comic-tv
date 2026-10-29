@@ -11,6 +11,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -67,6 +70,7 @@ import com.pelican.comictv.ui.homeHeroTitleSizeSp
                 Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUAR SUA LEITURA" else "NA SUA BIBLIOTECA",
                     color = TvColors.Amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(comic?.title ?: "Seu universo de quadrinhos", Modifier.testTag("library-hero-title"),
+                    style = TextStyle(shadow = if (highContrast) null else Shadow(Color.Black.copy(alpha = .8f), Offset(0f, 2f), 6f)),
                     fontSize = titleSize.first.sp,
                     lineHeight = titleSize.second.sp,
                     fontFamily = libraryTitleFont(theme.typography.titleFamily),

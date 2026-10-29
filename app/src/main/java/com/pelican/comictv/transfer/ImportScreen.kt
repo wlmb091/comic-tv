@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
 
-@Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit, onLocalTransfer: () -> Unit, onFtpTransfer: () -> Unit, onCancelImport: () -> Unit = {}) {
+@Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit, onLocalTransfer: () -> Unit, onFtpTransfer: () -> Unit, onCancelImport: () -> Unit = {}, onBrowser: () -> Unit = {}) {
     val scroll = rememberScrollState()
     val first = preferredContentEntryModifier(prepare = { scroll.scrollTo(0) })
     val initial = remember { FocusRequester() }
@@ -38,6 +38,7 @@ import com.pelican.comictv.ui.*
         if (message != null) Text(message, color = TvColors.Amber, fontSize = 17.sp)
         TvButton("Enviar pela rede local · Wi-Fi / Ethernet", { if (!busy) onLocalTransfer() }, primary = true)
         TvButton("Receber por FTP", { if (!busy) onFtpTransfer() })
+        TvButton("Navegar e baixar arquivo", { if (!busy) onBrowser() })
         Text("TRANSFERÊNCIAS · PRÓXIMOS INCREMENTOS", color = TvColors.Muted, fontSize = 13.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
           listOf(

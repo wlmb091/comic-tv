@@ -6,6 +6,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -36,6 +37,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null, onChapterStep: ((Int) -> Unit)? = null, narrationOriginal: java.io.File? = null) {
+    var rotated by rememberSaveable { mutableStateOf(false) }
+    ReaderSurface(rotated) {
+        ReaderContent(viewModel, onExit, onEditions, onChapterStep, narrationOriginal, rotated) { rotated = !rotated }
+    }
+}
+
+@Composable private fun ReaderContent(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)?,
+    onChapterStep: ((Int) -> Unit)?, narrationOriginal: java.io.File?, rotated: Boolean, onRotate: () -> Unit) {
     var narrationMode by remember(viewModel) { mutableStateOf(false) }
     val narrate: (() -> Unit)? = if (ReaderFeatures.narrationAndTranslation) ({ viewModel.beginNarration(); narrationMode = true }) else null
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -66,7 +75,7 @@ import kotlinx.coroutines.launch
         return
     }
     image?.takeIf { it.text != null }?.let { page ->
-        EpubTextScreen(viewModel, state, page, error, onExit, narrate)
+        EpubTextScreen(viewModel, state, page, error, onExit, narrate, onRotate)
         return
     }
     val context = LocalContext.current
@@ -148,7 +157,7 @@ import kotlinx.coroutines.launch
                 }
                 true
             } else if (state.mode == ReaderMode.Tools) false else {
-                val action = when (event.key) {
+                val action = when (readerLogicalKey(event.key, rotated)) {
                     Key.DirectionLeft -> ReaderAction.Left
                     Key.DirectionRight -> ReaderAction.Right
                     Key.DirectionUp -> ReaderAction.Up
@@ -207,7 +216,7 @@ import kotlinx.coroutines.launch
                 layout = layout, onCycleLayout = viewModel::cycleLayout,
                 imageOptions = imageOptions, compareOriginal = compareOriginal, onCycleImagePreset = viewModel::cycleImagePreset,
                 onCycleImageIntensity = viewModel::cycleImageIntensity, onCompareOriginal = viewModel::toggleOriginalComparison,
-                onNarrate = if (viewModel.canNarrateBook()) narrate else null)
+                onNarrate = if (viewModel.canNarrateBook()) narrate else null, onRotate = onRotate)
         }
     }
 }

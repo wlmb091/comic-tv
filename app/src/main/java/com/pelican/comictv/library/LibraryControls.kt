@@ -85,7 +85,7 @@ import kotlinx.coroutines.flow.first
 ) {
     LazyRow(Modifier.fillMaxWidth().testTag("library-footer").padding(top = 12.dp, bottom = 12.dp),
         state = filterListState, contentPadding = PaddingValues(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         if (showSearch) item(key = "search") { TvChoice("Buscar", searchActive, onSearch, searchModifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
         item(key = "library") { TvChoice("Biblioteca · $libraryCount", !history, onLibrary, Modifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }
         item(key = "history") { TvChoice("Histórico · $historyCount", history, onHistory, Modifier.heightIn(min = 48.dp), compact = true, transparentBackground = true) }

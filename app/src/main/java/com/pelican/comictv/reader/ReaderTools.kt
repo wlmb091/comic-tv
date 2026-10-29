@@ -34,7 +34,8 @@ import com.pelican.comictv.ui.*
     onEditions: (() -> Unit)? = null, onPreviousChapter: (() -> Unit)? = null, onNextChapter: (() -> Unit)? = null,
     layout: ReaderLayout = ReaderLayout.Normal, onCycleLayout: () -> Unit = {},
     imageOptions: ReaderImageOptions = ReaderImageOptions(), compareOriginal: Boolean = false,
-    onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}, onNarrate: (() -> Unit)? = null) {
+    onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}, onNarrate: (() -> Unit)? = null, onRotate: () -> Unit = {}) {
+    val rotated = LocalReaderRotated.current
     val first = remember { FocusRequester() }
     val more = remember { FocusRequester() }
     var settings by remember { mutableStateOf(false) }
@@ -55,6 +56,8 @@ import com.pelican.comictv.ui.*
                 Text("Página ${state.page + 1} · ${(state.zoom * 100).toInt()}%", color = TvColors.Muted, fontSize = 16.sp)
                 TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) })
                 Text("Direção salva nesta edição. Mangás podem usar direita → esquerda; sua escolha manual é preservada.", color = TvColors.Muted, fontSize = 16.sp)
+                TvButton(if (rotated) "Tela: 90° · voltar a 0°" else "Tela: 0° · girar 90°", onRotate)
+                Text("Gira somente o leitor nesta sessão, incluindo seus controles. Para TV posicionada na vertical.", color = TvColors.Muted, fontSize = 16.sp)
                 Text("Imagem", fontSize = 20.sp)
                 TvButton("Filtro: " + imageOptions.preset.label, onCycleImagePreset)
                 if (imageOptions.preset != ImagePreset.Original) {
@@ -92,7 +95,7 @@ import com.pelican.comictv.ui.*
                 .padding(vertical = 20.dp, horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.End) {
                 actions.forEachIndexed { index, tool ->
-                    fun neighbor(direction: ToolDirection) = readerToolNeighbor(index, actions.size, direction)
+                    fun neighbor(direction: ToolDirection) = readerToolNeighbor(index, actions.size, readerLogicalDirection(direction, rotated))
                         ?.let { requesters.getValue(actions[it].id) } ?: FocusRequester.Cancel
                     RailButton(tool.label, tool.icon, tool.action, Modifier.focusRequester(requesters.getValue(tool.id))
                         .focusProperties { left = neighbor(ToolDirection.Left); right = neighbor(ToolDirection.Right)

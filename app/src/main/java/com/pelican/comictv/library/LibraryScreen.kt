@@ -455,7 +455,7 @@ import kotlinx.coroutines.launch
                 else if (event.type == KeyEventType.KeyUp) heroKeyHeld = false
                 false
             },
-        contentPadding = PaddingValues(top = gridTop.dp, bottom = gridBottom.dp),
+        contentPadding = PaddingValues(start = if (TvColors.options.preset == ColorPreset.Amber || cinema) 12.dp else 0.dp, top = gridTop.dp, bottom = gridBottom.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -506,7 +506,7 @@ import kotlinx.coroutines.launch
         }
         if (!history && recent.isNotEmpty()) {
             item(key = "recent-heading", span = { GridItemSpan(maxLineSpan) }) {
-                Text("Continuar lendo", Modifier.padding(horizontal = theme.cards.gridHorizontalPaddingDp.dp).onSizeChanged { followingHeadingPx = it.height },
+                Text("Continuar lendo", Modifier.padding(start = if (maxLayout) 12.dp else theme.cards.gridHorizontalPaddingDp.dp, end = theme.cards.gridHorizontalPaddingDp.dp).onSizeChanged { followingHeadingPx = it.height },
                     fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
             item(key = "recent-row", span = { GridItemSpan(maxLineSpan) }) {
@@ -673,7 +673,12 @@ import kotlinx.coroutines.launch
         }
         if (footerControls) {
             item(key = "library-footer", span = { GridItemSpan(maxLineSpan) }) {
-                LibraryFooter(collections, filter, { fullLibrary = true; onFilter(it) }, { managing = true },
+                LibraryFooter(collections, filter, { key ->
+                    if (key == "all") {
+                        fullLibrary = false; history = false; onQuery(""); onFilter("all")
+                        activeCollectionId = null; clearExplorerOrigin(); homeOriginRow = null; homeOriginItem = null
+                    } else { fullLibrary = true; onFilter(key) }
+                }, { managing = true },
                     comics.size, recent.size, history, searching || query.isNotBlank(),
                     { openSearch() }, { fullLibrary = true; history = false }, { history = true },
                     showSearch = (theme.navigation.layout == ThemeNavigationPolicy.Sidebar && !theme.navigation.searchInNavigation) || (theme.navigation.layout == ThemeNavigationPolicy.BottomDock && !shellSearchAvailable),

@@ -17,7 +17,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
-import com.pelican.comictv.library.LibraryDialog
+import com.pelican.comictv.reader.ReaderDialog
 import com.pelican.comictv.library.LibraryTextInput
 import com.pelican.comictv.ui.*
 import kotlinx.coroutines.*
@@ -49,7 +49,7 @@ data class LocalTranslationSettings(val address: String = "", val language: Stri
     var busy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val first = remember { FocusRequester() }
-    LibraryDialog("Tradução pelo computador", onDismiss) {
+    ReaderDialog("Tradução pelo computador", onDismiss) {
         Text("Use um servidor LibreTranslate na mesma rede. A página atual e até duas seguintes serão enviadas somente ao endereço local cadastrado. O computador precisa ficar ligado.", color = TvColors.Muted, fontSize = 16.sp)
         Text("Endereço · exemplo http://192.168.0.10:5000", fontSize = 16.sp)
         LibraryTextInput(address, { address = it.take(512) }, "Endereço do tradutor local", Modifier.focusRequester(first), maxLength = 512)

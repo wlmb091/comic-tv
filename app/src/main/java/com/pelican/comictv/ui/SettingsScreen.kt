@@ -61,7 +61,7 @@ import kotlinx.coroutines.sync.withLock
     val themeCellWidth = 208.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)
     val sections = androidx.compose.foundation.lazy.rememberLazyListState()
     val firstSection = preferredContentEntryModifier(prepare = { sections.scrollToItem(0) })
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenTitle("Configurações", "Comic TV · versão " + BuildConfig.VERSION_NAME)
         LazyRow(state = sections, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             item { TvChoice("Acessibilidade e aparência", accessibility && !storageOpen && !backupOpen && !updatesOpen, { accessibility = true; storageOpen = false; backupOpen = false; updatesOpen = false }, firstSection) }
@@ -81,7 +81,7 @@ import kotlinx.coroutines.sync.withLock
             com.pelican.comictv.storage.StorageSettings(storage, onBack, Modifier.weight(1f), onDownloads)
             return@Column
         }
-        LazyVerticalGrid(GridCells.Adaptive(themeCellWidth), Modifier.weight(1f), contentPadding = PaddingValues(8.dp),
+        LazyVerticalGrid(GridCells.Adaptive(themeCellWidth), Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             error?.let { message -> settingsRow("error") { Text(message, color = TvColors.Amber) } }

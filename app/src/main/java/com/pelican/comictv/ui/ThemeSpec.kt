@@ -138,7 +138,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                         dockSurface = 0xD11E1440, dockBorder = 0x739B6DFF),
                     hero = ThemeHeroSpec(HeroVariant.FullbleedText, HeroHeightPolicy.ReservedReadingRow,
                         viewportInsetDp = 196, minimumHeightDp = 180, bottomAligned = true, titleMaxLines = 2,
-                        horizontalPaddingDp = 0, verticalPaddingDp = 6, contentGapDp = 8,
+                        horizontalPaddingDp = 12, verticalPaddingDp = 6, contentGapDp = 8,
                         textWidthFraction = .68f, progressWidthDp = 255, textOnlyActions = true),
                     cards = ThemeCardSpec(continueStyle = ContinueCardStyle.Compact,
                         collectionStyle = CollectionCardStyle.Poster,
@@ -200,4 +200,10 @@ internal fun homeHeroTitleSizeSp(titleSp: Float, lineHeightSp: Float, maxLines: 
         fontScale.coerceAtLeast(1f)).coerceAtLeast(0f)
     val size = minOf(titleSp, lineBudget * titleSp / lineHeightSp).coerceAtLeast(24f)
     return size to maxOf(size * lineHeightSp / titleSp, 26f)
+}
+
+/** Shrink the whole Comic poster to the viewport budget, retaining its portrait frame. */
+internal fun homePosterSizeDp(widthDp: Float, heightDp: Float, heightLimitDp: Float?): Pair<Float, Float> {
+    val height = minOf(heightDp, heightLimitDp?.coerceAtLeast(150f) ?: heightDp)
+    return widthDp * height / heightDp to height
 }

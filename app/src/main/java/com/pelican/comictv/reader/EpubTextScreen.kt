@@ -29,8 +29,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-@OptIn(FlowPreview::class)
-@Composable internal fun EpubTextScreen(viewModel: ReaderViewModel, state: ReaderState, page: PageImage, error: String?, onExit: () -> Unit, onNarrate: (() -> Unit)? = null) {
+@OptIn(FlowPreview::class, ExperimentalLayoutApi::class)
+@Composable internal fun EpubTextScreen(viewModel: ReaderViewModel, state: ReaderState, page: PageImage, error: String?, onExit: () -> Unit, onNarrate: (() -> Unit)? = null, onRotate: () -> Unit = {}) {
+    val rotated = LocalReaderRotated.current
     val automatic by viewModel.automatic.collectAsStateWithLifecycle()
     val previews by viewModel.previews.collectAsStateWithLifecycle()
     val preferences = LocalContext.current.getSharedPreferences("epub-reading", 0)
@@ -72,22 +73,23 @@ import kotlin.math.roundToInt
     LaunchedEffect(tools) { if (!tools) focus.requestFocus() }
     Box(Modifier.fillMaxSize().background(TvColors.Background)
         .onPreviewKeyEvent { event ->
+            val key = readerLogicalKey(event.key, rotated)
             if (tools) false else {
-                val action = when (event.key) {
+                val action = when (key) {
                     Key.DirectionLeft -> ReaderAction.Left
                     Key.DirectionRight -> ReaderAction.Right
                     Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> ReaderAction.Select
                     else -> null
                 }
                 when {
-                    state.mode == ReaderMode.Timeline && (event.key == Key.DirectionUp || event.key == Key.DirectionDown) -> {
-                        if (event.type == KeyEventType.KeyDown) viewModel.action(if (event.key == Key.DirectionUp) ReaderAction.Up else ReaderAction.Down)
+                    state.mode == ReaderMode.Timeline && (key == Key.DirectionUp || key == Key.DirectionDown) -> {
+                        if (event.type == KeyEventType.KeyDown) viewModel.action(if (key == Key.DirectionUp) ReaderAction.Up else ReaderAction.Down)
                         true
                     }
-                    event.key == Key.DirectionUp || event.key == Key.DirectionDown -> {
+                    key == Key.DirectionUp || key == Key.DirectionDown -> {
                         viewModel.pauseAutomaticReading()
                         if (event.type == KeyEventType.KeyDown) scope.launch {
-                            val delta = maxOf(scroll.viewportSize * .65f, 100f) * if (event.key == Key.DirectionDown) 1 else -1
+                            val delta = maxOf(scroll.viewportSize * .65f, 100f) * if (key == Key.DirectionDown) 1 else -1
                             scroll.scrollTo((scroll.value + delta).roundToInt().coerceIn(0, scroll.maxValue))
                         }
                         true
@@ -126,12 +128,13 @@ import kotlin.math.roundToInt
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(TvColors.Panel).padding(30.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(18.dp)) {
                 Text("Leitura de texto · Fonte $fontSize", fontSize = 23.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     TvButton("Continuar", { viewModel.action(ReaderAction.Back) }, Modifier.focusRequester(first), primary = true)
                     TvButton("Fonte −", { fontSize = (fontSize - 2).coerceAtLeast(18); preferences.edit().putInt("font-size", fontSize).apply() })
                     TvButton("Fonte +", { fontSize = (fontSize + 2).coerceAtMost(40); preferences.edit().putInt("font-size", fontSize).apply() })
                     TvButton("Sair da leitura", exit)
                 }
+                TvButton(if (rotated) "Tela: 90° · voltar a 0°" else "Tela: 0° · girar 90°", onRotate)
                 if (state.pageCount > 0) TvButton("Escolher seção", { viewModel.action(ReaderAction.StartTimeline) })
                 onNarrate?.let { narrate -> TvButton("Ouvir livro e traduzir", { savePosition(); narrate() }) }
                 AutomaticReadingControls(automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval)
