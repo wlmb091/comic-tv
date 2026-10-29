@@ -64,7 +64,7 @@ internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: Lazy
                         overflow = TextOverflow.Ellipsis, fontSize = 16.sp)
                 }
             }
-        } else
+        } else {
         LazyRow(state = state, modifier = Modifier.fillMaxWidth().focusRestorer().testTag("home-source-$label"),
             contentPadding = PaddingValues(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(sample, key = { it.key }) { title ->
@@ -87,6 +87,7 @@ internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: Lazy
                     .then(if (effectiveRestoreKey == "more") Modifier.focusRequester(restore).onGloballyPositioned { positioned = "more" } else Modifier)
                     .onFocusChanged { if (it.isFocused) onFocus("more") })
             }
+        }
         }
         if (sample.isEmpty()) Text("Abra a seção para escolher uma fonte ou consultar os títulos disponíveis.", color = TvColors.Muted, fontSize = 15.sp)
     }
