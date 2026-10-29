@@ -1,5 +1,8 @@
 # Comic TV — decisões persistentes do usuário
 
+- 1.4.0 publicada29/10/2026às13:35:58BRT/code74,fonte2a08762;CI40909669302/40913082184aprovados. Lotecompleto navegadorGoogle/buscarolável/controle90°/safearea5temas/sagas/capaspróprias/detalhescapítulosdireita. Manifestoversionadoassetassinador23.772.009bytes/SHA25660669ec15a2ff3b69982776c5d83f9698f733db43a0eaae8037412c5e0cd79a0. BuildCI18m57,semreplicaçãolocalbateriacompleta,semAPKdownloadredundante. SemaceitaçãovisualBox/capturasreais;backupportátilnãoincluiassociações/capasmanuaissaga. docs/validation/1.4.0.md.
+
+
 - 29/10/2026 usuário encerrou lote e autorizou gerarAPK/publicar TODASatualizações. Substitui espera/proibiçãoanterior. Preparar1.4.0/code74 com navegador/Google/buscarolável/controle90°/safearea5temas/sagas/detalhes;checagenslocaisfocadasjáaprovadas,bateriacompletanoCI,assinaturahabitual/atualizarporcima. Capturas/Boxpendentes;backupportátilnãoincluisagas/imagensmanuaisexplicitar. docs/validation/1.4.0.md.
 
 
