@@ -36,15 +36,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null, onChapterStep: ((Int) -> Unit)? = null, narrationOriginal: java.io.File? = null) {
+@Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null, onChapterStep: ((Int) -> Unit)? = null, narrationOriginal: java.io.File? = null, onUsePageAsSagaCover: (suspend (java.io.File) -> Unit)? = null) {
     var rotated by rememberSaveable { mutableStateOf(false) }
     ReaderSurface(rotated) {
-        ReaderContent(viewModel, onExit, onEditions, onChapterStep, narrationOriginal, rotated) { rotated = !rotated }
+        ReaderContent(viewModel, onExit, onEditions, onChapterStep, narrationOriginal, rotated, onUsePageAsSagaCover) { rotated = !rotated }
     }
 }
 
 @Composable private fun ReaderContent(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)?,
-    onChapterStep: ((Int) -> Unit)?, narrationOriginal: java.io.File?, rotated: Boolean, onRotate: () -> Unit) {
+    onChapterStep: ((Int) -> Unit)?, narrationOriginal: java.io.File?, rotated: Boolean, onUsePageAsSagaCover: (suspend (java.io.File) -> Unit)?, onRotate: () -> Unit) {
     var narrationMode by remember(viewModel) { mutableStateOf(false) }
     val narrate: (() -> Unit)? = if (ReaderFeatures.narrationAndTranslation) ({ viewModel.beginNarration(); narrationMode = true }) else null
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -59,10 +59,14 @@ import kotlinx.coroutines.launch
     val compareOriginal by viewModel.compareOriginal.collectAsStateWithLifecycle()
     val anticipated by viewModel.anticipated.collectAsStateWithLifecycle()
     val effectiveImageOptions = if (compareOriginal) ReaderImageOptions() else imageOptions
+    val coverScope = rememberCoroutineScope()
+    var coverJob by remember { mutableStateOf<Job?>(null) }
+    var coverBusy by remember { mutableStateOf(false) }
+    var coverMessage by remember { mutableStateOf<String?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, viewModel, narrationMode) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) { viewModel.pauseAutomaticReading(); viewModel.pauseAnticipation() }
+            if (event == Lifecycle.Event.ON_PAUSE || event == Lifecycle.Event.ON_STOP) { viewModel.pauseAutomaticReading(); viewModel.pauseAnticipation(); coverJob?.cancel() }
             if (event == Lifecycle.Event.ON_RESUME && !narrationMode) viewModel.resumeAnticipation()
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -216,7 +220,20 @@ import kotlinx.coroutines.launch
                 layout = layout, onCycleLayout = viewModel::cycleLayout,
                 imageOptions = imageOptions, compareOriginal = compareOriginal, onCycleImagePreset = viewModel::cycleImagePreset,
                 onCycleImageIntensity = viewModel::cycleImageIntensity, onCompareOriginal = viewModel::toggleOriginalComparison,
-                onNarrate = if (viewModel.canNarrateBook()) narrate else null, onRotate = onRotate)
+                onNarrate = if (viewModel.canNarrateBook()) narrate else null, onRotate = onRotate,
+                onUsePageCover = onUsePageAsSagaCover?.let { save -> {
+                    val page = image
+                    if (!coverBusy && canUseSagaPageCover(page, loading, displayedError != null)) {
+                        coverBusy = true; coverMessage = null
+                        coverJob = coverScope.launch {
+                            try { save(requireNotNull(page).file); coverMessage = "Página salva como capa da saga." }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (failure: Exception) { coverMessage = failure.message ?: "Não foi possível salvar a capa." }
+                            finally { coverBusy = false }
+                        }
+                    }
+                } }, pageCoverBusy = coverBusy,
+                pageCoverReady = canUseSagaPageCover(image, loading, displayedError != null), pageCoverMessage = coverMessage)
         }
     }
 }

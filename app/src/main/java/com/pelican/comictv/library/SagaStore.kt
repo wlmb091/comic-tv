@@ -73,7 +73,7 @@ internal suspend fun readSagaMetadata(directory: File, comics: List<ComicEntity>
         try {
             val record = OnlineRecordCodec.decode(comic.id, file.inputStream().use { it.readSagaBytes(OnlineRecordCodec.MAX_BYTES) })
             val metadata = SagaMetadata(sagaIdentity(record.source.packageName, record.source.id, record.title.key),
-                record.title.title.take(300), record.title.coverUrl?.takeIf { it.length <= 4096 && it.startsWith("https://") }, record.chapter.number)
+                record.title.title.take(300), com.pelican.comictv.sources.normalizeTitleCoverUrl(record.title.coverUrl), record.chapter.number)
             put(comic.id, metadata)
             if (cache.size >= 512) cache.remove(cache.keys.first())
             cache[comic.id] = SagaMetadataCacheEntry(modified, length, metadata)

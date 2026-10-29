@@ -131,6 +131,32 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
     var language by rememberSaveable { mutableStateOf("") }
     var choosingLanguage by remember { mutableStateOf(false) }
     val sources = filterSources(state.sources,filter,language)
+    var sourceOptions by remember { mutableStateOf<SourceHandle?>(null) }
+    val uninstall = rememberExtensionUninstallFlow(vm)
+    val sourceSearchFocus = remember { FocusRequester() }
+    var restoreSourceSearch by remember { mutableIntStateOf(0) }
+    LaunchedEffect(restoreSourceSearch) { if (restoreSourceSearch > 0) sourceSearchFocus.requestFocus() }
+    sourceOptions?.let { source ->
+        val cancelFocus = remember { FocusRequester() }
+        var blockRelease by remember { mutableStateOf(true) }
+        com.pelican.comictv.library.LibraryDialog("Opções · ${source.name}", { sourceOptions = null; restoreSourceSearch++ }) {
+            Column(Modifier.onPreviewKeyEvent { event ->
+                val center = event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter
+                if (!blockRelease || !center) false else {
+                    if (event.type == KeyEventType.KeyUp) { blockRelease = false; true }
+                    else if (event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount == 0) { blockRelease = false; false }
+                    else true
+                }
+            }, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                val count = state.sources.count { it.packageName == source.packageName }
+                Text(if (count > 1) "Esta extensão fornece $count fontes. O Android desinstalará todas elas." else "A fonte sairá dos catálogos após a confirmação do Android.")
+                Text("Sua biblioteca, progresso e arquivos baixados serão preservados.", color = TvColors.Muted)
+                TvButton("Cancelar", { sourceOptions = null; restoreSourceSearch++ }, Modifier.focusRequester(cancelFocus))
+                TvButton("Desinstalar fonte", { sourceOptions = null; restoreSourceSearch++; uninstall(source) })
+            }
+        }
+        LaunchedEffect(Unit) { cancelFocus.requestFocus() }
+    }
     if (choosingLanguage) com.pelican.comictv.library.LibraryDialog("Filtrar fontes por idioma", {choosingLanguage=false}) {
         for (code in listOf("") + sourceLanguages(state.sources)) {
             com.pelican.comictv.ui.TvChoice(sourceLanguageLabel(code),language == code, {language=code;choosingLanguage=false})
@@ -138,7 +164,7 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SourceSearchControls(filter, { filter = it }, "Buscar fonte · ${state.sources.size} disponíveis",
-            com.pelican.comictv.ui.preferredContentEntryModifier(enabled = !state.busy)) {
+            com.pelican.comictv.ui.preferredContentEntryModifier(enabled = !state.busy).focusRequester(sourceSearchFocus)) {
             TvButton("Idioma: " + sourceLanguageLabel(language) + " · ${sources.size} fonte(s)", { choosingLanguage = true })
         }
         LazyVerticalGrid(GridCells.Adaptive(120.dp * TvColors.options.textScale), Modifier.fillMaxSize().focusRestorer(),
@@ -149,7 +175,9 @@ private fun SourcePicker(state: SourcesState, vm: SourcesViewModel) {
             }
             items(sources, key = { it.packageName + ":" + it.id }) { source ->
                 CompactExtensionCard(source.packageName, null, source.name, source.language,
-                    selected = state.activeSource?.let { it.packageName == source.packageName && it.id == source.id } == true) {
+                    selected = state.activeSource?.let { it.packageName == source.packageName && it.id == source.id } == true,
+                    cardModifier = com.pelican.comictv.library.libraryCardKeys(
+                        { navigate { vm.activateSource(source) } }, { sourceOptions = source })) {
                     navigate { vm.activateSource(source) }
                 }
             }
@@ -238,9 +266,9 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
 }
 
 @Composable
-private fun CompactExtensionCard(packageName: String?, iconUrl: String?, name: String, status: String, selected: Boolean = false, downloadProgress: Float? = null, click: () -> Unit) {
+private fun CompactExtensionCard(packageName: String?, iconUrl: String?, name: String, status: String, selected: Boolean = false, downloadProgress: Float? = null, cardModifier: Modifier = Modifier, click: () -> Unit) {
     val active = selected
-    Card(onClick = click, modifier = Modifier.fillMaxWidth().semantics { this.selected = active; contentDescription = name + ", " + status }, colors = CardDefaults.colors(containerColor = TvColors.Panel),
+    Card(onClick = click, modifier = cardModifier.fillMaxWidth().semantics { this.selected = active; contentDescription = name + ", " + status }, colors = CardDefaults.colors(containerColor = TvColors.Panel),
         scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {
         Column(Modifier.fillMaxWidth().heightIn(min = 124.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {

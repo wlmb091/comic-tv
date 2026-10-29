@@ -2,6 +2,8 @@ package com.pelican.comictv.browser
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.*
+import org.junit.Assert.assertTrue
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -13,6 +15,22 @@ import org.junit.Test
 
 class BrowserViewportTest {
     @get:Rule val compose = createComposeRule()
+    @Test fun enteringSiteHidesToolbarAndExpandsSamePage() {
+        var controlsVisible by mutableStateOf(true)
+        compose.setContent { ComicTvTheme {
+            Box(Modifier.size(640.dp, 360.dp)) {
+                BrowserViewport(controlsVisible, controls = { TvButton("Endereço", {}) },
+                    page = { Box(Modifier.fillMaxSize().testTag("site")) })
+            }
+        } }
+        val before = compose.onNodeWithTag("site").fetchSemanticsNode().boundsInRoot.height
+        compose.runOnIdle { controlsVisible = false }
+        compose.onNodeWithText("Endereço").assertDoesNotExist()
+        val after = compose.onNodeWithTag("site").fetchSemanticsNode().boundsInRoot.height
+        assertTrue(after > before)
+        compose.runOnIdle { controlsVisible = true }
+        compose.onNodeWithText("Endereço").assertIsDisplayed()
+    }
     @Test fun longControlsScrollWhileSiteKeepsItsViewport() {
         compose.setContent { ComicTvTheme {
             Box(Modifier.size(640.dp, 360.dp)) {

@@ -36,9 +36,70 @@ class OnlineReaderRepository(
     private val preferences: SourcePreferences,
 ) : ReaderRepository {
     private val directory = File(context.filesDir, "online-records").apply { mkdirs() }
+    private val coverCoordinator = SagaCoverCoordinator()
+    private val coverTemporaryDirectory = File(context.cacheDir, "saga-cover-transfers").apply {
+        mkdirs()
+        // Only this coordinator writes here; recover bounded abandoned transfers on process startup.
+        listFiles()?.filter { it.isFile && it.name.matches(Regex("title-[0-9]+\\.part")) }?.forEach { it.delete() }
+    }
     private val mutex = Mutex()
     private val sessions = LinkedHashMap<String, OnlineReadingRecord>()
     private val prefetched = mutableSetOf<String>()
+    /** Optional title artwork only. This does not select a source or request chapter pages. */
+    suspend fun ensureSagaCover(id: String) = withContext(Dispatchers.IO) {
+        if (!OnlineIdentity.isOnline(id)) return@withContext
+        try {
+            val saved = mutex.withLock { read(id) }
+            val identity = com.pelican.comictv.library.sagaIdentity(saved.source.packageName, saved.source.id, saved.title.key)
+            val key = library.automaticSagaKey(id, identity) ?: return@withContext
+            coverCoordinator.ensure(key) {
+                if (library.automaticSagaKey(id, identity) != key) return@ensure
+                sourceRequest(SourceRequest.Preview, timeoutMillis = 30_000) {
+                    trusted(saved.pin)
+                    val source = loadSource(saved.source, saved.pin)
+                    coverTemporaryDirectory.mkdirs()
+                    require(coverTemporaryDirectory.usableSpace >= 72L * 1024 * 1024) { "Insufficient cover space" }
+                    val temporary = File.createTempFile("title-", ".part", coverTemporaryDirectory)
+                    try {
+                        suspend fun download(url: String) {
+                            trusted(saved.pin)
+                            sourceRequest(SourceRequest.Image, timeoutMillis = 10_000) {
+                                engine.downloadCover(source, url, temporary, 8L * 1024 * 1024)
+                            }
+                            trusted(saved.pin)
+                            com.pelican.comictv.library.validateSagaCover(temporary)
+                            loadSource(saved.source, saved.pin) // Recheck certificate after transfer.
+                        }
+                        val oldUrl = normalizeTitleCoverUrl(saved.title.coverUrl)
+                        var downloaded = false
+                        if (oldUrl != null) {
+                            try { download(oldUrl); downloaded = true }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (_: Exception) { currentCoroutineContext().ensureActive() }
+                        }
+                        if (!downloaded) {
+                            trusted(saved.pin)
+                            val refreshed = sourceRequest(SourceRequest.Preview, timeoutMillis = 8_000) { engine.titlePreview(source, saved.title) }
+                            trusted(saved.pin)
+                            loadSource(saved.source, saved.pin)
+                            val url = requireNotNull(normalizeTitleCoverUrl(refreshed.coverUrl))
+                            download(url)
+                            mutex.withLock {
+                                val latest = read(id)
+                                // Preserve current pages and any reader updates, changing only this title's metadata.
+                                write(id, latest.copy(title = latest.title.copy(coverUrl = url)))
+                                sessions[id]?.let { sessions[id] = it.copy(title = it.title.copy(coverUrl = url)) }
+                            }
+                            library.sagaMetadataChanged()
+                        }
+                        library.saveAutomaticSagaCover(id, identity, key, temporary)
+                    } finally { temporary.delete() }
+                }
+            }
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { /* Missing, untrusted or broken sources cannot interrupt reading. */ }
+    }
+
     internal suspend fun forgetEdition(id: String): Boolean = withContext(Dispatchers.IO) { mutex.withLock {
         require(OnlineIdentity.isOnline(id))
         sessions.remove(id); prefetched.remove(id)

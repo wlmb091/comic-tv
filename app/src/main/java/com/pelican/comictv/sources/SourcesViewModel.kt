@@ -35,6 +35,47 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         currentCoroutineContext().ensureActive(); requireSearchSource(source)
         return result.titles.take(12)
     }
+    private val searchCoverPermits = kotlinx.coroutines.sync.Semaphore(3)
+    suspend fun globalSearchCover(hit: com.pelican.comictv.search.SearchHit, directory: File): File? =
+        withContext(Dispatchers.IO) {
+            requireSearchSource(hit.source)
+            val identity = "${hit.source.packageName}:${hit.source.id}:${hit.title.key}:${hit.title.coverUrl.orEmpty()}"
+            val key = java.security.MessageDigest.getInstance("SHA-256").digest(identity.toByteArray())
+                .joinToString("") { "%02x".format(it) }
+            directory.mkdirs()
+            val target = File(directory, "$key.img")
+            if (target.isFile && target.length() > 0) { target.setLastModified(System.currentTimeMillis()); return@withContext target }
+            searchCoverPermits.acquire()
+            try {
+                withTimeout(15_000) {
+                    requireSearchSource(hit.source)
+                    if (target.isFile && target.length() > 0) return@withTimeout target
+                    check(directory.usableSpace > 64L * 1024 * 1024) { "Espaço insuficiente para capas." }
+                    val temporary = File.createTempFile("cover-", ".part", directory)
+                    try {
+                        val url = normalizeTitleCoverUrl(hit.title.coverUrl)
+                            ?: normalizeTitleCoverUrl(withTimeout(8_000) { engine.titlePreview(hit.source, hit.title) }.coverUrl)
+                            ?: return@withTimeout null
+                        requireSearchSource(hit.source)
+                        engine.downloadCover(hit.source, url, temporary, 4L * 1024 * 1024)
+                        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        android.graphics.BitmapFactory.decodeFile(temporary.path, bounds)
+                        check(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth.toLong() * bounds.outHeight <= 48_000_000)
+                        currentCoroutineContext().ensureActive(); requireSearchSource(hit.source)
+                        check(temporary.renameTo(target))
+                        synchronized(searchCoverPermits) {
+                            var total = directory.listFiles()?.sumOf { it.length() } ?: 0L
+                            directory.listFiles()?.filter { it.extension == "img" && it != target }
+                                ?.sortedBy { it.lastModified() }?.forEach {
+                                    if (total > 48L * 1024 * 1024) { val bytes = it.length(); if (it.delete()) total -= bytes }
+                                }
+                        }
+                        target
+                    } finally { temporary.delete() }
+                }
+            } finally { searchCoverPermits.release() }
+        }
+
     suspend fun globalSearchLibraryLinks(ids: List<String>) = online.globalSearchLibraryLinks(ids)
 
     /** A result click is an explicit source choice; discovery itself never saves a selection. */

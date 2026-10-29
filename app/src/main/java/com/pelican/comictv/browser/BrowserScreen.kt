@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
@@ -36,8 +37,16 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
     val downloader = remember { BrowserDownloader() }
     var view by remember { mutableStateOf<WebView?>(null) }
     var address by remember { mutableStateOf("") }
+    var pageMode by remember { mutableStateOf(false) }
+    var cursorEnabled by remember { mutableStateOf(true) }
+    fun enterPage() { pageMode = true }
+    fun showToolbar() { pageMode = false }
+    LaunchedEffect(pageMode) {
+        withFrameNanos { }
+        if (pageMode) view?.requestFocus() else if (view != null) toolbar.requestFocus()
+    }
     var ready by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("Abra uma página, escolha um arquivo e confirme o download. MENU retorna à barra; Voltar percorre o histórico.") }
+    var message by remember { mutableStateOf("Abra uma página, escolha um arquivo e confirme o download. Setas movem o cursor; OK clica; MENU retorna à barra; Voltar percorre o histórico.") }
     var offered by remember { mutableStateOf<OfferedDownload?>(null) }
     var complete by remember { mutableStateOf<Pair<File, String>?>(null) }
     var importedId by remember { mutableStateOf<String?>(null) }
@@ -48,7 +57,7 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
     fun navigate() {
         try {
             val url = BrowserPolicy.destination(address)
-            if (foreground && view != null) { message = "Carregando…"; view?.loadUrl(url.toString()) }
+            if (foreground && view != null) { message = "Carregando…"; view?.loadUrl(url.toString()); enterPage() }
             else message = "Aguarde a inicialização do navegador."
         }
         catch (e: Exception) { message = e.message ?: "Endereço inválido." }
@@ -77,20 +86,26 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
     LaunchedEffect(lifecycle) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             withFrameNanos { }; ready = true
-            toolbar.requestFocus()
+            if (pageMode) view?.requestFocus() else toolbar.requestFocus()
             awaitCancellation()
         }
     }
-    BrowserViewport(controls = {
+    BrowserViewport(controlsVisible = !pageMode, controls = {
       Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Navegador · downloads para sua biblioteca")
         Text("Endereço ou pesquisa no Google · OK abre o teclado", color = TvColors.Muted)
         TvTextInput(address, { address = it }, Modifier.fillMaxWidth().focusRequester(toolbar).background(TvColors.Panel).padding(10.dp), onSubmit = { navigate() }, maxLength = 4096)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).onPreviewKeyEvent { event ->
+            if (offered == null && complete == null && importedId == null &&
+                event.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_DOWN && event.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                enterPage(); true
+            } else false
+        }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             TvButton("Buscar / acessar", { navigate() })
             TvButton("Voltar", { back() })
             TvButton("Recarregar", { if (foreground) view?.reload() })
-            TvButton("Entrar na página", { view?.requestFocus() })
+            TvButton("Entrar na página", { enterPage() })
+            TvButton(if (cursorEnabled) "Cursor: ligado" else "Cursor: desligado", { cursorEnabled = !cursorEnabled })
             TvButton("Sair do navegador", onBack)
             if (busy) TvButton("Cancelar", { cancel(); message = "Operação cancelada. Importações já concluídas são preservadas." })
         }
@@ -147,7 +162,9 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
             else AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
                 // Provider creation can fail on TV firmware; return a harmless native view.
                 try {
-                    WebView(ctx).apply {
+                    RemoteBrowserWebView(ctx).apply {
+                        onToolbar = { showToolbar() }
+                        onPageInteraction = { enterPage() }
                         view = this
                         setBackgroundColor(android.graphics.Color.rgb(15, 15, 15))
                         settings.apply {
@@ -184,20 +201,16 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
                                 BrowserPolicy.url(url)
                                 val name = BrowserPolicy.filename(URLUtil.guessFileName(url, disposition, mime))
                                 offered = OfferedDownload(url, name, agent ?: settings.userAgentString)
-                                toolbar.requestFocus()
+                                showToolbar()
                             } catch (e: Exception) { message = e.message ?: "Download incompatível." }
-                        }
-                        setOnKeyListener { _, code, event ->
-                            if (code == KeyEvent.KEYCODE_MENU || code == KeyEvent.KEYCODE_ESCAPE) {
-                                if (event.action == KeyEvent.ACTION_UP) toolbar.requestFocus()
-                                true
-                            } else false
                         }
                         isFocusable = true; isFocusableInTouchMode = true
                         // Render a local welcome document immediately; no network required to open the UI.
                         loadData("<html><body style='background:#0f0f0f;color:#eeeeee;font-family:sans-serif;padding:24px'><h2>Navegador pronto</h2><p>Digite uma pesquisa ou o endereço de um site na barra acima.</p></body></html>", "text/html", "UTF-8")
                     }
                 } catch (_: Exception) { unavailable = true; android.view.View(ctx) }
+            }, update = { native ->
+                (native as? RemoteBrowserWebView)?.cursorEnabled = cursorEnabled
             })
         }
     })

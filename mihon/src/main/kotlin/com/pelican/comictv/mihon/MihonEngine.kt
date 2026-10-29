@@ -135,10 +135,20 @@ class MihonEngine(context: Context) {
         }
     }
 
+    /** Cover pages never enter or replace the reader's originalPages context. */
+    suspend fun downloadCover(handle: SourceHandle, url: String, target: File, maxBytes: Long): File = withContext(Dispatchers.IO) {
+        val secureUrl = requireNotNull(normalizeTitleCoverUrl(url)) { "Invalid title cover URL" }
+        downloadImage(handle, Page(0, "", secureUrl), target, maxBytes)
+    }
+
     suspend fun download(source: SourceHandle, page: OnlinePage, target: File, maxBytes: Long = 32L * 1024 * 1024): File = withContext(Dispatchers.IO) {
+        val original = synchronized(originalPages) { originalPages[source to page] } ?: Page(page.index, page.pageUrl, page.imageUrl)
+        downloadImage(source, original, target, maxBytes)
+    }
+
+    private suspend fun downloadImage(source: SourceHandle, original: Page, target: File, maxBytes: Long): File = withContext(Dispatchers.IO) {
         require(maxBytes in 1..(32L * 1024 * 1024)) { "Invalid page size limit" }
         val api = source(source) as? HttpSource ?: error("Image download requires an HTTP source")
-        val original = synchronized(originalPages) { originalPages[source to page] } ?: Page(page.index, page.pageUrl, page.imageUrl)
         if (original.imageUrl.isNullOrBlank()) original.imageUrl = api.getImageUrl(original)
         target.absoluteFile.parentFile?.mkdirs()
         val temporary = File.createTempFile("mihon-page-", ".part", target.absoluteFile.parentFile)
@@ -166,6 +176,7 @@ class MihonEngine(context: Context) {
                 } finally { closeOnCancel.cancel() }
             }
             currentCoroutineContext().ensureActive()
+            source(source) // Verify the installed package stamp again after network access.
             Os.rename(temporary.absolutePath, target.absolutePath)
             target
         } finally { temporary.delete() }

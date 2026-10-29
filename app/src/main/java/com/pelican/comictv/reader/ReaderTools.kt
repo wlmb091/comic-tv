@@ -34,7 +34,9 @@ import com.pelican.comictv.ui.*
     onEditions: (() -> Unit)? = null, onPreviousChapter: (() -> Unit)? = null, onNextChapter: (() -> Unit)? = null,
     layout: ReaderLayout = ReaderLayout.Normal, onCycleLayout: () -> Unit = {},
     imageOptions: ReaderImageOptions = ReaderImageOptions(), compareOriginal: Boolean = false,
-    onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}, onNarrate: (() -> Unit)? = null, onRotate: () -> Unit = {}) {
+    onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}, onNarrate: (() -> Unit)? = null, onRotate: () -> Unit = {},
+    onUsePageCover: (() -> Unit)? = null, pageCoverBusy: Boolean = false,
+    pageCoverReady: Boolean = true, pageCoverMessage: String? = null) {
     val rotated = LocalReaderRotated.current
     val first = remember { FocusRequester() }
     val more = remember { FocusRequester() }
@@ -45,29 +47,52 @@ import com.pelican.comictv.ui.*
     BackHandler(settings) { closeSettings() }
     Box(modifier.fillMaxHeight().widthIn(max = 480.dp)) {
         if (settings) {
-            val settingsFocus = remember { FocusRequester() }
+            val settingsIds = buildList {
+                add("back"); if (onNarrate != null) add("narrate")
+                add("direction"); add("rotation"); if (onUsePageCover != null) add("cover")
+                add("filter"); if (imageOptions.preset != ImagePreset.Original) { add("intensity"); add("compare") }
+                add("automatic"); add("interval")
+            }
+            val settingsRequesters = remember { mutableMapOf<String, FocusRequester>() }
+            settingsIds.forEach { settingsRequesters.getOrPut(it) { FocusRequester() } }
+            val settingsFocus = settingsRequesters.getValue("back")
+            fun settingsItem(id: String): Modifier {
+                val index = settingsIds.indexOf(id)
+                return Modifier.focusRequester(settingsRequesters.getValue(id)).focusProperties {
+                    up = settingsIds.getOrNull(index - 1)?.let(settingsRequesters::getValue) ?: FocusRequester.Cancel
+                    down = settingsIds.getOrNull(index + 1)?.let(settingsRequesters::getValue) ?: FocusRequester.Cancel
+                    left = FocusRequester.Cancel; right = FocusRequester.Cancel
+                }
+            }
             LaunchedEffect(Unit) { settingsFocus.requestFocus() }
             Column(Modifier.align(Alignment.CenterEnd).width(360.dp).fillMaxHeight()
                 .background(TvColors.Panel).verticalScroll(rememberScrollState()).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Mais opções", fontSize = 25.sp)
-                TvButton("Voltar ao menu", ::closeSettings, Modifier.focusRequester(settingsFocus))
-                onNarrate?.let { TvButton("Ouvir livro e traduzir", it) }
+                TvButton("Voltar ao menu", ::closeSettings, settingsItem("back"))
+                onNarrate?.let { TvButton("Ouvir livro e traduzir", it, settingsItem("narrate")) }
                 Text("Página ${state.page + 1} · ${(state.zoom * 100).toInt()}%", color = TvColors.Muted, fontSize = 16.sp)
-                TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) })
+                TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) }, settingsItem("direction"))
                 Text("Direção salva nesta edição. Mangás podem usar direita → esquerda; sua escolha manual é preservada.", color = TvColors.Muted, fontSize = 16.sp)
-                TvButton(if (rotated) "Tela: 90° · voltar a 0°" else "Tela: 0° · girar 90°", onRotate)
+                TvButton(if (rotated) "Tela: 90° · voltar a 0°" else "Tela: 0° · girar 90°", onRotate, settingsItem("rotation"))
                 Text("Gira somente o leitor nesta sessão, incluindo seus controles. Para TV posicionada na vertical.", color = TvColors.Muted, fontSize = 16.sp)
+                onUsePageCover?.let { save ->
+                    TvButton(if (pageCoverBusy) "Salvando capa…" else "Usar página atual como capa da saga", {
+                        if (!pageCoverBusy && pageCoverReady) save()
+                    }, settingsItem("cover"))
+                    if (!pageCoverReady) Text("Aguarde a página terminar de carregar para escolher a capa.", color = TvColors.Muted, fontSize = 14.sp)
+                    pageCoverMessage?.let { Text(it, color = TvColors.Amber, fontSize = 14.sp) }
+                }
                 Text("Imagem", fontSize = 20.sp)
-                TvButton("Filtro: " + imageOptions.preset.label, onCycleImagePreset)
+                TvButton("Filtro: " + imageOptions.preset.label, onCycleImagePreset, settingsItem("filter"))
                 if (imageOptions.preset != ImagePreset.Original) {
-                    TvButton("Intensidade: " + listOf("Suave", "Média", "Forte")[imageOptions.intensity.coerceIn(0, 2)], onCycleImageIntensity)
-                    TvButton(if (compareOriginal) "Voltar ao filtro" else "Comparar com original", onCompareOriginal)
+                    TvButton("Intensidade: " + listOf("Suave", "Média", "Forte")[imageOptions.intensity.coerceIn(0, 2)], onCycleImageIntensity, settingsItem("intensity"))
+                    TvButton(if (compareOriginal) "Voltar ao filtro" else "Comparar com original", onCompareOriginal, settingsItem("compare"))
                 }
                 Text("Filtro salvo nesta edição. O arquivo original é preservado.", color = TvColors.Muted, fontSize = 16.sp)
                 Text("Leitura automática", fontSize = 20.sp)
-                TvButton("Iniciar leitura automática", onStartAutomatic)
-                TvButton("Intervalo: ${automatic.secondsPerScreen}s", onAutomaticInterval)
+                TvButton("Iniciar leitura automática", onStartAutomatic, settingsItem("automatic"))
+                TvButton("Intervalo: ${automatic.secondsPerScreen}s", onAutomaticInterval, settingsItem("interval"))
                 Text("Setas e OK pausam a leitura automática. Não continua em segundo plano.", color = TvColors.Muted, fontSize = 16.sp)
                 Text("↑ ↓ ajustam o zoom. Em Mover página, as quatro setas deslocam a imagem. OK alterna Mover e Zoom; segure OK por 1s para abrir o menu.", color = TvColors.Muted, fontSize = 16.sp)
             }

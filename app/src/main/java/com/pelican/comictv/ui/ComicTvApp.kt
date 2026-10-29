@@ -291,6 +291,9 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         }
         composable("details/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
+            LaunchedEffect(id, entry) {
+                entry.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { container.online.ensureSagaCover(id) }
+            }
             DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo, loadRelated = container.online::related,
                 loadChapters = if (id.startsWith("online-")) container.online::editions else null,
                 readChapterOrder = { context -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.chapterSequenceOrder(context) } },
@@ -318,6 +321,9 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         }
         composable("reader/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
+            LaunchedEffect(id, entry) {
+                entry.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { container.online.ensureSagaCover(id) }
+            }
             val reader: ReaderViewModel = viewModel(factory = viewModelFactory {
                 initializer { ReaderViewModel(if (id.startsWith("online-")) container.onlineReader else container.library, id, createSavedStateHandle(), thumbnailWarm = container::warmReaderThumbnail, imagePreferences = container.readerImages) }
             })
@@ -330,7 +336,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     editionPreview = reader.image.value?.file
                     nav.navigate("online-editions/$id?step=$step") { popUpTo(entry.destination.id) { inclusive = true } }
                 }) else null,
-                narrationOriginal = if (id.startsWith("online-")) null else container.library.originalFile(id))
+                narrationOriginal = if (id.startsWith("online-")) null else container.library.originalFile(id),
+                onUsePageAsSagaCover = { file -> container.library.saveSagaCoverFromPage(id, file); Unit })
         }
         composable("online-editions/{id}?step={step}&from={from}", arguments = listOf(
             navArgument("step") { type = NavType.IntType; defaultValue = 0 },

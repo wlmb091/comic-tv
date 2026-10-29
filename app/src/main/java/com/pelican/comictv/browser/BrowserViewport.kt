@@ -11,12 +11,14 @@ import com.pelican.comictv.ui.TvColors
 
 /** Native controls can grow with downloads/text size without squeezing the site to zero height.
  * The WebView owns site scrolling; never nest it inside the controls' vertical scroller. */
-@Composable internal fun BrowserViewport(controls: @Composable () -> Unit, page: @Composable () -> Unit) {
+@Composable internal fun BrowserViewport(controlsVisible: Boolean = true, controls: @Composable () -> Unit, page: @Composable () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().background(TvColors.Background).padding(16.dp)) {
         val controlsLimit = maxHeight * .45f
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.fillMaxWidth().heightIn(max = controlsLimit).verticalScroll(rememberScrollState())) {
-                controls()
+            if (controlsVisible) {
+                Column(Modifier.fillMaxWidth().heightIn(max = controlsLimit).verticalScroll(rememberScrollState())) {
+                    controls()
+                }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) { page() }
         }

@@ -25,6 +25,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.tv.material3.Text
@@ -37,6 +38,9 @@ import com.pelican.comictv.library.LibraryDialog
 import com.pelican.comictv.library.libraryCardKeys
 import com.pelican.comictv.sources.*
 import com.pelican.comictv.ui.*
+import kotlinx.coroutines.*
+import java.io.File
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
@@ -45,6 +49,19 @@ import kotlin.coroutines.coroutineContext
 internal class GlobalSearchSession : ViewModel() {
     val batch = mutableStateOf(SearchBatch())
     var requestKey: String? = null
+    private var request: Job? = null
+    fun search(key: String, sources: List<SourceHandle>, query: String, latest: Boolean, runner: GlobalSearch) {
+        if (requestKey == key) return
+        request?.cancel()
+        requestKey = key
+        batch.value = SearchBatch(total = sources.size, running = sources.isNotEmpty())
+        request = viewModelScope.launch {
+            delay(400)
+            runner.search(sources, query, latest).collect { if (requestKey == key) batch.value = it }
+        }
+    }
+    fun clear() { request?.cancel(); requestKey = null; batch.value = SearchBatch() }
+    fun pause() { request?.cancel(); batch.value = batch.value.copy(running = false) }
 }
 
 /** Extra provider results can be supplied without mixing metadata lookup with extension discovery. */
@@ -58,7 +75,7 @@ internal class GlobalSearchSession : ViewModel() {
     val category = SearchCategory.valueOf(categoryName)
     var latest by rememberSaveable { mutableStateOf(false) }
     var browseRequested by rememberSaveable { mutableStateOf(false) }
-    var retry by remember { mutableIntStateOf(0) }
+    var retry by rememberSaveable { mutableIntStateOf(0) }
     var sourceGroup by rememberSaveable { mutableIntStateOf(0) }
     var lastFocus by rememberSaveable { mutableStateOf("query") }
     var restoredFocus by remember { mutableStateOf(false) }
@@ -97,20 +114,18 @@ internal class GlobalSearchSession : ViewModel() {
     LaunchedEffect(comics.map { it.id }) { links = sources.globalSearchLibraryLinks(comics.map { it.id }) }
     val onlineRequested = query.isNotBlank() || browseRequested
     LaunchedEffect(query, latest, browseRequested, selectedSources, retry, lifecycle) {
-        if (!onlineRequested) { batch = SearchBatch(); session.requestKey = null; return@LaunchedEffect }
-        val requestKey = "$query|$latest|$browseRequested|" + selectedSources.joinToString { "${it.packageName}:${it.id}" }
-        if (session.requestKey != requestKey) {
-            batch = SearchBatch(total = selectedSources.size, running = selectedSources.isNotEmpty())
-            session.requestKey = requestKey
-        }
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            delay(400)
-            runner.search(selectedSources, query.trim(), latest && query.isBlank()).collect {
-                coroutineContext.ensureActive()
-                if (it.finished != 0 || !it.running || batch.hits.isEmpty()) batch = it
-            }
-        }
+        if (!onlineRequested) { session.clear(); return@LaunchedEffect }
+        val requestKey = "$query|$latest|$browseRequested|$retry|" + selectedSources.joinToString { "${it.packageName}:${it.id}" }
+        session.search(requestKey, selectedSources, query.trim(), latest && query.isBlank(), runner)
     }
+    DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) session.pause()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+
     val local = remember(comics, query) { comics.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) } }
     val installed = sourceState.installed.map { it.packageName }.toSet()
     val candidates = sourceState.availableExtensions.filter { it.entry.packageName !in installed }
@@ -120,7 +135,7 @@ internal class GlobalSearchSession : ViewModel() {
         LaunchedEffect(Unit) { if (!restoredFocus && lastFocus == key) { requester.requestFocus(); restoredFocus = true } }
         TvButton(text, onClick, modifier.focusRequester(requester).onFocusChanged { if (it.isFocused) lastFocus = key })
     }
-    @Composable fun SearchCard(key: String, title: String, source: String, status: String, cover: Any?, onClick: () -> Unit) {
+    @Composable fun SearchCard(key: String, title: String, source: String, status: String, cover: Any?, hit: SearchHit? = null, onClick: () -> Unit) {
         val requester = remember { FocusRequester() }
         LaunchedEffect(Unit) { if (!restoredFocus && lastFocus == key) { requester.requestFocus(); restoredFocus = true } }
         Card(onClick = onClick, modifier = Modifier.fillMaxWidth().focusRequester(requester)
@@ -130,7 +145,10 @@ internal class GlobalSearchSession : ViewModel() {
             border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.FocusAccent))),
             scale = CardDefaults.scale(focusedScale = 1.03f)) {
             Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Background), contentAlignment = Alignment.Center) {
-                if (!TvColors.options.highContrast) AsyncImage(cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                if (!TvColors.options.highContrast) {
+                    if (hit != null) SearchSourceCover(hit, sources)
+                    else AsyncImage(cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                }
                 else Text("HQ", fontSize = 30.sp)
             }
             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -175,7 +193,7 @@ internal class GlobalSearchSession : ViewModel() {
             items(local.filter { visible("local:${it.id}") }, key = { "local:${it.id}" }) { comic ->
                 SearchCard("local:${comic.id}", comic.title, "Na biblioteca",
                     "${if (comic.id in offlineIds || !comic.id.startsWith("online-")) "Offline · " else ""}Página ${comic.currentPage + 1}/${comic.pageCount}",
-                    localCover(comic.id), { onLocal(comic.id) })
+                    localCover(comic.id), null, { onLocal(comic.id) })
             }
             if (local.isEmpty()) item("no-local", span = { GridItemSpan(maxLineSpan) }) { Text("Nenhum título correspondente na biblioteca.") }
             item("source-heading", span = { GridItemSpan(maxLineSpan) }) { Text("${if (query.isBlank()) if (latest) "Novidades" else "Catálogo" else "Nas fontes instaladas"} · ${batch.finished}/${batch.total} fontes${if (batch.running) " · Buscando…" else ""}", fontSize = 22.sp) }
@@ -193,7 +211,7 @@ internal class GlobalSearchSession : ViewModel() {
                 val possible = linkedId == null && comics.any { it.title.equals(hit.title.title, true) }
                 SearchCard(hit.identity, hit.title.title, "${hit.source.name} · ${hit.source.language}",
                     if (linkedId != null) "Na biblioteca" else if (possible) "Possível correspondência na biblioteca" else "Disponível nesta fonte",
-                    hit.title.coverUrl, { if (linkedId != null) onLocal(linkedId) else onOnline(hit) })
+                    hit.title.coverUrl, hit, { if (linkedId != null) onLocal(linkedId) else onOnline(hit) })
             }
             if (!onlineRequested || (!batch.running && batch.hits.isEmpty())) item("empty", span = { GridItemSpan(maxLineSpan) }) { Text(if (!onlineRequested) "Digite uma consulta ou escolha Catálogo / Novidades para consultar as fontes instaladas." else if (trustedSources.isEmpty()) "Nenhuma fonte instalada e confiável disponível. Abra Extensões para configurar." else "Nenhum resultado nas primeiras páginas consultadas. Tente outra consulta ou fonte.") }
             if (batch.errors.isNotEmpty()) item("errors", span = { GridItemSpan(maxLineSpan) }) { Text("Resultados parciais.\n" + batch.errors.joinToString("\n"), fontSize = 14.sp) }
@@ -238,4 +256,19 @@ internal class GlobalSearchSession : ViewModel() {
         item("search-header", span = { GridItemSpan(maxLineSpan) }) { header() }
         content()
     }
+}
+
+/** Fetch visible covers through the extension client (headers/cookies), never the generic image client. */
+@Composable private fun SearchSourceCover(hit: SearchHit, sources: SourcesViewModel) {
+    val directory = File(LocalContext.current.cacheDir, "search-covers")
+    var failed by remember(hit.identity, hit.title.coverUrl) { mutableStateOf(false) }
+    val file by produceState<File?>(null, hit.identity, hit.title.coverUrl) {
+        failed = false
+        try { value = sources.globalSearchCover(hit, directory); failed = value == null }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { failed = true }
+    }
+    if (file != null) AsyncImage(file, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
+        onError = { failed = true })
+    if (file == null || failed) Text(if (failed) "Capa indisponível" else "Carregando capa…", fontSize = 13.sp)
 }

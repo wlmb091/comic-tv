@@ -33,6 +33,39 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val sagaCoverStore by lazy { com.pelican.comictv.cinema.CinemaArtworkStore(sagaCoverDirectory,
         ::validateSagaCover, maxFileBytes = 20L * 1024 * 1024, maxTotalBytes = 128L * 1024 * 1024) }
 
+    private val automaticSagaDirectory = File(context.cacheDir, "automatic-saga-covers")
+    private val automaticSagaStore by lazy { com.pelican.comictv.cinema.CinemaArtworkStore(automaticSagaDirectory,
+        ::validateSagaCover, maxFileBytes = 8L * 1024 * 1024, maxTotalBytes = 64L * 1024 * 1024) }
+
+    /** A user choice always wins, including a choice made while an automatic transfer is running. */
+    internal suspend fun automaticSagaKey(id: String, identity: String): String? = sagaMutex.withLock {
+        val settings = sagaStore.read()
+        val key = settings.assignments[id] ?: identity
+        if (settings.covers.containsKey(key) ||
+            (sagaCoverDirectory.exists() && sagaCoverStore.file(sagaCoverId(key)) != null) ||
+            (automaticSagaDirectory.exists() && automaticSagaStore.file(sagaCoverId(key)) != null)) null else key
+    }
+
+    internal suspend fun saveAutomaticSagaCover(id: String, identity: String, key: String, source: File) = withContext(Dispatchers.IO) {
+        val active = currentCoroutineContext()
+        source.inputStream().use { automaticSagaStore.stage(it) { active.ensureActive() } }.use { staged ->
+            sagaMutex.withLock {
+                val settings = sagaStore.read()
+                if ((settings.assignments[id] ?: identity) == key && !settings.covers.containsKey(key) &&
+                    (!sagaCoverDirectory.exists() || sagaCoverStore.file(sagaCoverId(key)) == null) &&
+                    automaticSagaStore.file(sagaCoverId(key)) == null) {
+                    automaticSagaStore.commit(sagaCoverId(key), staged) { active.ensureActive() }
+                    _sagaRevision.value++
+                }
+            }
+        }
+    }
+
+    internal suspend fun sagaMetadataChanged() = sagaMutex.withLock {
+        sagaMetadataCache.clear()
+        _sagaRevision.value++
+    }
+
     private val _sagaRevision = kotlinx.coroutines.flow.MutableStateFlow(0L)
     val sagaRevision: kotlinx.coroutines.flow.StateFlow<Long> = _sagaRevision
 
@@ -42,8 +75,10 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
         val names = observeCollections().first().associate { it.id to it.name }
         val groups = buildSagaGroups(comics, metadata, settings, names, ::cover)
         sagaMutex.withLock {
-            if (!sagaCoverDirectory.exists()) groups else groups.map { group ->
-                val file = sagaCoverStore.file(sagaCoverId(group.key))
+            groups.map { group ->
+                val file = (if (sagaCoverDirectory.exists()) sagaCoverStore.file(sagaCoverId(group.key)) else null)
+                    ?: (if (!settings.covers.containsKey(group.key) && automaticSagaDirectory.exists())
+                        automaticSagaStore.file(sagaCoverId(group.key)) else null)
                 if (file != null) group.copy(cover = file) else group
             }
         }
@@ -88,6 +123,39 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
             sagaMutex.withLock {
                 active.ensureActive()
                 val file = sagaCoverStore.commit(sagaCoverId(groupKey), staged) { active.ensureActive() }
+                _sagaRevision.value++
+                file
+            }
+        } finally { prepared.get()?.close() }
+    }
+
+    /** Copy a displayed original page into the manual artwork store, without touching reader files. */
+    suspend fun saveSagaCoverFromPage(editionId: String, source: File): File = withContext(Dispatchers.IO) {
+        require(dao.get(editionId) != null) { "Esta edição não está mais na biblioteca." }
+        val canonical = source.canonicalFile
+        require(listOf(context.filesDir, context.cacheDir).any { root ->
+            canonical.toPath().startsWith(root.canonicalFile.toPath())
+        } && canonical.isFile) { "A página não está disponível no armazenamento do aplicativo." }
+        val group = sagaGroups(dao.observe().first()).firstOrNull { group -> group.editions.any { it.id == editionId } }
+            ?: throw IOException("Não foi possível identificar a saga desta edição.")
+        val assignment = sagaMutex.withLock { sagaStore.read().assignments[editionId] }
+        require(if (group.key.startsWith("manual:")) assignment == group.key else assignment == null) {
+            "A saga mudou. Tente salvar a capa novamente."
+        }
+        val active = currentCoroutineContext()
+        val prepared = java.util.concurrent.atomic.AtomicReference<com.pelican.comictv.cinema.StagedArtwork?>()
+        try {
+            val staged = runInterruptible {
+                canonical.inputStream().use { input ->
+                    sagaCoverStore.stage(input) { active.ensureActive() }.also(prepared::set)
+                }
+            }
+            val currentGroup = sagaGroups(dao.observe().first()).firstOrNull { row -> row.editions.any { it.id == editionId } }
+            require(currentGroup?.key == group.key) { "A saga mudou. Tente salvar a capa novamente." }
+            sagaMutex.withLock {
+                active.ensureActive()
+                require(sagaStore.read().assignments[editionId] == assignment) { "A saga mudou. Tente novamente." }
+                val file = sagaCoverStore.commit(sagaCoverId(group.key), staged) { active.ensureActive() }
                 _sagaRevision.value++
                 file
             }
