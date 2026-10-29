@@ -133,3 +133,5 @@
 - 1.2.9publicada28/10/2026às23:00:24BRT/code71;CI40801826395tentativa2e40803729319aprovados. Manifesto/asset23.591.785bytes/SHA2565d8fbab42e08b15f7ba3bf0db2ca89eaceae0c1c267c12eaebc9652e755e31a1 conferidos,semexecuçãoBoxinferida. Tentativa1timeouttesteLocalUpload,isoladopassouererunsemcódigopassou. Detalhesdocs/validation/1.2.9.md.
 
 - Regra de execução explícita: ao receber função nova durante o trabalho, concluir a tarefa em andamento primeiro e só depois iniciar o acréscimo; manter fila no mesmo pacote e publicar uma única atualização ao concluir o lote. Não interromper nem refazer trabalho pela chegada de ideias novas.
+
+- 1.2.10publicada29/10/2026às00:22:44BRT/code72;CI40809974078/40811758930aprovados,filtrosmantidos/carrosselsimples8s/Comicprévias2x5Vermais. Manifesto/asset23.608.169bytes/SHA2564f2bde10fe773c85fabf112c3b65477e1325bde618a11af1bf4eca38f81a371dconferidos. PrimeirorunLintindentcorrigido,semclaimBox. Registrodocs/validation/1.2.10.md.
