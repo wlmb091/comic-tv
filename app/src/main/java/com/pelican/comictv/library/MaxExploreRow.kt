@@ -71,8 +71,9 @@ internal fun maxExploreEntries(comics: List<ComicEntity>, collections: List<Coll
     }
     Column(Modifier.fillMaxWidth().testTag("max-explore"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (collections.isNotEmpty()) "Explore suas coleções" else "Explore suas leituras",
+            modifier = Modifier.padding(horizontal = LocalThemeSpec.current.cards.gridHorizontalPaddingDp.dp),
             fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        LazyRow(modifier = Modifier.testTag("max-explore-row"), state = state, contentPadding = PaddingValues(4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyRow(modifier = Modifier.fillMaxWidth().testTag("max-explore-row"), state = state, contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(entries, key = { it.key }) { entry ->
                 var focused by remember { mutableStateOf(false) }
                 val requester = remember(entry.key) { FocusRequester() }

@@ -33,7 +33,7 @@ class MaxExploreEntriesTest {
 
     @Test fun optionalExplorerDoesNotChangeRecentRowIndexAndMovesEveryCoverAndFooterOnce() {
         assertEquals(5, libraryGridHeaderItems(false, 3, true))
-        assertEquals(3, libraryGridRecentRowIndex(true))
+        assertEquals(2, libraryGridRecentRowIndex(true))
         assertEquals(2, libraryGridRecentRowIndex(false))
         assertEquals(3, libraryGridHeaderItems(false, 0, true))
         assertEquals(29, libraryGridFooterIndex(false, 3, 24, true))

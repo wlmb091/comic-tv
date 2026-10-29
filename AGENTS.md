@@ -1,5 +1,7 @@
 # Comic TV — decisões persistentes do usuário
 
+- 1.2.10 loteautorizado: filtros1.2.9funcionam porrelatoBox; movimento/autotroca parou. Restaurarcarrosselsimples1.2.8 com8s,semnovospan/zoom/viradadepágina/indicadortemporizado;preservarfiltros/configuraçãoautoplay ecompatibilidadedosprefslegados. Todos5temassemargenslateraisexternas,fileirashorizontaisatébordareal,proporçõespreservadas. Maxordemhero→Continuarlendo→Explorecoleções; CinemaMenu focadofontequasepreta,semfundo/borda;Primecategoriaativa azulmaisEscurocomoaslegendas. ComicBuscarpassalateral,eCatálogo/Novidadesdepoiscoleçãoantesrodapé,coleçãoexistenteinalterada. PreserveUSB/dados/foco/HC/texto85–130%;semnovasfontes/APIs.
+
 - 1.2.9 autorizada após fotos: Flix/Max/Cinema slides10s com pan centro→topo preservando proporção, virada direita→esquerda comdobra/sombra leve eindicadorprogressivo. Foco/scroll estáveis; pausa relógio eminteração/menu/foraHome. Maxdock oculto inicialmente,↓nafronteiradoconteúdo revela semroubar navegaçãoentrefileiras,4sidle transferefocoantesderecolher portranslação. CinemaMenu sótexto; Primecategoriaativa ciano moderado e focobriltante,semfundo/borda(HCpreservado). Corrigir alturaefetivadohero+marca+primeirafileira completa, não sópadding; Homeatébordainferior. Usuário pediu filtroReader nascapas, escolheuHQantigaFORTEepediu configuraçõesiguaisReader:Originaldesligado/Textoetraços/HQantiga,intensidadeSuave/Média/Forte,persistênciaseparadadoReader/backupcompatível. SemIA/upscalingexternonestelote;priorizararte/páginalocaldemaiorresolução einterpolaçãoHigh,tratamentodecódigoreutilizado bounded2MP,originaisintactos.
 
 
@@ -129,3 +131,5 @@
 - Complemento1.2.9movimentoautorizado: carouselMotion=Pan(default)/None/ZoomIn/ZoomOut/Dynamic, persistido+backupestritoopcional;Dinâmico alterna pelos3efeitos a cadaedição. Zoom1.00–1.08,painterlimitadoao viewport;desligarautoplayremove movimentocompleto e filtroficaindependente. Toggleverticaldesativapanapenas,separadodoszoom.
 
 - 1.2.9publicada28/10/2026às23:00:24BRT/code71;CI40801826395tentativa2e40803729319aprovados. Manifesto/asset23.591.785bytes/SHA2565d8fbab42e08b15f7ba3bf0db2ca89eaceae0c1c267c12eaebc9652e755e31a1 conferidos,semexecuçãoBoxinferida. Tentativa1timeouttesteLocalUpload,isoladopassouererunsemcódigopassou. Detalhesdocs/validation/1.2.9.md.
+
+- Regra de execução explícita: ao receber função nova durante o trabalho, concluir a tarefa em andamento primeiro e só depois iniciar o acréscimo; manter fila no mesmo pacote e publicar uma única atualização ao concluir o lote. Não interromper nem refazer trabalho pela chegada de ideias novas.

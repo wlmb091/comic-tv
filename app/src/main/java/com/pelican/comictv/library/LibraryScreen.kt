@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import com.pelican.comictv.ui.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -72,6 +73,11 @@ import kotlinx.coroutines.launch
     val navigateWithinContent = LocalContentNavigation.current
     val grid = rememberLazyGridState()
     val pageAtTop by remember(grid) { derivedStateOf { grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0 } }
+    val heroVisible by remember(grid) { derivedStateOf {
+        val layout = grid.layoutInfo
+        layout.visibleItemsInfo.any { it.key == "library-header" &&
+            homeHeroVisible(it.offset.y, it.size.height, layout.viewportStartOffset, layout.viewportEndOffset) }
+    } }
     val filterList = rememberLazyListState()
     val recentList = rememberLazyListState()
     // Hoisted above the lazy item so its scroll survives lazy disposal and Details navigation.
@@ -86,6 +92,9 @@ import kotlinx.coroutines.launch
     val restore = remember { FocusRequester() }
     var history by rememberSaveable { mutableStateOf(false) }
     val homeRows = streaming && !history && !fullLibrary
+    val comicHome = TvColors.options.preset == ColorPreset.Amber && !history && !fullLibrary && query.isBlank() && filter == "all"
+    val previewHome = homeRows || comicHome
+    val homeSourceRows = previewHome
     var target by remember { mutableStateOf<String?>(null) }
     var targetRecent by remember { mutableStateOf(false) }
     var positioned by remember { mutableStateOf<String?>(null) }
@@ -123,8 +132,8 @@ import kotlinx.coroutines.launch
     val showExplorer = theme.exploreCollections && (comics.isNotEmpty() || collections.isNotEmpty()) && !history
     val collectionVisible = homeRows || !maxLayout || history || fullLibrary
     val headerItems = libraryGridHeaderItems(history, recent.size, showExplorer, collectionVisible)
-    val footerIndex = if (homeRows) homeGridFooterIndex(recent.size, showExplorer)
-        else libraryGridFooterIndex(history, recent.size, visible.size, showExplorer, collectionVisible)
+    val footerIndex = if (previewHome) homeGridFooterIndex(recent.size, showExplorer)
+        else libraryGridFooterIndex(history, recent.size, visible.size, showExplorer, collectionVisible, homeSourceRows)
     val explorerEntries = remember(theme.exploreCollections, comics, collections, memberships) {
         if (theme.exploreCollections) maxExploreEntries(comics, collections, memberships) else emptyList()
     }
@@ -146,7 +155,7 @@ import kotlinx.coroutines.launch
             return
         }
         // Reveal only on an explicit return. Emissions never create new restore requests.
-        if (grid.layoutInfo.visibleItemsInfo.none { it.key == "max-explore" }) grid.scrollToItem(1)
+        if (grid.layoutInfo.visibleItemsInfo.none { it.key == "max-explore" }) grid.scrollToItem(homeExplorerRowIndex(recent.size))
         snapshotFlow { grid.layoutInfo.visibleItemsInfo.any { it.key == "max-explore" } }.first { it }
         explorerOriginKey = key
         explorerRestoreKey = key
@@ -163,7 +172,7 @@ import kotlinx.coroutines.launch
     }
     suspend fun restoreComic(id: String, fromRecent: Boolean) {
         val index = (if (fromRecent) recent else visible).indexOfFirst { it.id == id }
-        if (index < 0 || (homeRows && index >= HOME_PREVIEW_LIMIT) || (fromRecent && history)) {
+        if (index < 0 || (previewHome && index >= (if (comicHome) COMIC_HOME_PREVIEW_LIMIT else HOME_PREVIEW_LIMIT)) || (fromRecent && history)) {
             revealHeader()
             focusHeaderControl()
             return
@@ -171,11 +180,11 @@ import kotlinx.coroutines.launch
         targetRecent = fromRecent
         positioned = null
         target = id
-        val key = if (fromRecent) "recent-row" else if (homeRows) "home-collection-row" else id
+        val key = if (fromRecent) "recent-row" else if (previewHome) "home-collection-row" else id
         if (grid.layoutInfo.visibleItemsInfo.none { it.key == key }) {
-            grid.scrollToItem(if (fromRecent) libraryGridRecentRowIndex(showExplorer) else if (homeRows) headerItems else headerItems + index)
+            grid.scrollToItem(if (fromRecent) libraryGridRecentRowIndex(showExplorer) else if (previewHome) headerItems else headerItems + index)
         }
-        if (fromRecent && recentList.layoutInfo.visibleItemsInfo.none { it.key == id }) recentList.scrollToItem(index.coerceAtMost(if (homeRows) HOME_PREVIEW_LIMIT - 1 else Int.MAX_VALUE))
+        if (fromRecent && !comicHome && recentList.layoutInfo.visibleItemsInfo.none { it.key == id }) recentList.scrollToItem(index.coerceAtMost(if (homeRows) HOME_PREVIEW_LIMIT - 1 else Int.MAX_VALUE))
         if (!fromRecent && homeRows && collectionList.layoutInfo.visibleItemsInfo.none { it.key == id }) collectionList.scrollToItem(index.coerceAtMost(HOME_PREVIEW_LIMIT - 1))
         snapshotFlow { positioned == id }.first { it }
         restore.requestFocus()
@@ -199,7 +208,7 @@ import kotlinx.coroutines.launch
             target = if (recentOrigin) "recent-more" else "collection-more"
             grid.scrollToItem(if (recentOrigin) libraryGridRecentRowIndex(showExplorer) else headerItems)
             val list = if (recentOrigin) recentList else collectionList
-            list.scrollToItem(if (recentOrigin) recent.size.coerceAtMost(HOME_PREVIEW_LIMIT) else visible.size.coerceAtMost(HOME_PREVIEW_LIMIT))
+            if (!comicHome) list.scrollToItem(if (recentOrigin) recent.size.coerceAtMost(HOME_PREVIEW_LIMIT) else visible.size.coerceAtMost(HOME_PREVIEW_LIMIT))
             snapshotFlow { positioned == target }.first { it }
             restore.requestFocus()
             target = null
@@ -290,7 +299,7 @@ import kotlinx.coroutines.launch
     optionsFor?.let { selected ->
         fun focusSelected() {
             if (optionsCollection && activeCollectionId != null) { collectionFocusedId = selected.id; onFocus(selected.id) }
-            else if (homeRows) focusHomeComic(selected.id, if (optionsRecent) "recent" else "collection")
+            else if (previewHome) focusHomeComic(selected.id, if (optionsRecent) "recent" else "collection")
             else focusComic(selected.id)
         }
         HistoryOptions(selected, repository, onRead = { optionsFor = null; focusSelected(); onRead(selected.id) }, onOpen = { optionsFor = null; focusSelected(); onOpen(selected.id) },
@@ -312,9 +321,9 @@ import kotlinx.coroutines.launch
     val entryExplorerKey = remember { explorerOriginKey }
     LaunchedEffect(comics, history, query, filter, memberships, searching, searchRequested) {
         if (activeCollectionId != null || sectionEntry || restored || searching || searchRequested) return@LaunchedEffect
-        if (homeRows && homeOriginRow in listOf("catalog", "latest")) {
+        if (homeSourceRows && homeOriginRow in listOf("catalog", "latest")) {
             restored = true
-            grid.scrollToItem(homeSourceRowIndex(recent.size, showExplorer, homeOriginRow == "latest"))
+            grid.scrollToItem(homeSourceRowIndex(recent.size, showExplorer, homeOriginRow == "latest", if (previewHome) 1 else visible.size))
             sourceRestoreItem = homeOriginItem
             sourceRestoreRow = homeOriginRow
             return@LaunchedEffect
@@ -334,7 +343,7 @@ import kotlinx.coroutines.launch
             restored = true
             return@LaunchedEffect
         }
-        if (homeRows) {
+        if (previewHome) {
             restored = true
             if (homeOriginRow == "recent") restoreComic(entryId, true)
             else if (homeOriginRow == "collection") restoreComic(entryId, false)
@@ -360,7 +369,7 @@ import kotlinx.coroutines.launch
         activeCollectionId = null
         menuScope.launch { withFrameNanos { }; explorerOriginKey?.let { restoreExplorer(it) } }
     }
-    BackHandler(enabled = streaming && !searching && !managing && (activeCollectionId != null || fullLibrary)) {
+    BackHandler(enabled = (streaming || TvColors.options.preset == ColorPreset.Amber) && !searching && !managing && (activeCollectionId != null || fullLibrary)) {
         if (activeCollectionId != null) returnHome()
         else {
             navigateWithinContent {
@@ -377,8 +386,14 @@ import kotlinx.coroutines.launch
     }
     var headerHasFocus by remember { mutableStateOf(false) }
     var heroKeyHeld by remember { mutableStateOf(false) }
+    var heroKeyActivity by remember { mutableIntStateOf(0) }
+    // A key-up can be consumed by an overlay or disappear on focus transfer.
+    // Repeated key-down events renew this lease; a lost release cannot freeze autoplay.
+    LaunchedEffect(heroKeyActivity) {
+        if (heroKeyHeld) { delay(800); heroKeyHeld = false }
+    }
     val heroInteractionCallback by rememberUpdatedState(onHeroInteractionChanged)
-    val heroInteraction = heroKeyHeld || searching || managing || optionsFor != null || fullLibrary || activeCollectionId != null || !pageAtTop
+    val heroInteraction = heroKeyHeld || searching || managing || optionsFor != null || fullLibrary || activeCollectionId != null || !heroVisible
     LaunchedEffect(heroInteraction) { heroInteractionCallback(heroInteraction) }
     DisposableEffect(Unit) { onDispose { heroInteractionCallback(false) } }
     LaunchedEffect(headerHasFocus) {
@@ -406,20 +421,19 @@ import kotlinx.coroutines.launch
             .coerceAtLeast(theme.hero.minimumHeightDp.dp)
         HeroHeightPolicy.Fraction -> maxHeight * theme.hero.viewportFraction
     }
-    val firstRowEstimate = if (showExplorer) 12f + 24f * textScale + 8f + 88f + 8f + 36f * textScale + 8f
-        else if (!history && recent.isNotEmpty()) {
+    val firstRowEstimate = if (!history && recent.isNotEmpty()) {
             val cards = theme.cards
             val cardHeight = if (cards.continueStyle in setOf(ContinueCardStyle.ArtLarge, ContinueCardStyle.Art16x9))
                 cards.recentHeightDp.coerceAtLeast(114) * textScale
             else maxOf(cards.recentHeightDp.toFloat(), cards.recentThumbnailHeightDp + 2f * cards.recentPaddingDp,
                 (2f * theme.typography.cardLineHeightSp + 1.4f * theme.typography.cardStatusSp) * textScale + 18f + 2f * cards.recentPaddingDp)
             24f * textScale + cardHeight + 8f
-        } else 0f
-    val measuredFollowing = with(density) { followingHeadingPx.toDp().value + followingRowPx.toDp().value }
+        } else if (showExplorer) 12f + 24f * textScale + 8f + 88f + 8f + 36f * textScale + 8f else 0f
+    val measuredFollowing = with(density) { (if (recent.isNotEmpty()) followingHeadingPx.toDp().value else 0f) + followingRowPx.toDp().value }
     val brandHeight = if (theme.navigation.libraryBrand) with(density) { brandHeightPx.toDp().value }.coerceAtLeast(38f) else 0f
     val streamingHeroHeight = if (footerControls && !cinema) homeHeroViewportBudget(maxHeight.value,
         requestedHeroHeight.value, brandHeight, maxOf(firstRowEstimate, measuredFollowing), gridTop, gridBottom,
-        rowGapsDp = if (showExplorer) 10f else 20f).dp else requestedHeroHeight
+        rowGapsDp = if (showExplorer && recent.isEmpty()) 10f else 20f).dp else requestedHeroHeight
     // Flix/Prime/Max share TvShell's full-viewport artwork, including navigation.
     if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
     var consumeHeaderUp by remember { mutableStateOf(false) }
@@ -435,21 +449,23 @@ import kotlinx.coroutines.launch
         if (footerControls) homeBringIntoView else androidx.compose.foundation.gestures.LocalBringIntoViewSpec.current) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(theme.cards.gridMinimumWidthDp.dp * (if (theme.cards.scaleGridWithText) textScale else 1f)), state = grid,
-        modifier = Modifier.fillMaxSize().focusRestorer().testTag("library-grid"),
-        contentPadding = PaddingValues(start = theme.cards.gridHorizontalPaddingDp.dp, end = theme.cards.gridHorizontalPaddingDp.dp,
-            top = gridTop.dp, bottom = gridBottom.dp),
+        modifier = Modifier.fillMaxSize().focusRestorer().testTag("library-grid")
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown) { heroKeyHeld = true; heroKeyActivity++ }
+                else if (event.type == KeyEventType.KeyUp) heroKeyHeld = false
+                false
+            },
+        contentPadding = PaddingValues(top = gridTop.dp, bottom = gridBottom.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.testTag("library-header").onSizeChanged { headerHeightPx = it.height }
+            Column(Modifier.padding(horizontal = theme.cards.gridHorizontalPaddingDp.dp).testTag("library-header").onSizeChanged { headerHeightPx = it.height }
                 .onFocusChanged {
                     headerHasFocus = it.hasFocus
                     if (!it.hasFocus) heroKeyHeld = false
                 }
                 .onPreviewKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown) heroKeyHeld = true
-                    else if (event.type == KeyEventType.KeyUp) heroKeyHeld = false
                     if (event.key != Key.DirectionUp) false
                     else if (event.type == KeyEventType.KeyUp && consumeHeaderUp) {
                         consumeHeaderUp = false
@@ -488,33 +504,35 @@ import kotlinx.coroutines.launch
                 }
             }
         }
-        if (showExplorer) {
-            item(key = "max-explore", span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.onSizeChanged { followingRowPx = it.height }) {
-                MaxExploreRow(comics, collections, memberships, repository, filter, onFilter,
-                    onCollectionOpen = { id -> navigateWithinContent {
-                        collectionFocusedId = null; activeCollectionId = id; collectionFocusRequest++
-                    } },
-                    onOpen = { featuredId = it; onFocus(it); onOpen(it) }, state = explorerList,
-                    onItemFocused = { key, comicId ->
-                        homeOriginRow = null; homeOriginItem = null
-                        explorerOriginKey = key
-                        comicId?.let { featuredId = it; onFocus(it) }
-                    }, restoreKey = explorerRestoreKey, restoreRequest = explorerRestoreRequest,
-                    onRestoreHandled = { explorerRestoreKey = null })
-                }
-            }
-        }
         if (!history && recent.isNotEmpty()) {
             item(key = "recent-heading", span = { GridItemSpan(maxLineSpan) }) {
-                Text("Continuar lendo", Modifier.onSizeChanged { if (!showExplorer) followingHeadingPx = it.height },
+                Text("Continuar lendo", Modifier.padding(horizontal = theme.cards.gridHorizontalPaddingDp.dp).onSizeChanged { followingHeadingPx = it.height },
                     fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
             item(key = "recent-row", span = { GridItemSpan(maxLineSpan) }) {
+                if (comicHome) {
+                    ComicHomePreviewGrid(recent, { it.id },
+                        onMore = { homeOriginRow = "recent-more"; openFullLibrary(true) },
+                        modifier = Modifier.testTag("recent-row-viewport").onSizeChanged { followingRowPx = it.height },
+                        moreModifier = Modifier.testTag("home-recent-more").then(if (target == "recent-more")
+                            Modifier.focusRequester(restore).onGloballyPositioned { positioned = "recent-more" } else Modifier)) { comic ->
+                        val restoreModifier = if (targetRecent && target == comic.id) Modifier.focusRequester(restore)
+                            .onGloballyPositioned { positioned = comic.id } else Modifier
+                        Card(onClick = { focusHomeComic(comic.id, "recent"); onOpen(comic.id) },
+                            modifier = restoreModifier.fillMaxWidth().testTag("library-recent-${comic.id}")
+                                .then(libraryCardKeys({ focusHomeComic(comic.id, "recent"); onOpen(comic.id) }, { optionsCollection = false; optionsRecent = true; optionsFor = comic }))
+                                .onFocusChanged { if (it.isFocused) focusHomeComic(comic.id, "recent") },
+                            scale = CardDefaults.scale(focusedScale = theme.focus.recentScale),
+                            border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
+                            colors = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent)) {
+                            CollectionCardContent(comic, repository, comic.id in offlineIds)
+                        }
+                    }
+                } else
                 LazyRow(
                     state = recentList,
-                    modifier = Modifier.onSizeChanged { if (!showExplorer) followingRowPx = it.height },
-                    contentPadding = PaddingValues(4.dp),
+                    modifier = Modifier.fillMaxWidth().testTag("recent-row-viewport").onSizeChanged { followingRowPx = it.height },
+                    contentPadding = PaddingValues(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     items(if (homeRows) homePreviewItems(recent) { it.id } else recent, key = { it.id }) { comic ->
@@ -537,16 +555,34 @@ import kotlinx.coroutines.launch
             }
         }
 
+        if (showExplorer) {
+            item(key = "max-explore", span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.onSizeChanged { if (recent.isEmpty()) followingRowPx = it.height }) {
+                MaxExploreRow(comics, collections, memberships, repository, filter, onFilter,
+                    onCollectionOpen = { id -> navigateWithinContent {
+                        collectionFocusedId = null; activeCollectionId = id; collectionFocusRequest++
+                    } },
+                    onOpen = { featuredId = it; onFocus(it); onOpen(it) }, state = explorerList,
+                    onItemFocused = { key, comicId ->
+                        homeOriginRow = null; homeOriginItem = null
+                        explorerOriginKey = key
+                        comicId?.let { featuredId = it; onFocus(it) }
+                    }, restoreKey = explorerRestoreKey, restoreRequest = explorerRestoreRequest,
+                    onRestoreHandled = { explorerRestoreKey = null })
+                }
+            }
+        }
+
         if (collectionVisible) {
         item(key = "collection-heading", span = { GridItemSpan(maxLineSpan) }) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.padding(horizontal = theme.cards.gridHorizontalPaddingDp.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val label = when { filter == "favorites" -> "Favoritos"; filter.startsWith("collection:") -> collections.firstOrNull { "collection:" + it.id == filter }?.name ?: "Coleção"; else -> if (history) "Histórico" else "Sua coleção" }
                 Text(label + " · " + visible.size + (if (query.isNotBlank()) " · Busca: “${query.trim()}”" else ""),
                     fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 if (query.isNotBlank()) TvButton("Limpar busca", { onQuery("") })
             }
         }
-        if (visible.isEmpty() && !homeRows) {
+        if (visible.isEmpty() && !previewHome) {
             item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 26.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     val filtered = query.isNotBlank() || filter != "all"
@@ -563,9 +599,30 @@ import kotlinx.coroutines.launch
                 }
             }
         }
+        if (comicHome) {
+            item(key = "home-collection-row", span = { GridItemSpan(maxLineSpan) }) {
+                ComicHomePreviewGrid(visible, { it.id },
+                    onMore = { homeOriginRow = "collection-more"; openFullLibrary(false) },
+                    modifier = Modifier.testTag("home-collection-row"),
+                    moreModifier = Modifier.testTag("home-collection-more").then(if (target == "collection-more")
+                        Modifier.focusRequester(restore).onGloballyPositioned { positioned = "collection-more" } else Modifier)) { comic ->
+                    val restoreModifier = if (!targetRecent && target == comic.id) Modifier.focusRequester(restore)
+                        .onGloballyPositioned { positioned = comic.id } else Modifier
+                    Card(onClick = { focusHomeComic(comic.id, "collection"); onOpen(comic.id) },
+                        modifier = restoreModifier.fillMaxWidth().testTag("home-collection-${comic.id}")
+                            .then(libraryCardKeys({ focusHomeComic(comic.id, "collection"); onOpen(comic.id) }, { optionsCollection = false; optionsRecent = false; optionsFor = comic }))
+                            .onFocusChanged { if (it.isFocused) focusHomeComic(comic.id, "collection") },
+                        scale = CardDefaults.scale(focusedScale = theme.focus.collectionScale),
+                        border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
+                        colors = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent)) {
+                        CollectionCardContent(comic, repository, comic.id in offlineIds)
+                    }
+                }
+            }
+        } else
         if (homeRows) {
             item(key = "home-collection-row", span = { GridItemSpan(maxLineSpan) }) {
-                LazyRow(state = collectionList, modifier = Modifier.focusRestorer().testTag("home-collection-row"), contentPadding = PaddingValues(6.dp),
+                LazyRow(state = collectionList, modifier = Modifier.focusRestorer().testTag("home-collection-row"), contentPadding = PaddingValues(vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(homePreviewItems(visible) { it.id }, key = { it.id }) { comic ->
                         val restoreModifier = if (!targetRecent && target == comic.id) Modifier.focusRequester(restore)
@@ -601,7 +658,7 @@ import kotlinx.coroutines.launch
             }
         }
         }
-        if (homeRows) {
+        if (homeSourceRows) {
             listOf(false, true).forEach { latest ->
                 val row = if (latest) "latest" else "catalog"
                 item(key = "home-$row", span = { GridItemSpan(maxLineSpan) }) {
@@ -609,7 +666,7 @@ import kotlinx.coroutines.launch
                         if (latest) latestList else catalogList,
                         onOpen = { onSourceTitle(it, latest) }, onMore = { onSourceSection(latest) },
                         onFocus = { restored = true; homeOriginRow = row; homeOriginItem = it; clearExplorerOrigin() },
-                        restoreKey = if (sourceRestoreRow == row) sourceRestoreItem else null,
+                        gridPreview = comicHome, restoreKey = if (sourceRestoreRow == row) sourceRestoreItem else null,
                         onRestored = { sourceRestoreRow = null; sourceRestoreItem = null })
                 }
             }
@@ -629,14 +686,16 @@ import kotlinx.coroutines.launch
     }
 }
 
-internal fun libraryGridRecentRowIndex(explorer: Boolean = false): Int = if (explorer) 3 else 2
+internal fun libraryGridRecentRowIndex(explorer: Boolean = false): Int = 2
 
 /** Header + collection heading; the optional recent heading/row precede every cover. */
 internal fun libraryGridHeaderItems(history: Boolean, recentCount: Int, explorer: Boolean = false, collectionVisible: Boolean = true): Int =
     1 + (if (collectionVisible) 1 else 0) + (if (!history && recentCount > 0) 2 else 0) + (if (explorer) 1 else 0)
 
-internal fun libraryGridFooterIndex(history: Boolean, recentCount: Int, visibleCount: Int, explorer: Boolean = false, collectionVisible: Boolean = true): Int =
-    libraryGridHeaderItems(history, recentCount, explorer, collectionVisible) + if (collectionVisible) visibleCount.coerceAtLeast(1) else 0
+internal fun libraryGridFooterIndex(history: Boolean, recentCount: Int, visibleCount: Int, explorer: Boolean = false,
+    collectionVisible: Boolean = true, sourceRows: Boolean = false): Int =
+    libraryGridHeaderItems(history, recentCount, explorer, collectionVisible) +
+        (if (collectionVisible) visibleCount.coerceAtLeast(1) else 0) + (if (sourceRows) 2 else 0)
 
 internal fun readingFraction(comic: ComicEntity): Float =
     (comic.currentPage + 1f) / comic.pageCount.coerceAtLeast(1)

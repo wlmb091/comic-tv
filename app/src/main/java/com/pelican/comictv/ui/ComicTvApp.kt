@@ -168,7 +168,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         CinemaBackdrop(featuredComic(comics, backdropId)?.id, container.library, Modifier.fillMaxSize())
                     }
                 }) {
-                val previewSources: SourcesViewModel? = if (LocalThemeSpec.current.artwork)
+                val previewSources: SourcesViewModel? = if (LocalThemeSpec.current.artwork || TvColors.options.preset == ColorPreset.Amber)
                     viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory) else null
                 val homePreviews = previewSources?.homePreviews?.collectAsStateWithLifecycle()?.value ?: HomeSourcePreviews()
                 val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -428,7 +428,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     val density = LocalDensity.current
     val fontScale = density.fontScale.coerceAtLeast(1f)
     val immersiveLibrary = policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"
-    SideEffect { onMenuInteractionChanged(overlayOpen || focusWithin || dockVisible) }
+    SideEffect { onMenuInteractionChanged(focusWithin || navigationFocusPending) }
     val expanded = overlayOpen
     val flix = theme.navigation.framelessSidebar
     val framelessSidebar = flix && !TvColors.options.highContrast
@@ -489,7 +489,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             colors = androidx.tv.material3.ButtonDefaults.colors(
                 containerColor = if (active && !iconOnlySidebar && policy != ThemeNavigationPolicy.TopBar)
                     TvColors.Amber.copy(alpha = if (policy == ThemeNavigationPolicy.BottomDock) theme.navigation.dockActiveAlpha else .15f) else Color.Transparent,
-                contentColor = if (textOnlyTop && active) Color(0xFF5BB5CD) else if (active) TvColors.Amber else Color.White,
+                contentColor = if (textOnlyTop && active) Color(0xFF17496A) else if (active) TvColors.Amber else Color.White,
                 focusedContainerColor = if (textOnlyTop) Color.Transparent else TvColors.Action,
                 focusedContentColor = if (textOnlyTop) Color(0xFF9DE8FF) else TvColors.OnAction)) {
             if (policy == ThemeNavigationPolicy.TopBar) {
@@ -556,11 +556,11 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
         backdrop()
         val shellInsets = if (immersiveLibrary) Modifier else if (selected == "library")
-            Modifier.padding(start = theme.navigation.safeHorizontalDp.dp, end = theme.navigation.safeHorizontalDp.dp, top = theme.navigation.safeVerticalDp.dp)
-            else Modifier.padding(horizontal = theme.navigation.safeHorizontalDp.dp, vertical = theme.navigation.safeVerticalDp.dp)
+            Modifier.padding(top = theme.navigation.safeVerticalDp.dp)
+            else Modifier.padding(vertical = theme.navigation.safeVerticalDp.dp)
         Box(Modifier.fillMaxSize()) {
             val contentPadding = when (policy) {
-                ThemeNavigationPolicy.Sidebar -> PaddingValues(start = railWidth + 16.dp)
+                ThemeNavigationPolicy.Sidebar -> PaddingValues(start = railWidth)
                 ThemeNavigationPolicy.TopBar -> PaddingValues(top = 72.dp * fontScale)
                 ThemeNavigationPolicy.BottomDock -> PaddingValues(0.dp) // Overlay; never reflow rows on reveal/hide.
                 ThemeNavigationPolicy.ImmersiveMenu -> if (immersiveLibrary) PaddingValues(0.dp) else PaddingValues(top = 64.dp * fontScale)
@@ -672,7 +672,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     } else androidx.tv.material3.Button(onClick, modifier.heightIn(min = 48.dp),
         colors = androidx.tv.material3.ButtonDefaults.colors(containerColor = Color.Transparent,
             contentColor = Color.White, focusedContainerColor = Color.Transparent,
-            focusedContentColor = Color(0xFF9DE8FF)),
+            focusedContentColor = Color(0xFF101010)),
         border = androidx.tv.material3.ButtonDefaults.border(border = androidx.tv.material3.Border.None,
             focusedBorder = androidx.tv.material3.Border.None),
         scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1.05f)) {

@@ -2,15 +2,14 @@ package com.pelican.comictv.library
 
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.MotionDurationScale
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.pelican.comictv.ui.TvColors
+import kotlinx.coroutines.delay
 
 /** IDs only: never writes reading history, library focus or a scroll position. */
 internal object HeroCarouselPolicy {
-    const val INTERVAL_MS = 10_000L
+    const val INTERVAL_MS = 8_000L
     fun current(ids: List<String>, selected: String?, fallback: String?): String? =
         selected?.takeIf { it in ids } ?: fallback?.takeIf { it in ids } ?: ids.firstOrNull()
     fun next(ids: List<String>, selected: String?): String? {
@@ -19,16 +18,6 @@ internal object HeroCarouselPolicy {
     }
     fun due(elapsedMs: Long, running: Boolean, count: Int) =
         running && count > 1 && elapsedMs >= INTERVAL_MS
-    fun motion(style: String, index: Int): String = if (style == "Dynamic")
-        listOf("Pan", "ZoomIn", "ZoomOut")[Math.floorMod(index, 3)] else style
-    fun zoom(style: String, progress: Float): Float = when (style) {
-        "ZoomIn" -> 1f + .08f * progress.coerceIn(0f, 1f)
-        "ZoomOut" -> 1.08f - .08f * progress.coerceIn(0f, 1f)
-        else -> 1f
-    }
-    fun progress(elapsedMs: Long): Float = (elapsedMs.toFloat() / INTERVAL_MS).coerceIn(0f, 1f)
-    // Crop alignment moves the viewport inside the original image; it never exposes empty pixels.
-    fun verticalBias(progress: Float): Float = -progress.coerceIn(0f, 1f)
     fun indicatorIndices(count: Int, selected: Int): List<Int> {
         if (count <= 0) return emptyList()
         val shown = count.coerceAtMost(7)
@@ -56,10 +45,6 @@ internal class HeroCarouselState(val info: HeroCarouselInfo, val select: (String
     var selected by rememberSaveable { mutableStateOf(initialId) }
     var selectionEpoch by remember { mutableIntStateOf(0) }
     val current = HeroCarouselPolicy.current(ids, selected, initialId)
-    val progress = remember(ids, current, selectionEpoch) { mutableFloatStateOf(0f) }
-    var elapsed by remember(ids, current, selectionEpoch) { mutableLongStateOf(0L) }
-    val motionScale = rememberCoroutineScope().coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
-    val motionEnabled = enabled && motionScale > 0f && !TvColors.options.highContrast
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var resumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
     DisposableEffect(lifecycle) {
@@ -67,24 +52,19 @@ internal class HeroCarouselState(val info: HeroCarouselInfo, val select: (String
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer) }
     }
-    val running = motionEnabled && !paused && resumed && ids.size > 1
-    // One monotonic clock drives the next edition, image framing and active marker together.
-    // Pausing freezes all three; a new edition/manual selection resets the clock. No catch-up ticks.
+    val running = enabled && !paused && resumed && ids.size > 1
+    // Pause, manual selection and data changes restart a full interval, as in 1.2.8.
+    // This timer intentionally does not use animation frames or Android's animation scale.
     LaunchedEffect(ids, current, running, selectionEpoch) {
-        if (running) {
-            val started = withFrameNanos { it }
-            val resumedAt = elapsed
-            do {
-                val elapsedMs = resumedAt + withFrameNanos { (it - started) / 1_000_000L }
-                elapsed = elapsedMs
-                progress.floatValue = HeroCarouselPolicy.progress(elapsedMs)
-                if (HeroCarouselPolicy.due(elapsedMs, true, ids.size)) {
-                    selected = HeroCarouselPolicy.next(ids, current)
-                    break
-                }
-            } while (true)
-        }
+        awaitHeroCarouselAdvance(ids, current, running)?.let { selected = it }
     }
     return HeroCarouselState(HeroCarouselInfo(current, ids.indexOf(current).coerceAtLeast(0), ids.size,
-        progress, running, motionEnabled)) { selected = it; selectionEpoch++ }
+        EmptyHeroProgress, running, enabled)) { selected = it; selectionEpoch++ }
+}
+
+/** A cancellable timer shared by the live controller and virtual-time regression tests. */
+internal suspend fun awaitHeroCarouselAdvance(ids: List<String>, current: String?, running: Boolean): String? {
+    if (!running || ids.size < 2) return null
+    delay(HeroCarouselPolicy.INTERVAL_MS)
+    return HeroCarouselPolicy.next(ids, current)
 }

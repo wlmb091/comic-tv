@@ -22,10 +22,17 @@ internal object HomeBringIntoViewSpec : androidx.compose.foundation.gestures.Bri
         homeBringIntoViewDistance(offset, size, containerSize)
 }
 
-/** Explorer is directly below the hero, before the recent heading/row. */
-internal fun homeSourceRowIndex(recentCount: Int, explorer: Boolean, latest: Boolean): Int =
-    3 + (if (recentCount > 0) 2 else 0) + (if (explorer) 1 else 0) + (if (latest) 1 else 0)
+/** Explorer follows the optional recent heading/row; collection/catalog/latest keep their indices. */
+internal fun homeSourceRowIndex(recentCount: Int, explorer: Boolean, latest: Boolean, collectionItemCount: Int = 1): Int =
+    libraryGridFooterIndex(false, recentCount, collectionItemCount, explorer) + (if (latest) 1 else 0)
 
 /** The header includes non-focusable title/art above its actions: reveal it as a unit. */
 internal fun homeHeaderBringIntoViewDistance(offset: Float, size: Float, container: Float, headerHasFocus: Boolean): Float =
     if (headerHasFocus) 0f else homeBringIntoViewDistance(offset, size, container)
+
+/** The Max explorer moves after Continue reading, including its heading. */
+internal fun homeExplorerRowIndex(recentCount: Int): Int = 1 + if (recentCount > 0) 2 else 0
+
+/** Small bring-into-view offsets do not hide a still visible hero. */
+internal fun homeHeroVisible(offset: Int, height: Int, viewportStart: Int, viewportEnd: Int): Boolean =
+    height > 0 && offset < viewportEnd && offset + height > viewportStart

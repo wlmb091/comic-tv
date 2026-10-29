@@ -24,26 +24,49 @@ import kotlinx.coroutines.flow.first
 @Composable
 internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: LazyListState,
     onOpen: (OnlineTitle) -> Unit, onMore: () -> Unit, onFocus: (String) -> Unit,
-    restoreKey: String? = null, onRestored: () -> Unit = {}) {
+    gridPreview: Boolean = false, restoreKey: String? = null, onRestored: () -> Unit = {}) {
     val theme = LocalThemeSpec.current
     val horizontal = theme.cards.collectionStyle in setOf(CollectionCardStyle.Horizontal, CollectionCardStyle.Mini)
     val restore = remember { FocusRequester() }
-    val effectiveRestoreKey = restoreKey?.let { key -> if (key == "more" || titles.any { it.key == key }) key else "more" }
+    val sample = remember(titles, gridPreview) { if (gridPreview) comicHomePreviewItems(titles) { it.key } else homePreviewItems(titles) { it.key } }
+    val effectiveRestoreKey = restoreKey?.let { key -> if (key == "more" || sample.any { it.key == key }) key else "more" }
     var positioned by remember { mutableStateOf<String?>(null) }
-    val sample = remember(titles) { homePreviewItems(titles) { it.key } }
     LaunchedEffect(effectiveRestoreKey) {
         if (effectiveRestoreKey == null) return@LaunchedEffect
         val index = if (effectiveRestoreKey == "more") sample.size else sample.indexOfFirst { it.key == effectiveRestoreKey }
         if (index < 0) { onRestored(); return@LaunchedEffect }
-        state.scrollToItem(index)
+        if (!gridPreview) state.scrollToItem(index)
         snapshotFlow { positioned == effectiveRestoreKey }.first { it }
         restore.requestFocus()
         onRestored()
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(label, fontSize = 20.sp)
-        LazyRow(state = state, modifier = Modifier.focusRestorer().testTag("home-source-$label"),
-            contentPadding = PaddingValues(6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(label, Modifier.padding(horizontal = theme.cards.gridHorizontalPaddingDp.dp), fontSize = 20.sp)
+        if (gridPreview) {
+            ComicHomePreviewGrid(sample, { it.key }, onMore = { onFocus("more"); onMore() },
+                modifier = Modifier.testTag("home-source-$label"),
+                moreModifier = (if (effectiveRestoreKey == "more") Modifier.focusRequester(restore)
+                    .onGloballyPositioned { positioned = "more" } else Modifier)
+                    .onFocusChanged { if (it.isFocused) onFocus("more") }) { title ->
+                Card(onClick = { onFocus(title.key); onOpen(title) },
+                    modifier = Modifier.fillMaxWidth()
+                        .then(if (effectiveRestoreKey == title.key) Modifier.focusRequester(restore)
+                            .onGloballyPositioned { positioned = title.key } else Modifier)
+                        .onFocusChanged { if (it.isFocused) onFocus(title.key) },
+                    scale = CardDefaults.scale(focusedScale = theme.focus.collectionScale),
+                    border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
+                    colors = CardDefaults.colors(containerColor = TvColors.Panel)) {
+                    Box(Modifier.fillMaxWidth().aspectRatio(1f).background(TvColors.Background)) {
+                        if (!TvColors.options.highContrast) AsyncImage(title.coverUrl, title.title,
+                            Modifier.fillMaxSize().testTag("home-source-cover-${title.key}"), contentScale = ContentScale.Crop)
+                    }
+                    Text(title.title, Modifier.padding(8.dp), maxLines = 2, minLines = 2,
+                        overflow = TextOverflow.Ellipsis, fontSize = 16.sp)
+                }
+            }
+        } else
+        LazyRow(state = state, modifier = Modifier.fillMaxWidth().focusRestorer().testTag("home-source-$label"),
+            contentPadding = PaddingValues(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(sample, key = { it.key }) { title ->
                 Card(onClick = { onFocus(title.key); onOpen(title) }, modifier = Modifier.width(if (horizontal) 220.dp else 132.dp)
                     .then(if (effectiveRestoreKey == title.key) Modifier.focusRequester(restore).onGloballyPositioned { positioned = title.key } else Modifier)

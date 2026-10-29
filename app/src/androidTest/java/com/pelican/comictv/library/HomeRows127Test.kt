@@ -77,7 +77,7 @@ class HomeRows127Test {
         compose.onNodeWithText("Continuar leitura").assertIsDisplayed()
         val grid = compose.onNodeWithTag("library-grid")
         val extra = if (preset == ColorPreset.Max) 1 else 0
-        grid.performScrollToIndex(2 + extra)
+        grid.performScrollToIndex(2)
         compose.onNodeWithTag("library-recent-home-0").assertIsDisplayed()
         grid.performScrollToIndex(4 + extra)
         compose.onNodeWithTag("home-collection-row").assertIsDisplayed().performScrollToIndex(12)
@@ -90,6 +90,44 @@ class HomeRows127Test {
         compose.onNodeWithTag("home-source-Novidades").assertIsDisplayed()
     }
 
+    private fun rowsReachRealViewportEdges(preset: ColorPreset) = fixture(preset, 100, withShell = true) {
+        val shell = compose.onNodeWithTag("theme-shell").getUnclippedBoundsInRoot()
+        val grid = compose.onNodeWithTag("library-grid")
+        val viewport = grid.getUnclippedBoundsInRoot()
+        val sidebar = preset == ColorPreset.Amber || preset == ColorPreset.Flix
+        val rail = if (sidebar) ThemeSpec.forPreset(preset).navigation.sidebarCollapsedWidthDp.dp else 0.dp
+        assertTrue("Content reserves only the actual sidebar rail", kotlin.math.abs((viewport.left - shell.left - rail).value) < 1f)
+        assertTrue("Grid reaches the real right screen edge", kotlin.math.abs((viewport.right - shell.right).value) < 1f)
+        if (sidebar) {
+            val navigation = compose.onNode(hasTestTag("sidebar-collapsed") or hasTestTag("sidebar-expanded"))
+                .fetchSemanticsNode().boundsInRoot
+            val shellPixels = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
+            assertEquals("Sidebar has no outer left gap", shellPixels.left, navigation.left, 1f)
+        }
+        grid.performScrollToIndex(2)
+        val recent = compose.onNodeWithTag("recent-row-viewport").getUnclippedBoundsInRoot()
+        assertTrue("Recent row keeps the full viewport width", kotlin.math.abs((recent.left - viewport.left).value) < 1f && kotlin.math.abs((recent.right - viewport.right).value) < 1f)
+        if (preset != ColorPreset.Amber) {
+            grid.performScrollToIndex(if (preset == ColorPreset.Max) 5 else 4)
+            val collection = compose.onNodeWithTag("home-collection-row").getUnclippedBoundsInRoot()
+            assertTrue("Collection reaches the right screen edge", kotlin.math.abs((collection.right - shell.right).value) < 1f)
+            grid.performScrollToIndex(if (preset == ColorPreset.Max) 6 else 5)
+            val catalog = compose.onNodeWithTag("home-source-Catálogo").getUnclippedBoundsInRoot()
+            assertTrue("Catalog reaches the right screen edge", kotlin.math.abs((catalog.right - shell.right).value) < 1f)
+        }
+        if (preset == ColorPreset.Max) {
+            grid.performScrollToIndex(3)
+            val explorer = compose.onNodeWithTag("max-explore-row").getUnclippedBoundsInRoot()
+            assertTrue("Explorer reaches the right screen edge", kotlin.math.abs((explorer.right - shell.right).value) < 1f)
+        }
+    }
+
+    @Test fun comicRowsReachViewportEdges() = rowsReachRealViewportEdges(ColorPreset.Amber)
+    @Test fun flixRowsReachViewportEdges() = rowsReachRealViewportEdges(ColorPreset.Flix)
+    @Test fun primeRowsReachViewportEdges() = rowsReachRealViewportEdges(ColorPreset.Prime)
+    @Test fun maxRowsReachViewportEdges() = rowsReachRealViewportEdges(ColorPreset.Max)
+    @Test fun cinemaRowsReachViewportEdges() = rowsReachRealViewportEdges(ColorPreset.Cinema)
+
     @Test fun flixHasOrderedBoundedRowsAt130Percent() = orderedBoundedRows(ColorPreset.Flix)
     @Test fun primeHasOrderedBoundedRowsAt130Percent() = orderedBoundedRows(ColorPreset.Prime)
     @Test fun maxHasOrderedBoundedRowsAt130Percent() = orderedBoundedRows(ColorPreset.Max)
@@ -99,7 +137,7 @@ class HomeRows127Test {
         fixture(preset, percentage, withShell = true, longTitle = longTitle) {
             val viewport = compose.onNodeWithTag("library-grid").getUnclippedBoundsInRoot()
             val hero = compose.onNodeWithTag("library-hero").getUnclippedBoundsInRoot()
-            val firstRow = compose.onNodeWithTag(if (preset == ColorPreset.Max) "max-explore" else "library-recent-home-0")
+            val firstRow = compose.onNodeWithTag("recent-row-viewport")
                 .assertIsDisplayed().getUnclippedBoundsInRoot()
             assertTrue("Cabeçalho permanece integralmente abaixo do topo", hero.top >= viewport.top)
             assertTrue("Primeira fileira inteira sem seta↓ inicial", firstRow.bottom <= viewport.bottom + 1.dp)
@@ -119,14 +157,14 @@ class HomeRows127Test {
     @Test fun flixInitialRowFitsAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Flix, 130)
     @Test fun primeInitialRowFitsAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Prime, 100)
     @Test fun primeInitialRowFitsAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Prime, 130)
-    @Test fun maxInitialExplorerFitsAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 100)
-    @Test fun maxInitialExplorerFitsAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 130)
+    @Test fun maxInitialRecentFitsAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 100)
+    @Test fun maxInitialRecentFitsAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 130)
     @Test fun flixTwoLineTitleAndFirstRowFitAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Flix, 100, true)
     @Test fun flixTwoLineTitleAndFirstRowFitAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Flix, 130, true)
     @Test fun primeTwoLineTitleAndFirstRowFitAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Prime, 100, true)
     @Test fun primeTwoLineTitleAndFirstRowFitAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Prime, 130, true)
-    @Test fun maxTwoLineTitleAndExplorerFitAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 100, true)
-    @Test fun maxTwoLineTitleAndExplorerFitAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 130, true)
+    @Test fun maxTwoLineTitleAndRecentFitAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 100, true)
+    @Test fun maxTwoLineTitleAndRecentFitAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 130, true)
 
     @Test fun localDetailsRestoreSameRowAndCover() = fixture(ColorPreset.Flix) {
         compose.onNodeWithTag("library-grid").performScrollToIndex(4)
@@ -200,7 +238,7 @@ class HomeRows127Test {
     }
 
     private fun sourceMoreReturnsToOrigin(preset: ColorPreset) = fixture(preset) {
-        compose.onNodeWithTag("library-grid").performScrollToIndex(if (preset == ColorPreset.Max) 6 else 5)
+        compose.onNodeWithTag("library-grid").performScrollToIndex(when (preset) { ColorPreset.Max -> 6; ColorPreset.Amber -> 28; else -> 5 })
         compose.onNodeWithTag("home-source-Catálogo").performScrollToIndex(12)
         val more = compose.onNode(hasText("Ver mais") and hasAnyAncestor(hasTestTag("home-source-Catálogo")))
         more.performSemanticsAction(SemanticsActions.RequestFocus) { it() }.performClick()
@@ -209,8 +247,27 @@ class HomeRows127Test {
         compose.onAllNodes(isFocused()).assertCountEquals(1)
     }
 
+    @Test fun comicKeepsCollectionGridAndAddsSourcePreviewsBeforeFooterWithSidebarSearch() =
+        fixture(ColorPreset.Amber, 100, withShell = true) {
+            compose.onNodeWithText("Continuar leitura").assertIsFocused()
+            compose.onNodeWithTag("nav-search").assertExists()
+            compose.onNodeWithTag("home-collection-row").assertDoesNotExist()
+            val grid = compose.onNodeWithTag("library-grid")
+            grid.performScrollToNode(hasTestTag("library-cover-home-23"))
+            compose.onNodeWithTag("library-cover-home-23").assertIsDisplayed()
+            grid.performScrollToIndex(28)
+            compose.onNodeWithTag("home-source-Catálogo").assertIsDisplayed()
+            grid.performScrollToIndex(29)
+            compose.onNodeWithTag("home-source-Novidades").assertIsDisplayed()
+            grid.performScrollToIndex(30)
+            compose.onNodeWithTag("library-footer").assertIsDisplayed()
+            compose.onAllNodes(hasText("Buscar") and hasAnyAncestor(hasTestTag("library-footer"))).assertCountEquals(0)
+        }
+
+    @Test fun comicSourceMoreRestoresOriginAfterReturningFromSourceSection() = sourceMoreReturnsToOrigin(ColorPreset.Amber)
+
     @Test fun sourceMoreReturnsToItsOriginWithoutTakingLocalCoverFocus() = sourceMoreReturnsToOrigin(ColorPreset.Prime)
-    @Test fun maxSourceMoreRestoresAfterExplorerMovedAboveRecent() = sourceMoreReturnsToOrigin(ColorPreset.Max)
+    @Test fun maxSourceMoreRestoresAfterExplorerMovedBelowRecent() = sourceMoreReturnsToOrigin(ColorPreset.Max)
 
     @Test fun sourcePreviewHighContrastKeepsTextAndSuppressesArtwork() = fixture(ColorPreset.Prime, highContrast = true) {
         compose.onNodeWithTag("library-grid").performScrollToIndex(5)
@@ -219,4 +276,17 @@ class HomeRows127Test {
         compose.onNodeWithTag("home-source-cover-source-0").assertDoesNotExist()
     }
 
+    @Test fun comicPreviewHasTenCoversInTwoRowsAndMoreReturnsHome() = fixture(ColorPreset.Amber, 100) {
+        compose.onNodeWithTag("library-grid").performScrollToIndex(4)
+        val covers = (0 until 10).map { compose.onNodeWithTag("home-collection-home-$it").fetchSemanticsNode().boundsInRoot }
+        assertEquals(5, covers.take(5).map { it.left }.distinct().size)
+        assertTrue(covers.take(5).all { kotlin.math.abs(it.top - covers.first().top) < 2f })
+        assertTrue(covers.drop(5).all { it.top > covers.first().top })
+        compose.onNodeWithTag("home-collection-home-10").assertDoesNotExist()
+        compose.onNodeWithTag("home-collection-more").performClick()
+        compose.onNodeWithTag("library-cover-home-0").assertExists()
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+        compose.waitForIdle()
+        compose.onNodeWithTag("home-collection-more").assertIsFocused()
+    }
 }

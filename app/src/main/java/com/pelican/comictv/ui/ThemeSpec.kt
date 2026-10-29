@@ -92,7 +92,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     progressWidthDp = 280), ThemeCardSpec(), ThemeTypographySpec(28, 32), colors)
             when (preset) {
                 ColorPreset.Amber -> editorial.copy(
-                    navigation = editorial.navigation.copy(libraryBrand = true, staticCollapsedRail = true),
+                    navigation = editorial.navigation.copy(libraryBrand = true, staticCollapsedRail = true, searchInNavigation = true),
                     footerControls = true,
                     hero = editorial.hero.copy(minimumHeightDp = 194, titleMaxLines = 2,
                         posterWidthDp = 190, posterHeightDp = 250, cropPoster = true, posterBorderDp = 2,

@@ -87,8 +87,6 @@ import com.pelican.comictv.ui.*
                 if (cinema) Text("↓ Biblioteca    ·    → Menu", color = TvColors.Muted, fontSize = 14.sp)
             }
         }
-        // Overlay in the existing hero bounds: changing slides never moves text or focus targets.
-        if (!editorial) HeroCarouselIndicator(Modifier.align(Alignment.BottomEnd)
-            .padding(end = hero.horizontalPaddingDp.dp, bottom = hero.verticalPaddingDp.dp))
+
     }
 }

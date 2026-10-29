@@ -22,6 +22,7 @@ class ThemeSpecTest {
     }
 
     @Test fun approvedSearchCarouselDrawerAndCurrentGeometryArePreserved() {
+        assertTrue(ThemeSpec.forPreset(ColorPreset.Amber).navigation.searchInNavigation)
         val prime = ThemeSpec.forPreset(ColorPreset.Prime)
         assertTrue(prime.navigation.searchInNavigation)
         assertFalse(prime.topSearch)
