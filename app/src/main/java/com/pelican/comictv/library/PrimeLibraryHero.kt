@@ -33,6 +33,8 @@ import com.pelican.comictv.ui.ProgressTrack
 import com.pelican.comictv.ui.TvButton
 import com.pelican.comictv.ui.TvColors
 import com.pelican.comictv.ui.homeHeroTitleSizeSp
+import com.pelican.comictv.ui.LocalHomeFocusSafety
+import com.pelican.comictv.ui.homeFocusCard
 
 /** Prime's broad banner shares the screen artwork and adds real edition cards over its right side. */
 @Composable internal fun PrimeLibraryHero(
@@ -63,7 +65,8 @@ import com.pelican.comictv.ui.homeHeroTitleSizeSp
             ((minimumHeightOverrideDp!! - 4f - 12f - (36f * fontScale + 16f)) * .68f).coerceAtLeast(52f).dp)
             else ordinaryCardWidth
         if (highContrast) Box(Modifier.matchParentSize().background(Color.Black))
-        Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 18.dp, end = 10.dp,
+        Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = if (LocalHomeFocusSafety.current != null) 0.dp else 18.dp,
+            end = if (LocalHomeFocusSafety.current != null) 0.dp else 10.dp,
             top = if (compact) 2.dp else 24.dp, bottom = if (compact) 2.dp else 24.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(if (wide) .43f else .51f), verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 10.dp)) {
@@ -116,7 +119,7 @@ import com.pelican.comictv.ui.homeHeroTitleSizeSp
     onSelect: () -> Unit, onOpen: () -> Unit,
 ) {
     Card(onClick = onOpen,
-        modifier = Modifier.width(width).onFocusChanged { if (it.isFocused) onSelect() }.semantics { this.selected = selected },
+        modifier = Modifier.homeFocusCard(1.025f, if (TvColors.options.highContrast) 3f else 2f).width(width).onFocusChanged { if (it.isFocused) onSelect() }.semantics { this.selected = selected },
         shape = CardDefaults.shape(shape = RoundedCornerShape(8.dp)),
         border = CardDefaults.border(border = Border(BorderStroke(1.dp, Color.White.copy(alpha = .3f))),
             focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber))),

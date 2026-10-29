@@ -292,6 +292,11 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         composable("details/{id}") { entry ->
             val id = entry.arguments?.getString("id")!!
             DetailsScreen(id, container.library, onRead = { nav.navigate("reader/$id") }, onBack = { nav.popBackStack() }, loadOnlineInfo = container.online::editionInfo, loadRelated = container.online::related,
+                loadChapters = if (id.startsWith("online-")) container.online::editions else null,
+                readChapterOrder = { context -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.chapterSequenceOrder(context) } },
+                writeChapterOrder = { context, order -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.saveSequenceOrder(context, order) } },
+                openChapter = { context, chapter -> container.online.open(context.source, context.title, chapter, context.pin) },
+                onReadChapter = { next -> nav.navigate("reader/$next") },
                 onDeleteOnline = container::deleteOnlineEdition,
                 onAboutWork = { title -> nav.navigate("work-metadata?title=" + android.net.Uri.encode(title)) },
                 onEditions = if (id.startsWith("online-")) ({ nav.navigate("online-editions/$id?from=details") }) else null,
@@ -316,7 +321,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             val reader: ReaderViewModel = viewModel(factory = viewModelFactory {
                 initializer { ReaderViewModel(if (id.startsWith("online-")) container.onlineReader else container.library, id, createSavedStateHandle(), thumbnailWarm = container::warmReaderThumbnail, imagePreferences = container.readerImages) }
             })
-            ReaderScreen(reader, onExit = { if (id.startsWith("online-")) nav.popBackStack() else nav.popBackStack("library", false) },
+            ReaderScreen(reader, onExit = { if (id.startsWith("online-") || nav.previousBackStackEntry?.destination?.route == "details/{id}") nav.popBackStack() else nav.popBackStack("library", false) },
                 onEditions = if (id.startsWith("online-")) ({
                     editionPreview = reader.image.value?.file
                     nav.navigate("online-editions/$id") { popUpTo(entry.destination.id) { inclusive = true } }
@@ -339,13 +344,14 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     readOrder = { context -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.chapterSequenceOrder(context) } },
                     writeOrder = { context, order -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { container.sourcePreferences.saveSequenceOrder(context, order) } }) }
             })
+            val detailsCover = com.pelican.comictv.details.rememberDetailsCover(container.library, id)
             OnlineEditionsScreen(editions, onRead = { next ->
                 nav.navigate("reader/$next") { popUpTo(entry.destination.id) { inclusive = true } }
             }, onBack = {
                 if (fromDetails) nav.popBackStack()
                 else nav.navigate("reader/$id") { popUpTo(entry.destination.id) { inclusive = true } }
             }, previewFile = if (fromDetails) null else editionPreview,
-                initialStep = entry.arguments?.getInt("step") ?: 0, fallbackCover = container.library.cover(id),
+                initialStep = entry.arguments?.getInt("step") ?: 0, fallbackCover = detailsCover,
                 backLabel = if (fromDetails) "Voltar aos detalhes" else "Voltar à leitura",
                 previewDescription = if (fromDetails) "Capa da edição" else "Página atual da leitura")
         }
@@ -586,8 +592,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         }) {
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
         backdrop()
-        val shellInsets = if (immersiveLibrary) Modifier else if (selected == "library")
-            Modifier.padding(top = theme.navigation.safeVerticalDp.dp)
+        // Library owns its foreground safe area in the scrolling grid; artwork stays fullbleed.
+        val shellInsets = if (selected == "library") Modifier
             else Modifier.padding(vertical = theme.navigation.safeVerticalDp.dp)
         Box(Modifier.fillMaxSize()) {
             val contentPadding = when (policy) {
@@ -613,10 +619,11 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         Brush.horizontalGradient(*stops.reversedArray().map { (at, color) -> (1f - at) to color }.toTypedArray())
                     else Brush.horizontalGradient(*stops)))
             }
-            Box(Modifier.fillMaxSize().then(shellInsets).then(if (policy == ThemeNavigationPolicy.BottomDock && selected == "library")
-                Modifier.padding(bottom = theme.navigation.safeVerticalDp.dp) else Modifier)) {
+            Box(Modifier.fillMaxSize().then(if (selected == "library")
+                Modifier.padding(horizontal = theme.navigation.safeHorizontalDp.dp, vertical = theme.navigation.safeVerticalDp.dp)
+                else shellInsets)) {
                 if (policy == ThemeNavigationPolicy.ImmersiveMenu && !expanded) {
-                    Box(Modifier.align(Alignment.TopEnd).then(if (immersiveLibrary) Modifier.padding(horizontal = 20.dp, vertical = 16.dp) else Modifier)) {
+                    Box(Modifier.align(Alignment.TopEnd)) {
                         CinemaMenuButton(::openNavigation, Modifier.testTag("cinema-menu")
                             .onPreviewKeyEvent { event ->
                                 if (event.key == Key.DirectionDown) {

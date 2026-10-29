@@ -41,7 +41,7 @@ internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: Lazy
         onRestored()
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(label, Modifier.padding(horizontal = theme.cards.gridHorizontalPaddingDp.dp), fontSize = 20.sp)
+        Text(label, fontSize = 20.sp)
         if (gridPreview) {
             ComicHomePreviewGrid(sample, { it.key }, onMore = { onFocus("more"); onMore() },
                 modifier = Modifier.testTag("home-source-$label"),
@@ -49,7 +49,7 @@ internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: Lazy
                     .onGloballyPositioned { positioned = "more" } else Modifier)
                     .onFocusChanged { if (it.isFocused) onFocus("more") }) { title ->
                 Card(onClick = { onFocus(title.key); onOpen(title) },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.homeFocusCard(theme.focus.collectionScale, theme.focus.cardBorderDp.toFloat()).fillMaxWidth()
                         .then(if (effectiveRestoreKey == title.key) Modifier.focusRequester(restore)
                             .onGloballyPositioned { positioned = title.key } else Modifier)
                         .onFocusChanged { if (it.isFocused) onFocus(title.key) },
@@ -65,10 +65,10 @@ internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: Lazy
                 }
             }
         } else {
-        LazyRow(state = state, modifier = Modifier.fillMaxWidth().focusRestorer().testTag("home-source-$label"),
-            contentPadding = PaddingValues(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyRow(state = state, modifier = Modifier.homeRowViewport().fillMaxWidth().focusRestorer().testTag("home-source-$label"),
+            contentPadding = LocalHomeFocusSafety.current?.rowPadding ?: PaddingValues(horizontal = 48.dp, vertical = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(sample, key = { it.key }) { title ->
-                Card(onClick = { onFocus(title.key); onOpen(title) }, modifier = Modifier.width(if (horizontal) 220.dp else 132.dp)
+                Card(onClick = { onFocus(title.key); onOpen(title) }, modifier = Modifier.homeFocusCard(theme.focus.collectionScale, theme.focus.cardBorderDp.toFloat()).width(if (horizontal) 220.dp else 132.dp)
                     .then(if (effectiveRestoreKey == title.key) Modifier.focusRequester(restore).onGloballyPositioned { positioned = title.key } else Modifier)
                     .onFocusChanged { if (it.isFocused) onFocus(title.key) },
                     scale = CardDefaults.scale(focusedScale = theme.focus.collectionScale),

@@ -1,5 +1,20 @@
 # Comic TV — decisões persistentes do usuário
 
+- 29/10/2026 usuário encerrou lote e autorizou gerarAPK/publicar TODASatualizações. Substitui espera/proibiçãoanterior. Preparar1.4.0/code74 com navegador/Google/buscarolável/controle90°/safearea5temas/sagas/detalhes;checagenslocaisfocadasjáaprovadas,bateriacompletanoCI,assinaturahabitual/atualizarporcima. Capturas/Boxpendentes;backupportátilnãoincluisagas/imagensmanuaisexplicitar. docs/validation/1.4.0.md.
+
+
+- 29/10/2026 sagas+detalhes (5temas, pacoteABERTO): Continuarlendo/Históricoindividuais;Suacoleçãogrupoporsagaidentidadeexatafonte/obra,nãoporhomônimo. Locaissemidentidadeorganizaçãomanualexplícita. CapaprincipaldafonteouimagemprópriaSAF,semfallbackautomáticoparacapítulosemcapadesaga;escolhaexplicitaediçãopermitida. Gruposelecionaedição→Detalhes. Resumobotãoàesquerda/telacompleta;capítulosreaisàdireitaexpandido,progressoexatoLido/Emandamento/NãoLido,focoretomadacomretornosemroubotardio. Coveroriginalcache/offline/localFitHigh,sembaixarcapítulosparadecoração. BackupportátilAINDAEXCLUIassociações/imagensmanuaissaga,registrarnãoprometer. docs/validation/2026-10-29-sagas-details.md. Usuáriocontinuaadicionandomudanças:NÃOGERAR/PUBLICARAPK/PUSH.
+
+
+- 29/10/2026 novo lote FOCO compartilhado: substitui margens atéborda anteriores por safearea48dp horizontal/27dpvertical naHome; focusOverflow=ceil((scale-1)/2*maior dimensãoCard+borda+brilho),mín24dp. Rows paddingverticaloverflow/horizontalmax48overflow,rootfim27+overflow,CardfocadozIndexmesmacamadaborda/escala,semclipoff/alterarescalas/cores/medidasfixas/gaps/navegação. GradeComic5colunascontinuaresponsivaàáreaútil,semnovoscroll. Implementado/verificadologfocus-safe-area1m36;testesnativoscompilados,nãoexecutados. Fotosoriginais/relatórioemdocs/result/focus-fix/;capturasREAISprimeiro/últimodecadafileira5temasPENDENTES,adbsemdevice. Usuáriopediumanterpacoteaberto,semAPK/push/publicação,aguardarnovasmudanças.
+
+
+- Complemento29/10/2026: rotação90°do leitor deve manter EXATAMENTE a orientação/ordem dos comandos do controle do modo normal, sem converter↑em←etc. Rotação apenasvisual;teclas/focoToolDirectionidentidadeem0°e90°,incluiimagem/zoom/mover/EPUB. Substitui mapeamento físico compensado anterior1.3.0. Implementar/verificar local eavisarquandoconcluir,usuáriovaiadicionarmaisdetalhes;continuaPROIBIDOgerar/publicarAPK.
+
+
+- 29/10/2026 lote navegador/busca: usuário autorizou correções e Google como mecanismo de busca, mas PROIBIU fechar/gerar/publicar APK até enviar detalhes adicionais. Não push de código para main (aciona release). Vídeos navegador.mp4/menubusca.mp4: termoBatmanvirouhttps://batman/ERR_NAME_NOT_RESOLVED, barra passa distinguir pesquisa/domínio/URL. Busca cabeçalho+filtros rolam com resultados numa única grade. Navegador controles roláveis45%/WebView separado, inicialização apósRESUMED+frame/documentolocal/diagnósticos; tela preta ainda exige conferência física. docs/validation/2026-10-29-browser-search-pending.md. Não alegar testeBox nem suporte universalvídeos.
+
+
 - 1.3.0 publicada29/10/2026às03:19:07BRT/code73,fonte65343ee;CI40827178860/40828431232aprovados. Pacoteúnico:correçõesvisuais,foco/margens/Comicpostervertical/rodapécompacto/TodasrestauraHome,sombraglyph;leitor90graussó superfície/controlesrelativos;buscaglobalfontesinstaladasconfiáveis/grupos20/cancelamento+repositóriossemalegartítulos;metadadosOpenLibrary/AniListexplícitoscomatribuição;WebViewdownloadconfirmado/importaçãoexistente1GiBsemAPK/TLSestrito/cookiespordestino. Carrosselsimples8s/filtrospreservados. APIsrespondemconsultaspontuais;classificaçãocomics/mangaexplícitadesessão. KeyboardAndroidnãogira. Appgratuito/pessoal,doaçãoexternanãoisentalicenças. Manifestoasset23.706.473bytes/SHAb17ae6c155ab720951cae22d02b51ce64b9540b97a04c1348d3b6260bdef42a5;Boxmanualpendente,nãoinferiraceitaçãovisual. docs/validation/1.3.0.md.
 
 

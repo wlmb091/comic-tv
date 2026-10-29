@@ -71,9 +71,9 @@ internal fun maxExploreEntries(comics: List<ComicEntity>, collections: List<Coll
     }
     Column(Modifier.fillMaxWidth().testTag("max-explore"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(if (collections.isNotEmpty()) "Explore suas coleções" else "Explore suas leituras",
-            modifier = Modifier.padding(horizontal = LocalThemeSpec.current.cards.gridHorizontalPaddingDp.dp),
+            modifier = Modifier,
             fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        LazyRow(modifier = Modifier.fillMaxWidth().testTag("max-explore-row"), state = state, contentPadding = PaddingValues(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyRow(modifier = Modifier.homeRowViewport().fillMaxWidth().testTag("max-explore-row"), state = state, contentPadding = LocalHomeFocusSafety.current?.rowPadding ?: PaddingValues(horizontal = 48.dp, vertical = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             items(entries, key = { it.key }) { entry ->
                 var focused by remember { mutableStateOf(false) }
                 val requester = remember(entry.key) { FocusRequester() }
@@ -85,7 +85,7 @@ internal fun maxExploreEntries(comics: List<ComicEntity>, collections: List<Coll
                 Card(onClick = {
                     if (entry.collectionId != null) onCollectionOpen(entry.collectionId)
                     else entry.comicId?.let(onOpen)
-                }, modifier = Modifier.width(116.dp).testTag("max-explore-${entry.key}")
+                }, modifier = Modifier.homeFocusCard(1.03f, 3f).width(116.dp).testTag("max-explore-${entry.key}")
                     .focusRequester(requester).onGloballyPositioned { positioned[entry.key] = true }
                     .onFocusChanged {
                         focused = it.isFocused

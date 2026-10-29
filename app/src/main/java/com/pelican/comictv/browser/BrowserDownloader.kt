@@ -12,6 +12,15 @@ import java.util.concurrent.TimeUnit
 internal object BrowserPolicy {
     const val MAX_BYTES = 1024L * 1024 * 1024
     const val RESERVE = 64L * 1024 * 1024
+    /** Address bar input is not necessarily a URL. Never send a single word to DNS. */
+    fun destination(input: String): HttpUrl {
+        val text = input.trim().take(4096)
+        if (text.isBlank()) throw IOException("Digite um endereço ou uma pesquisa.")
+        if (Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:").containsMatchIn(text)) return url(text)
+        if (text.none { it.isWhitespace() } && (text.substringBefore('/').contains('.') ||
+                text.startsWith("localhost") || text.startsWith("["))) return url("https://$text")
+        return url("https://www.google.com/search").newBuilder().addQueryParameter("q", text).build()
+    }
     fun url(value: String): HttpUrl = value.trim().toHttpUrlOrNull()?.takeIf {
         it.username.isEmpty() && it.password.isEmpty()
     } ?: throw IOException("Use um endereço HTTP ou HTTPS sem credenciais.")

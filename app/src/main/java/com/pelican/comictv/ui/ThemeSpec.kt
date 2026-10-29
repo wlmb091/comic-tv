@@ -13,7 +13,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val layout: ThemeNavigationPolicy, val framelessSidebar: Boolean = false,
     val shellBackdrop: Boolean = false, val libraryBrand: Boolean = false,
     val expandedDrawerBrand: Boolean = false, val searchInNavigation: Boolean = false,
-    val safeHorizontalDp: Int = 20, val safeVerticalDp: Int = 16,
+    val safeHorizontalDp: Int = HomeSafeArea.horizontalDp, val safeVerticalDp: Int = HomeSafeArea.verticalDp,
     val dockLabelSp: Int = 12, val dockActiveAlpha: Float = .15f,
     val dockFocusScale: Float = 1f, val iconFocusScale: Float = 1.08f,
     val dockSurface: Long? = null, val dockBorder: Long? = null,

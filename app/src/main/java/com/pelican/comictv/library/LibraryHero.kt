@@ -33,6 +33,7 @@ import com.pelican.comictv.ui.*
 ) {
     val theme = LocalThemeSpec.current
     val hero = theme.hero
+    val foregroundInsetApplied = LocalHomeFocusSafety.current != null
     val actionFocus = Modifier.onFocusChanged { if (it.isFocused) onActionFocused() }
     if (hero.variant == HeroVariant.FullbleedCarousel) {
         PrimeLibraryHero(comic, comics, repository, onRead, onOpen, onImport, onSelect, modifier, readModifier,
@@ -53,8 +54,8 @@ import com.pelican.comictv.ui.*
         verticalPadding * 2f + 22f * fontScale + actionHeight + 4f + contentGap * 3f)
     Box(modifier.fillMaxWidth().heightIn(min = (minimumHeightOverrideDp ?: hero.minimumHeightDp.toFloat()).dp).testTag("library-hero")) {
         Row(Modifier.align(if (hero.bottomAligned) Alignment.BottomStart else Alignment.CenterStart)
-            .fillMaxWidth().padding(start = hero.horizontalPaddingDp.dp,
-                end = if (TvColors.options.preset == ColorPreset.Max) 0.dp else hero.horizontalPaddingDp.dp,
+            .fillMaxWidth().padding(start = if (foregroundInsetApplied) 0.dp else hero.horizontalPaddingDp.dp,
+                end = if (foregroundInsetApplied || TvColors.options.preset == ColorPreset.Max) 0.dp else hero.horizontalPaddingDp.dp,
                 top = verticalPadding.dp, bottom = verticalPadding.dp),
             horizontalArrangement = Arrangement.spacedBy(hero.posterGapDp.dp), verticalAlignment = Alignment.CenterVertically) {
             if (editorial && comic != null) {

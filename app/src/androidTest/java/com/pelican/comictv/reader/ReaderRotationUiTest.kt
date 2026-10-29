@@ -19,16 +19,16 @@ import org.junit.Test
 class ReaderRotationUiTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun rotatedRailFollowsItsVisibleHorizontalDirection() {
+    @Test fun rotatedRailKeepsNormalRemoteButtonOrder() {
         compose.setContent { ComicTvTheme {
             ReaderSurface(true) {
                 ReaderTools(ReaderState(pageCount = 12, mode = ReaderMode.Tools), false, {}, {}, {})
             }
         } }
         compose.onNodeWithContentDescription("Continuar").assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionLeft) }
+            .performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("Escolher página").assertIsFocused()
-            .performKeyInput { pressKey(Key.DirectionRight) }
+            .performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNodeWithContentDescription("Continuar").assertIsFocused()
     }
 

@@ -128,7 +128,35 @@ import kotlinx.coroutines.launch
     val searchEntries = remember(comics) { comics.map { LibrarySearchEntry(it.id, it.title, it.favorite) } }
     val memberIndex = remember(memberships) { memberships.groupBy { it.collectionId }.mapValues { (_, rows) -> rows.map { it.comicId }.toSet() } }
     val matching = remember(searchEntries, query, filter, memberIndex) { filterLibrary(searchEntries, query, filter, memberIndex).toSet() }
-    val visible = remember(history, recent, comics, matching) { (if (history) recent else comics).filter { it.id in matching } }
+    val sagaRevision by repository.sagaRevision.collectAsState()
+    var sagaGroups by remember { mutableStateOf<List<SagaGroup>>(emptyList()) }
+    var sagasLoaded by remember { mutableStateOf(false) }
+    var sagaError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(comics, sagaRevision, collections) {
+        try { sagaGroups = repository.sagaGroups(comics); sagaError = null; sagasLoaded = true }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (_: Exception) { sagaError = "Não foi possível carregar as sagas. As edições continuam disponíveis."; sagasLoaded = true }
+    }
+    var activeSagaKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var sagaEditionFocus by rememberSaveable { mutableStateOf<String?>(null) }
+    var sagaOriginId by rememberSaveable { mutableStateOf<String?>(null) }
+    val sagaByRepresentative = remember(sagaGroups) { sagaGroups.associateBy { it.representative.id } }
+    val visible = remember(history, recent, comics, matching, sagaGroups) {
+        if (history) recent.filter { it.id in matching }
+        else if (sagaGroups.isEmpty()) comics.filter { it.id in matching }
+        else sagaGroups.filter { group -> group.editions.any { it.id in matching } }.map { if (it.key.startsWith("edition:")) it.representative else it.display }
+    }
+    fun collectionCover(id: String): Any? = if (history || id !in sagaByRepresentative) repository.cover(id)
+        else sagaByRepresentative.getValue(id).cover
+    fun isSaga(id: String): Boolean = !history && sagaByRepresentative[id]?.key?.startsWith("edition:") == false
+    val latestVisible by rememberUpdatedState(visible)
+    fun openCollectionComic(id: String) {
+        val saga = if (history) null else sagaByRepresentative[id]
+        if (saga != null && !saga.key.startsWith("edition:")) {
+            sagaOriginId = id; sagaEditionFocus = null; activeSagaKey = saga.key
+        } else onOpen(id)
+    }
+
     val showExplorer = theme.exploreCollections && (comics.isNotEmpty() || collections.isNotEmpty()) && !history
     val collectionVisible = homeRows || !maxLayout || history || fullLibrary
     val headerItems = libraryGridHeaderItems(history, recent.size, showExplorer, collectionVisible)
@@ -171,7 +199,7 @@ import kotlinx.coroutines.launch
         searching = true
     }
     suspend fun restoreComic(id: String, fromRecent: Boolean) {
-        val index = (if (fromRecent) recent else visible).indexOfFirst { it.id == id }
+        val index = (if (fromRecent) recent else latestVisible).indexOfFirst { it.id == id }
         if (index < 0 || (previewHome && index >= (if (comicHome) COMIC_HOME_PREVIEW_LIMIT else HOME_PREVIEW_LIMIT)) || (fromRecent && history)) {
             revealHeader()
             focusHeaderControl()
@@ -311,16 +339,41 @@ import kotlinx.coroutines.launch
                 if (optionsCollection && activeCollectionId != null) {
                     collectionFocusedId = selected.id
                     collectionFocusRequest++
-                } else restoreComic(selected.id, optionsRecent)
+                } else if (activeSagaKey == null) {
+                    val current = try { repository.sagaGroups(comics).also { sagaGroups = it } }
+                        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                        catch (_: Exception) { sagaGroups }
+                    withFrameNanos { }
+                    val origin = if (optionsRecent || history) selected.id else
+                        current.firstOrNull { group -> group.editions.any { it.id == selected.id } }?.representative?.id ?: selected.id
+                    restoreComic(origin, optionsRecent)
+                }
             } })
+    }
+    val activeSaga = sagaGroups.firstOrNull { it.key == activeSagaKey }
+    if (activeSaga != null && optionsFor == null) SagaEditionsDialog(activeSaga, repository, sagaEditionFocus,
+        onFocus = { sagaEditionFocus = it }, onOpen = onOpen,
+        onOptions = { optionsRecent = false; optionsCollection = false; optionsFor = it },
+        onDismiss = {
+            activeSagaKey = null
+            val origin = sagaOriginId
+            if (origin != null) menuScope.launch { restoreComic(origin, false) }
+        })
+    LaunchedEffect(sagaGroups, activeSagaKey, optionsFor, sagasLoaded) {
+        if (sagasLoaded && activeSagaKey != null && activeSaga == null && optionsFor == null) {
+            activeSagaKey = null
+            val origin = sagaGroups.firstOrNull { group -> group.editions.any { it.id == sagaEditionFocus } }
+                ?.representative?.id ?: sagaOriginId
+            if (origin != null) restoreComic(origin, false) else { revealHeader(); focusHeaderControl() }
+        }
     }
     val warmEntries = remember(visible, repository) { visible.map {CoverWarmEntry(it.id,repository.cover(it.id))} }
     WarmGridCovers(grid, warmEntries)
     // Capture the entry target once: database emissions must not take focus from navigation.
     val entryId = remember { focusedId }
     val entryExplorerKey = remember { explorerOriginKey }
-    LaunchedEffect(comics, history, query, filter, memberships, searching, searchRequested) {
-        if (activeCollectionId != null || sectionEntry || restored || searching || searchRequested) return@LaunchedEffect
+    LaunchedEffect(comics, history, query, filter, memberships, searching, searchRequested, sagasLoaded) {
+        if (!sagasLoaded || activeSagaKey != null || activeCollectionId != null || sectionEntry || restored || searching || searchRequested) return@LaunchedEffect
         if (homeSourceRows && homeOriginRow in listOf("catalog", "latest")) {
             restored = true
             grid.scrollToItem(homeSourceRowIndex(recent.size, showExplorer, homeOriginRow == "latest", if (previewHome) 1 else visible.size))
@@ -335,6 +388,12 @@ import kotlinx.coroutines.launch
             return@LaunchedEffect
         }
         if (entryId == null) return@LaunchedEffect
+        // Recent editions are independent of the grouped collection's representative IDs.
+        if (homeOriginRow == "recent") {
+            restored = true
+            restoreComic(entryId, true)
+            return@LaunchedEffect
+        }
         val index = visible.indexOfFirst { it.id == entryId }
         if (index < 0) {
             grid.scrollToItem(0)
@@ -393,7 +452,7 @@ import kotlinx.coroutines.launch
         if (heroKeyHeld) { delay(800); heroKeyHeld = false }
     }
     val heroInteractionCallback by rememberUpdatedState(onHeroInteractionChanged)
-    val heroInteraction = heroKeyHeld || searching || managing || optionsFor != null || fullLibrary || activeCollectionId != null || !heroVisible
+    val heroInteraction = activeSagaKey != null || heroKeyHeld || searching || managing || optionsFor != null || fullLibrary || activeCollectionId != null || !heroVisible
     LaunchedEffect(heroInteraction) { heroInteractionCallback(heroInteraction) }
     DisposableEffect(Unit) { onDispose { heroInteractionCallback(false) } }
     LaunchedEffect(headerHasFocus) {
@@ -413,8 +472,9 @@ import kotlinx.coroutines.launch
     var brandHeightPx by remember { mutableIntStateOf(0) }
     var followingHeadingPx by remember { mutableIntStateOf(0) }
     var followingRowPx by remember { mutableIntStateOf(0) }
-    val gridTop = maxOf(20, theme.cards.gridVerticalPaddingDp ?: if (footerControls) 8 else 16).toFloat()
-    val gridBottom = (theme.cards.gridVerticalPaddingDp ?: if (footerControls) 8 else 16).toFloat()
+    val focusSafety = remember { HomeFocusSafety() }
+    val gridTop = HomeSafeArea.verticalDp.toFloat()
+    val gridBottom = HomeSafeArea.bottomInsetDp(focusSafety.overflowDp).toFloat()
     val requestedHeroHeight = when (theme.hero.heightPolicy) {
         HeroHeightPolicy.ViewportInset -> maxHeight - theme.hero.viewportInsetDp.dp
         HeroHeightPolicy.ReservedReadingRow -> (maxHeight - theme.hero.viewportInsetDp.dp)
@@ -445,7 +505,8 @@ import kotlinx.coroutines.launch
                     headerHasFocus && headerHeightPx + grid.layoutInfo.beforeContentPadding <= containerSize)
         }
     }
-    CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides
+    CompositionLocalProvider(LocalHomeFocusSafety provides focusSafety,
+        androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides
         if (footerControls) homeBringIntoView else androidx.compose.foundation.gestures.LocalBringIntoViewSpec.current) {
     LazyVerticalGrid(
         columns = GridCells.Adaptive(theme.cards.gridMinimumWidthDp.dp * (if (theme.cards.scaleGridWithText) textScale else 1f)), state = grid,
@@ -455,12 +516,12 @@ import kotlinx.coroutines.launch
                 else if (event.type == KeyEventType.KeyUp) heroKeyHeld = false
                 false
             },
-        contentPadding = PaddingValues(start = if (TvColors.options.preset == ColorPreset.Amber || cinema) 12.dp else 0.dp, top = gridTop.dp, bottom = gridBottom.dp),
+        contentPadding = PaddingValues(start = focusSafety.horizontalDp.dp, end = focusSafety.horizontalDp.dp, top = gridTop.dp, bottom = gridBottom.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.padding(horizontal = theme.cards.gridHorizontalPaddingDp.dp).testTag("library-header").onSizeChanged { headerHeightPx = it.height }
+            Column(Modifier.testTag("library-header").onSizeChanged { headerHeightPx = it.height }
                 .onFocusChanged {
                     headerHasFocus = it.hasFocus
                     if (!it.hasFocus) heroKeyHeld = false
@@ -506,7 +567,7 @@ import kotlinx.coroutines.launch
         }
         if (!history && recent.isNotEmpty()) {
             item(key = "recent-heading", span = { GridItemSpan(maxLineSpan) }) {
-                Text("Continuar lendo", Modifier.padding(start = if (maxLayout) 12.dp else theme.cards.gridHorizontalPaddingDp.dp, end = theme.cards.gridHorizontalPaddingDp.dp).onSizeChanged { followingHeadingPx = it.height },
+                Text("Continuar lendo", Modifier.onSizeChanged { followingHeadingPx = it.height },
                     fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
             item(key = "recent-row", span = { GridItemSpan(maxLineSpan) }) {
@@ -519,7 +580,7 @@ import kotlinx.coroutines.launch
                         val restoreModifier = if (targetRecent && target == comic.id) Modifier.focusRequester(restore)
                             .onGloballyPositioned { positioned = comic.id } else Modifier
                         Card(onClick = { focusHomeComic(comic.id, "recent"); onOpen(comic.id) },
-                            modifier = restoreModifier.fillMaxWidth().testTag("library-recent-${comic.id}")
+                            modifier = restoreModifier.homeFocusCard(theme.focus.recentScale, theme.focus.cardBorderDp.toFloat()).fillMaxWidth().testTag("library-recent-${comic.id}")
                                 .then(libraryCardKeys({ focusHomeComic(comic.id, "recent"); onOpen(comic.id) }, { optionsCollection = false; optionsRecent = true; optionsFor = comic }))
                                 .onFocusChanged { if (it.isFocused) focusHomeComic(comic.id, "recent") },
                             scale = CardDefaults.scale(focusedScale = theme.focus.recentScale),
@@ -531,8 +592,8 @@ import kotlinx.coroutines.launch
                 } else
                 LazyRow(
                     state = recentList,
-                    modifier = Modifier.fillMaxWidth().testTag("recent-row-viewport").onSizeChanged { followingRowPx = it.height },
-                    contentPadding = PaddingValues(vertical = 4.dp),
+                    modifier = Modifier.homeRowViewport().fillMaxWidth().testTag("recent-row-viewport").onSizeChanged { followingRowPx = it.height },
+                    contentPadding = focusSafety.rowPadding,
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     items(if (homeRows) homePreviewItems(recent) { it.id } else recent, key = { it.id }) { comic ->
@@ -540,7 +601,7 @@ import kotlinx.coroutines.launch
                             .onGloballyPositioned { positioned = comic.id } else Modifier
                         Card(
                             onClick = { focusHomeComic(comic.id, "recent"); onOpen(comic.id) },
-                            modifier = restoreModifier.then(libraryCardKeys({ focusHomeComic(comic.id, "recent"); onOpen(comic.id) }, { optionsCollection = false; optionsRecent = true; optionsFor = comic })).width(theme.cards.recentWidthDp.dp).testTag("library-recent-${comic.id}").onFocusChanged { if (it.isFocused) focusHomeComic(comic.id, "recent") },
+                            modifier = restoreModifier.homeFocusCard(theme.focus.recentScale, theme.focus.cardBorderDp.toFloat()).then(libraryCardKeys({ focusHomeComic(comic.id, "recent"); onOpen(comic.id) }, { optionsCollection = false; optionsRecent = true; optionsFor = comic })).width(theme.cards.recentWidthDp.dp).testTag("library-recent-${comic.id}").onFocusChanged { if (it.isFocused) focusHomeComic(comic.id, "recent") },
                             border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
                             shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(theme.shapes.controlRadiusDp.dp)),
                             scale = CardDefaults.scale(focusedScale = theme.focus.recentScale),
@@ -575,7 +636,8 @@ import kotlinx.coroutines.launch
 
         if (collectionVisible) {
         item(key = "collection-heading", span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier.padding(horizontal = theme.cards.gridHorizontalPaddingDp.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                sagaError?.let { Text(it, color = TvColors.Amber) }
                 val label = when { filter == "favorites" -> "Favoritos"; filter.startsWith("collection:") -> collections.firstOrNull { "collection:" + it.id == filter }?.name ?: "Coleção"; else -> if (history) "Histórico" else "Sua coleção" }
                 Text(label + " · " + visible.size + (if (query.isNotBlank()) " · Busca: “${query.trim()}”" else ""),
                     fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
@@ -608,33 +670,33 @@ import kotlinx.coroutines.launch
                         Modifier.focusRequester(restore).onGloballyPositioned { positioned = "collection-more" } else Modifier)) { comic ->
                     val restoreModifier = if (!targetRecent && target == comic.id) Modifier.focusRequester(restore)
                         .onGloballyPositioned { positioned = comic.id } else Modifier
-                    Card(onClick = { focusHomeComic(comic.id, "collection"); onOpen(comic.id) },
-                        modifier = restoreModifier.fillMaxWidth().testTag("home-collection-${comic.id}")
-                            .then(libraryCardKeys({ focusHomeComic(comic.id, "collection"); onOpen(comic.id) }, { optionsCollection = false; optionsRecent = false; optionsFor = comic }))
+                    Card(onClick = { focusHomeComic(comic.id, "collection"); openCollectionComic(comic.id) },
+                        modifier = restoreModifier.homeFocusCard(theme.focus.collectionScale, theme.focus.cardBorderDp.toFloat()).fillMaxWidth().testTag("home-collection-${comic.id}")
+                            .then(libraryCardKeys({ focusHomeComic(comic.id, "collection"); openCollectionComic(comic.id) }, { optionsCollection = false; optionsRecent = false; optionsFor = comics.firstOrNull { it.id == comic.id } ?: comic }))
                             .onFocusChanged { if (it.isFocused) focusHomeComic(comic.id, "collection") },
                         scale = CardDefaults.scale(focusedScale = theme.focus.collectionScale),
                         border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
                         colors = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent)) {
-                        CollectionCardContent(comic, repository, comic.id in offlineIds)
+                        CollectionCardContent(comic, repository, comic.id in offlineIds, collectionCover(comic.id), saga = isSaga(comic.id))
                     }
                 }
             }
         } else
         if (homeRows) {
             item(key = "home-collection-row", span = { GridItemSpan(maxLineSpan) }) {
-                LazyRow(state = collectionList, modifier = Modifier.focusRestorer().testTag("home-collection-row"), contentPadding = PaddingValues(vertical = 6.dp),
+                LazyRow(state = collectionList, modifier = Modifier.homeRowViewport().focusRestorer().testTag("home-collection-row"), contentPadding = focusSafety.rowPadding,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     items(homePreviewItems(visible) { it.id }, key = { it.id }) { comic ->
                         val restoreModifier = if (!targetRecent && target == comic.id) Modifier.focusRequester(restore)
                             .onGloballyPositioned { positioned = comic.id } else Modifier
-                        Card(onClick = { focusHomeComic(comic.id, "collection"); onOpen(comic.id) },
-                            modifier = restoreModifier.testTag("home-collection-${comic.id}").width(if (horizontalCards) 260.dp else theme.cards.gridMinimumWidthDp.dp)
-                                .then(libraryCardKeys({ focusHomeComic(comic.id, "collection"); onOpen(comic.id) }, { optionsCollection = false; optionsRecent = false; optionsFor = comic }))
+                        Card(onClick = { focusHomeComic(comic.id, "collection"); openCollectionComic(comic.id) },
+                            modifier = restoreModifier.homeFocusCard(theme.focus.collectionScale, theme.focus.cardBorderDp.toFloat()).testTag("home-collection-${comic.id}").width(if (horizontalCards) 260.dp else theme.cards.gridMinimumWidthDp.dp)
+                                .then(libraryCardKeys({ focusHomeComic(comic.id, "collection"); openCollectionComic(comic.id) }, { optionsCollection = false; optionsRecent = false; optionsFor = comics.firstOrNull { it.id == comic.id } ?: comic }))
                                 .onFocusChanged { if (it.isFocused) focusHomeComic(comic.id, "collection") },
                             scale = CardDefaults.scale(focusedScale = theme.focus.collectionScale),
                             border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
                             colors = CardDefaults.colors(containerColor = Color.Transparent, focusedContainerColor = Color.Transparent)) {
-                            CollectionCardContent(comic, repository, comic.id in offlineIds)
+                            CollectionCardContent(comic, repository, comic.id in offlineIds, collectionCover(comic.id), saga = isSaga(comic.id))
                         }
                     }
                     item(key = "collection-more") { TvButton("Ver mais", { homeOriginRow = "collection-more"; openFullLibrary(false) }, Modifier.testTag("home-collection-more")
@@ -645,8 +707,8 @@ import kotlinx.coroutines.launch
             val restoreModifier = if (!targetRecent && target == comic.id) Modifier.focusRequester(restore)
                 .onGloballyPositioned { positioned = comic.id } else Modifier
             Card(
-                onClick = { focusComic(comic.id); onOpen(comic.id) },
-                modifier = restoreModifier.then(libraryCardKeys({ focusComic(comic.id); onOpen(comic.id) }, { optionsCollection = false; optionsRecent = false; optionsFor = comic })).testTag("library-cover-${comic.id}").onFocusChanged { if (it.isFocused) focusComic(comic.id) },
+                onClick = { focusComic(comic.id); openCollectionComic(comic.id) },
+                modifier = restoreModifier.homeFocusCard(theme.focus.collectionScale, theme.focus.cardBorderDp.toFloat()).then(libraryCardKeys({ focusComic(comic.id); openCollectionComic(comic.id) }, { optionsCollection = false; optionsRecent = false; optionsFor = comics.firstOrNull { it.id == comic.id } ?: comic })).testTag("library-cover-${comic.id}").onFocusChanged { if (it.isFocused) focusComic(comic.id) },
                 scale = CardDefaults.scale(focusedScale = theme.focus.collectionScale),
                 shape = CardDefaults.shape(shape = androidx.compose.foundation.shape.RoundedCornerShape(theme.shapes.controlRadiusDp.dp)),
                 border = CardDefaults.border(focusedBorder = Border(BorderStroke(theme.focus.cardBorderDp.dp, TvColors.FocusAccent))),
@@ -654,7 +716,7 @@ import kotlinx.coroutines.launch
                     containerColor = Color.Transparent, focusedContainerColor = Color.Transparent)
                     else CardDefaults.colors(containerColor = TvColors.Panel),
             ) {
-                CollectionCardContent(comic, repository, comic.id in offlineIds)
+                CollectionCardContent(comic, repository, comic.id in offlineIds, collectionCover(comic.id), saga = isSaga(comic.id))
             }
         }
         }

@@ -17,6 +17,19 @@ import com.pelican.comictv.sources.RelatedResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.activity.compose.BackHandler
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import com.pelican.comictv.sources.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.*
 import androidx.compose.ui.layout.ContentScale
@@ -42,6 +55,11 @@ import kotlinx.coroutines.CancellationException
     offlineAvailable: Boolean = false, onDownload: (() -> Unit)? = null,
     onEditions: (() -> Unit)? = null,
     onAboutWork: ((String) -> Unit)? = null,
+    loadChapters: (suspend (String) -> OnlineEditions)? = null,
+    readChapterOrder: suspend (OnlineEditions) -> ChapterOrder = { ChapterOrder.Ascending },
+    writeChapterOrder: suspend (OnlineEditions, ChapterOrder) -> Unit = { _, _ -> },
+    openChapter: (suspend (OnlineEditions, OnlineChapter) -> String)? = null,
+    onReadChapter: (String) -> Unit = {},
     onDeleteOnline: (suspend (String) -> Boolean)? = null,
 ) {
     var comic by remember(id) { mutableStateOf<ComicEntity?>(null) }
@@ -50,6 +68,56 @@ import kotlinx.coroutines.CancellationException
     var metadataLoading by remember(id) { mutableStateOf(id.startsWith("online-")) }
     var expandedSummary by remember(id) { mutableStateOf(false) }
     val scrollScope = rememberCoroutineScope()
+    val chapters = remember(id) { DetailsChapterController() }
+    val allComics by repository.observeComics().collectAsStateWithLifecycle(emptyList())
+    val sagaRevision by repository.sagaRevision.collectAsStateWithLifecycle()
+    var owned by remember(id) { mutableStateOf<List<ComicEntity>>(emptyList()) }
+    var interacted by remember(id) { mutableStateOf(false) }
+    var chapterReturn by rememberSaveable(id, stateSaver = listSaver<ChapterFocusReturn, String>(
+        save = { listOf(it.pendingId.orEmpty(), it.departed.toString(), it.restoreId.orEmpty()) },
+        restore = { ChapterFocusReturn(it[0].ifEmpty { null }, it[1].toBoolean(), it[2].ifEmpty { null }) },
+    )) { mutableStateOf(ChapterFocusReturn()) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> chapterReturn = chapterReturn.paused()
+                Lifecycle.Event.ON_RESUME -> chapterReturn = chapterReturn.resumed()
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    fun navigateToReader(destination: String, action: () -> Unit) {
+        interacted = true
+        chapterReturn = chapterReturn.readerOpening(destination)
+        try { action() }
+        catch (e: Exception) { chapterReturn = ChapterFocusReturn(); throw e }
+    }
+    fun retryChapters() {
+        val load = loadChapters ?: return
+        chapters.run { val context = load(id); chapters.order = readChapterOrder(context); chapters.context = context }
+    }
+    LaunchedEffect(id, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            coroutineScope {
+                chapters.scope = this
+                if (loadChapters != null) retryChapters()
+                try { awaitCancellation() }
+                finally { chapters.scope = null; withContext(NonCancellable) { chapters.stop() } }
+            }
+        }
+    }
+    LaunchedEffect(allComics) { allComics.firstOrNull { it.id == id }?.let { comic = it } }
+    LaunchedEffect(id, allComics, sagaRevision) {
+        try { owned = repository.sagaGroups(allComics).firstOrNull { group -> group.editions.any { it.id == id } }?.editions.orEmpty() }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { owned = allComics.filter { it.id == id } }
+    }
+    val chapterRows = chapters.context?.let { detailChapters(it, chapters.order, allComics) }
+        ?: owned.map { DetailChapter(it.id, it.title, progress = it) }
+    val largeCover = rememberDetailsCover(repository, id)
     val pageScroll = rememberLazyListState()
     val relatedFocus = remember { FocusRequester() }
     var related by remember(id) { mutableStateOf<RelatedResult?>(null) }
@@ -66,13 +134,11 @@ import kotlinx.coroutines.CancellationException
         }
     }
     fun afterDiscoveryStopped(action: () -> Unit) {
-        scrollScope.launch { relatedJob?.cancelAndJoin(); action() }
+        scrollScope.launch { chapters.stop(); relatedJob?.cancelAndJoin(); action() }
     }
     var confirmRemoval by remember(id) { mutableStateOf(false) }
     var confirmDelete by remember(id) { mutableStateOf(false) }
     var changingHistory by remember { mutableStateOf(false) }
-    val summaryScroll = rememberLazyListState()
-    var summaryFocused by remember { mutableStateOf(false) }
     val first = remember(id) { FocusRequester() }
     val isOnline = id.startsWith("online-")
     var moreOptions by remember(id) { mutableStateOf(false) }
@@ -111,7 +177,16 @@ import kotlinx.coroutines.CancellationException
         }
     }
     LaunchedEffect(comic != null, error) {
-        if (!moreOptions && !confirmRemoval && !confirmDelete && (comic != null || error != null)) first.requestFocus()
+        if (!interacted && chapterRows.isEmpty() && !expandedSummary && !moreOptions && !confirmRemoval && !confirmDelete && (comic != null || error != null)) first.requestFocus()
+    }
+    BackHandler(enabled = !moreOptions && !confirmRemoval && !confirmDelete && !expandedSummary) { afterDiscoveryStopped(onBack) }
+    val summaryFocus = remember(id) { FocusRequester() }
+    if (expandedSummary) {
+        FullSummaryDialog(onlineInfo?.description?.trim()?.takeIf { it.isNotEmpty() } ?: when {
+            metadataLoading -> "Carregando informações salvas…"
+            isOnline -> "Esta edição não tem sinopse salva."
+            else -> "Edição importada de um arquivo local. Nenhuma sinopse está disponível."
+        }) { expandedSummary = false; scrollScope.launch { withFrameNanos { }; summaryFocus.requestFocus() } }
     }
     if (moreOptions) comic?.let { item ->
         val menuFirst = remember { FocusRequester() }
@@ -148,8 +223,11 @@ import kotlinx.coroutines.CancellationException
         onConfirm = { repository.setHistoryHidden(id, true); comic = repository.getComic(id) })
     if (confirmDelete) ConfirmImportedRemoval(comic?.title.orEmpty(), { confirmDelete = false; restoreOption = ((restoreOption?.first ?: 0) + 1) to "delete" },
         { if (isOnline) requireNotNull(onDeleteOnline)(id) else repository.deleteImported(id) },
-        { confirmDelete = false; onBack() }, online = isOnline)
-    Box(Modifier.fillMaxSize().background(TvColors.Background)) {
+        { confirmDelete = false; afterDiscoveryStopped(onBack) }, online = isOnline)
+    Box(Modifier.fillMaxSize().background(TvColors.Background).onPreviewKeyEvent {
+        if (it.type == KeyEventType.KeyDown) interacted = true
+        false
+    }) {
         BrandedBackground(repository.cover(id), Modifier.matchParentSize())
     BoxWithConstraints(Modifier.fillMaxSize().padding(24.dp)) {
         // The cover sets the shared height; both side panels remain independently scrollable.
@@ -192,50 +270,44 @@ import kotlinx.coroutines.CancellationException
                 error?.let { Text(it, color = TvColors.Amber, fontSize = 16.sp) }
                 comic?.let { item ->
                     TvButton(if (item.lastRead > 0) "Continuar leitura" else "Começar leitura",
-                        { clearPendingFocus(); afterDiscoveryStopped(onRead) }, Modifier.focusRequester(first), primary = true)
+                        { clearPendingFocus(); afterDiscoveryStopped { navigateToReader(id, onRead) } }, Modifier.focusRequester(first), primary = true)
                     if (onAboutWork != null) TvButton("Sobre a obra · metadados e notas", { clearPendingFocus(); afterDiscoveryStopped { onAboutWork(item.title) } })
-                    if (isOnline && onEditions != null) {
-                        TvButton("Capítulos / edições", { clearPendingFocus(); afterDiscoveryStopped(onEditions) })
-                    }
+                    TvButton("Resumo completo", { interacted = true; chapterReturn = ChapterFocusReturn(); expandedSummary = true }, Modifier.focusRequester(summaryFocus))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OrganizationActions(item, repository, showCollections = false, compactFavorite = true)
-                        TvButton("Mais opções", { clearPendingFocus(); moreOptions = true }, Modifier.focusRequester(moreFocus))
+                        TvButton("Mais opções", { interacted = true; chapterReturn = ChapterFocusReturn(); clearPendingFocus(); moreOptions = true }, Modifier.focusRequester(moreFocus))
                     }
                     if (offlineAvailable) Text("✓ Disponível offline", color = TvColors.Amber, fontSize = 15.sp)
                 }
-                TvButton("Voltar à biblioteca", { clearPendingFocus(); onBack() },
+                TvButton("Voltar à biblioteca", { clearPendingFocus(); afterDiscoveryStopped(onBack) },
                     if (comic == null) Modifier.focusRequester(first) else Modifier)
                 if (showRelated) TvButton("Relacionados ↓", { scrollScope.launch {
                     pageScroll.animateScrollToItem(1)
                     relatedFocus.requestFocus()
                 } })
             }
-            AsyncImage(repository.cover(id), "Capa da edição",
-                Modifier.width(coverWidth).fillMaxHeight(), contentScale = ContentScale.Fit)
-            LazyColumn(
-                Modifier.weight(1f).fillMaxHeight().background(TvColors.Panel)
-                    .border(if (summaryFocused) 2.dp else 0.dp, TvColors.Amber)
-                    .onFocusChanged { summaryFocused = it.hasFocus }
-                    .textPanelScroll(summaryScroll),
-                state = summaryScroll, contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Sobre esta edição", fontSize = 20.sp, lineHeight = 28.sp)
-                        val summary = onlineInfo?.description?.trim()?.takeIf { it.isNotEmpty() }
-                        if (summary != null) TvButton(
-                            if (expandedSummary) "Recolher resumo" else "Mostrar resumo completo",
-                            { expandedSummary = !expandedSummary })
-                        Text(summary ?: when {
-                            metadataLoading -> "Carregando informações salvas…"
-                            isOnline -> "Esta edição não tem sinopse salva."
-                            else -> "Edição importada de um arquivo local. Nenhuma sinopse está disponível."
-                        }, fontSize = 17.sp, lineHeight = 26.sp, color = TvColors.Muted,
-                            maxLines = if (expandedSummary) Int.MAX_VALUE else 4, overflow = TextOverflow.Ellipsis)
-                    }
-                }
+            Column(Modifier.width(coverWidth).fillMaxHeight()) {
+                DetailCoverImage(largeCover, "Capa da edição", Modifier.weight(1f).fillMaxWidth())
+                if (largeCover == repository.cover(id)) Text("Capa fornecida pela fonte / biblioteca · resolução disponível",
+                    fontSize = 12.sp, color = TvColors.Muted)
             }
+            DetailsChapterPanel(id, chapterRows, chapters, isOnline, interacted, chapterReturn.restoreId,
+                onRestored = { chapterReturn = chapterReturn.consumed() }, onRetry = ::retryChapters,
+                onOrder = { order -> chapters.context?.let { context ->
+                    chapters.run { writeChapterOrder(context, order); chapters.order = order }
+                } }, onRead = { row ->
+                    interacted = true
+                    val context = chapters.context
+                    if (row.id == id) afterDiscoveryStopped { navigateToReader(id, onRead) }
+                    else if (row.progress != null) afterDiscoveryStopped { navigateToReader(row.id) { onReadChapter(row.id) } }
+                    else if (context != null && row.chapter != null && openChapter != null) {
+                        chapters.run {
+                            relatedJob?.cancelAndJoin()
+                            val next = openChapter(context, row.chapter)
+                            navigateToReader(next) { onReadChapter(next) }
+                        }
+                    }
+                }, modifier = Modifier.weight(1f).fillMaxHeight())
         }
         }
         if (showRelated) {

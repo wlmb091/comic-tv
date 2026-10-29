@@ -8,6 +8,15 @@ import java.nio.file.Files
 import kotlin.concurrent.thread
 
 class BrowserPolicyTest {
+    @Test fun addressBarDistinguishesQueriesFromAddresses() {
+        assertEquals("batman", BrowserPolicy.destination("Batman").queryParameter("q")?.lowercase())
+        assertEquals("www.google.com", BrowserPolicy.destination("Batman quadrinhos & DC").host)
+        assertEquals("Batman quadrinhos & DC", BrowserPolicy.destination("Batman quadrinhos & DC").queryParameter("q"))
+        assertEquals("https://example.org/path", BrowserPolicy.destination("example.org/path").toString())
+        assertEquals("http://192.168.0.1/", BrowserPolicy.destination("http://192.168.0.1").toString())
+        rejected { BrowserPolicy.destination("javascript:alert(1)") }
+        rejected { BrowserPolicy.destination("") }
+    }
     private fun rejected(block: () -> Unit) { try { block(); fail("Should reject") } catch (_: IOException) {} }
     @Test fun schemesCredentialsAndApksAreRejected() {
         listOf("file:///tmp/x", "data:text/plain,a", "blob:https://example.org/a", "intent://a", "https://user:pass@example.org/").forEach {

@@ -172,6 +172,9 @@ import kotlinx.coroutines.launch
     showFavorite: Boolean = true, showCollections: Boolean = true, compactFavorite: Boolean = false) {
     var favorite by remember(comic.id, comic.favorite) { mutableStateOf(comic.favorite) }
     var busy by remember { mutableStateOf(false) }
+    var sagaPicker by remember { mutableStateOf(false) }
+    val sagaFocus = remember { FocusRequester() }
+    var sagaRestore by remember { mutableIntStateOf(0) }
     var picker by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -187,6 +190,9 @@ import kotlinx.coroutines.launch
         }
     }, enabled = !busy)
     if (showCollections) TvButton("Organizar em coleções", { picker = true }, Modifier.focusRequester(collectionsFocus), enabled = !busy)
+    TvButton("Organizar saga", { sagaPicker = true }, Modifier.focusRequester(sagaFocus), enabled = !busy)
+    if (sagaPicker) SagaAssignmentDialog(comic, repository) { sagaPicker = false; sagaRestore++ }
+    LaunchedEffect(sagaRestore) { if (sagaRestore > 0) sagaFocus.requestFocus() }
     error?.let { Text(it, color = TvColors.Amber) }
     if (picker) CollectionPicker(comic, repository) { picker = false; restore++ }
     LaunchedEffect(restore) { if (restore > 0) collectionsFocus.requestFocus() }

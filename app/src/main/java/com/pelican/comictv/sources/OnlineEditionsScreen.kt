@@ -59,7 +59,7 @@ import kotlinx.coroutines.launch
         // Rail shortcuts use the existing neighbor resolver without presenting the chapter picker.
         Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             (previewFile ?: fallbackCover)?.let { preview ->
-                AsyncImage(preview, previewDescription, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                com.pelican.comictv.details.DetailCoverImage(preview, previewDescription, Modifier.fillMaxSize())
             }
             Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().background(TvColors.Background).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -133,7 +133,7 @@ import kotlinx.coroutines.launch
         Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
             val preview = previewFile ?: fallbackCover
             if (preview != null) {
-                AsyncImage(preview, previewDescription, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                com.pelican.comictv.details.DetailCoverImage(preview, previewDescription, Modifier.fillMaxSize())
             } else {
                 Text(context?.title?.title ?: "Sua leitura", Modifier.padding(32.dp), color = TvColors.Muted, fontSize = 24.sp)
             }

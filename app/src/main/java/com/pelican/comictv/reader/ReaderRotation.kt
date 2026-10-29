@@ -14,23 +14,14 @@ internal fun readerSurfaceGeometry(width: Int, height: Int, rotated: Boolean): R
     if (rotated) ReaderSurfaceGeometry(height, width, (width - height) / 2, (height - width) / 2)
     else ReaderSurfaceGeometry(width, height, 0, 0)
 
-internal fun readerLogicalDirection(direction: ToolDirection, rotated: Boolean): ToolDirection =
-    if (!rotated) direction else when (direction) {
-        ToolDirection.Up -> ToolDirection.Left
-        ToolDirection.Right -> ToolDirection.Up
-        ToolDirection.Down -> ToolDirection.Right
-        ToolDirection.Left -> ToolDirection.Down
-    }
+/** Rotation is visual only: the remote keeps the normal portrait command order. */
+@Suppress("UNUSED_PARAMETER")
+internal fun readerLogicalDirection(direction: ToolDirection, rotated: Boolean): ToolDirection = direction
 
 internal val LocalReaderRotated = staticCompositionLocalOf { false }
 
-internal fun readerLogicalKey(key: Key, rotated: Boolean): Key = if (!rotated) key else when (key) {
-    Key.DirectionUp -> Key.DirectionLeft
-    Key.DirectionRight -> Key.DirectionUp
-    Key.DirectionDown -> Key.DirectionRight
-    Key.DirectionLeft -> Key.DirectionDown
-    else -> key
-}
+@Suppress("UNUSED_PARAMETER")
+internal fun readerLogicalKey(key: Key, rotated: Boolean): Key = key
 
 /** Measure the reader in its real logical viewport before rotating; never scale a landscape bitmap. */
 @Composable internal fun ReaderSurface(rotated: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {

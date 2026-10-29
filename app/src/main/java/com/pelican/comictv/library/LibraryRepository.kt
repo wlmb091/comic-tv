@@ -26,6 +26,74 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     private val coverGenerator: CoverGenerator = BitmapCoverGenerator(),
     private val collectionDao: CollectionDao? = null,
     private val pendingRestores: com.pelican.comictv.backup.RestorePendingStore? = null) : ReaderRepository {
+    private val sagaStore = SagaStore(context.filesDir)
+    private val sagaMutex = Mutex()
+    private val sagaMetadataCache = linkedMapOf<String, SagaMetadataCacheEntry>()
+    private val sagaCoverDirectory = File(context.filesDir, "saga-covers")
+    private val sagaCoverStore by lazy { com.pelican.comictv.cinema.CinemaArtworkStore(sagaCoverDirectory,
+        ::validateSagaCover, maxFileBytes = 20L * 1024 * 1024, maxTotalBytes = 128L * 1024 * 1024) }
+
+    private val _sagaRevision = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    val sagaRevision: kotlinx.coroutines.flow.StateFlow<Long> = _sagaRevision
+
+    suspend fun sagaGroups(comics: List<ComicEntity>): List<SagaGroup> = withContext(Dispatchers.IO) {
+        val metadata = sagaMutex.withLock { readSagaMetadata(File(context.filesDir, "online-records"), comics, sagaMetadataCache) }
+        val settings = sagaMutex.withLock { sagaStore.read() }
+        val names = observeCollections().first().associate { it.id to it.name }
+        val groups = buildSagaGroups(comics, metadata, settings, names, ::cover)
+        sagaMutex.withLock {
+            if (!sagaCoverDirectory.exists()) groups else groups.map { group ->
+                val file = sagaCoverStore.file(sagaCoverId(group.key))
+                if (file != null) group.copy(cover = file) else group
+            }
+        }
+    }
+
+    /** Assign only this edition explicitly; ordinary collection membership never implies a saga. */
+    suspend fun assignSaga(id: String, collectionId: String?) = withContext(Dispatchers.IO) {
+        require(dao.get(id) != null)
+        if (collectionId != null) require(observeCollections().first().any { it.id == collectionId })
+        sagaMutex.withLock {
+            val settings = sagaStore.read()
+            val assignments = settings.assignments.toMutableMap()
+            if (collectionId == null) assignments.remove(id) else assignments[id] = "manual:$collectionId"
+            sagaStore.write(settings.copy(assignments = assignments))
+            _sagaRevision.value++
+        }
+    }
+
+    suspend fun chooseSagaCover(group: SagaGroup, editionId: String?) = withContext(Dispatchers.IO) {
+        require(editionId == null || group.editions.any { it.id == editionId })
+        sagaMutex.withLock {
+            val settings = sagaStore.read()
+            val covers = settings.covers.toMutableMap()
+            if (editionId == null) covers.remove(group.key) else covers[group.key] = editionId
+            sagaStore.write(settings.copy(covers = covers))
+            if (sagaCoverDirectory.exists()) sagaCoverStore.remove(sagaCoverId(group.key))
+            _sagaRevision.value++
+        }
+    }
+
+    /** Independent SAF image; never replaces an edition cover or original. */
+    suspend fun importSagaCover(groupKey: String, uri: Uri): File = withContext(Dispatchers.IO) {
+        require(groupKey.length in 1..200 && uri.scheme == "content") { "Escolha uma imagem pelo seletor de arquivos." }
+        val active = currentCoroutineContext()
+        val prepared = java.util.concurrent.atomic.AtomicReference<com.pelican.comictv.cinema.StagedArtwork?>()
+        try {
+            val staged = runInterruptible {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    sagaCoverStore.stage(input) { active.ensureActive() }.also(prepared::set)
+                } ?: throw IOException("Não foi possível abrir a imagem escolhida.")
+            }
+            sagaMutex.withLock {
+                active.ensureActive()
+                val file = sagaCoverStore.commit(sagaCoverId(groupKey), staged) { active.ensureActive() }
+                _sagaRevision.value++
+                file
+            }
+        } finally { prepared.get()?.close() }
+    }
+
     private val archive = ComicArchive(pdfReader = PdfComicArchive())
     private val store = LocalComicStore(File(context.filesDir, "originals"), archive)
     private val pageDirectory = File(context.cacheDir, "pages").apply { mkdirs() }
@@ -46,14 +114,14 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     }
 
     /** Local files only. Backdrop preparation never resolves a source or downloads a page. */
-    internal suspend fun libraryBackdrop(id: String): LibraryBackdropImage? = withContext(Dispatchers.IO) {
+    internal suspend fun libraryBackdrop(id: String, preferArtwork: Boolean = true): LibraryBackdropImage? = withContext(Dispatchers.IO) {
         mutex.withLock {
             if (dao.get(id) == null) return@withLock null
             val active = currentCoroutineContext()
             runInterruptible {
                 active.ensureActive()
                 try {
-                    if (cinemaDirectory.exists()) backdropImage(cinemaStore.file(id))?.let { return@runInterruptible it }
+                    if (preferArtwork && cinemaDirectory.exists()) backdropImage(cinemaStore.file(id))?.let { return@runInterruptible it }
                 } catch (_: IOException) { active.ensureActive() }
                 // Full first pages preserve more detail than the separately generated 480×720 cover.
                 backdropImage(File(pageDirectory, "$id-0"))?.let { return@runInterruptible it }
@@ -84,6 +152,9 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
             }
         }
     }
+
+    /** The edition first page, never an independent cinematic artwork or a network download. */
+    suspend fun detailsCover(id: String): File? = libraryBackdrop(id, preferArtwork = false)?.file
 
     private fun backdropImage(file: File?): LibraryBackdropImage? {
         if (file?.isFile != true) return null

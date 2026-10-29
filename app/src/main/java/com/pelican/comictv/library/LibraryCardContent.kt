@@ -4,7 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -81,16 +81,20 @@ internal fun libraryTitleFont(family: ThemeTitleFamily): FontFamily = when (fami
     }
 }
 
-@Composable internal fun CollectionCardContent(comic: ComicEntity, repository: LibraryRepository, offline: Boolean) {
+@Composable internal fun CollectionCardContent(comic: ComicEntity, repository: LibraryRepository, offline: Boolean, coverModel: Any? = repository.cover(comic.id), saga: Boolean = false) {
     val theme = LocalThemeSpec.current
     val style = theme.cards.collectionStyle
+    var coverFailed by remember(coverModel) { mutableStateOf(false) }
+    val cover = if (coverFailed) { if (saga) null else repository.cover(comic.id) } else coverModel
     if (style == CollectionCardStyle.Horizontal) {
         Row(Modifier.fillMaxWidth().heightIn(min = 96.dp).glassPanel().padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!TvColors.options.highContrast) AsyncImage(repository.cover(comic.id), null,
-                Modifier.width(52.dp).height(76.dp).testTag("library-thumbnail-${comic.id}"), contentScale = if (theme.cards.cropCollectionCover) ContentScale.Crop else ContentScale.Fit)
+            if (!TvColors.options.highContrast) AsyncImage(cover, null,
+                Modifier.width(52.dp).height(76.dp).testTag("library-thumbnail-${comic.id}"), contentScale = if (theme.cards.cropCollectionCover) ContentScale.Crop else ContentScale.Fit,
+                onError = { if (saga || coverModel is String) coverFailed = true })
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 CollectionTitle(comic)
+                if (saga && cover == null) Text("Escolher imagem da saga", color = TvColors.Muted, fontSize = 14.sp)
                 Text(readingStatus(comic), color = TvColors.Muted, fontSize = theme.typography.cardStatusSp.coerceAtLeast(14).sp)
                 if (comic.lastRead > 0) ProgressTrack(readingFraction(comic), Modifier.fillMaxWidth())
                 if (offline) OfflineBadge()
@@ -105,8 +109,11 @@ internal fun libraryTitleFont(family: ThemeTitleFamily): FontFamily = when (fami
         else -> 2f / 3f
     }
     Box(Modifier.fillMaxWidth().aspectRatio(ratio).background(if (TvColors.options.highContrast) Color.Black else TvColors.Panel)) {
-        if (!TvColors.options.highContrast) AsyncImage(repository.cover(comic.id), comic.title,
-            Modifier.fillMaxSize().testTag("library-thumbnail-${comic.id}"), contentScale = if (theme.cards.cropCollectionCover) ContentScale.Crop else ContentScale.Fit)
+        if (!TvColors.options.highContrast) AsyncImage(cover, comic.title,
+            Modifier.fillMaxSize().testTag("library-thumbnail-${comic.id}"), contentScale = if (theme.cards.cropCollectionCover) ContentScale.Crop else ContentScale.Fit,
+                onError = { if (saga || coverModel is String) coverFailed = true })
+        if (saga && cover == null) Text("Escolher imagem da saga", Modifier.align(Alignment.Center).padding(16.dp),
+            color = TvColors.Muted, fontSize = 16.sp)
         if (offline) Box(Modifier.align(Alignment.TopStart).background(Color.Black).padding(5.dp)) { OfflineBadge() }
         if (comic.favorite) Box(Modifier.align(Alignment.TopEnd).background(Color.Black).padding(6.dp)) { FavoriteBadge() }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(cardScrim())

@@ -2,6 +2,7 @@ package com.pelican.comictv.reader
 
 import org.junit.Assert.*
 import org.junit.Test
+import androidx.compose.ui.input.key.Key
 
 class ReaderRotationTest {
     @Test fun portraitSurfaceUsesEveryPixelWithoutScaling() {
@@ -22,11 +23,11 @@ class ReaderRotationTest {
         assertTrue(kotlin.math.abs((odd.y + odd.height / 2f) - 1080 / 2f) <= .5f)
     }
 
-    @Test fun remoteDirectionsFollowClockwiseSurface() {
-        assertEquals(ToolDirection.Left, readerLogicalDirection(ToolDirection.Up, true))
-        assertEquals(ToolDirection.Up, readerLogicalDirection(ToolDirection.Right, true))
-        assertEquals(ToolDirection.Right, readerLogicalDirection(ToolDirection.Down, true))
-        assertEquals(ToolDirection.Down, readerLogicalDirection(ToolDirection.Left, true))
-        ToolDirection.entries.forEach { assertEquals(it, readerLogicalDirection(it, false)) }
+    @Test fun remoteCommandsKeepNormalOrderAtBothRotations() {
+        for (rotated in listOf(false, true)) {
+            ToolDirection.entries.forEach { assertEquals(it, readerLogicalDirection(it, rotated)) }
+            listOf(Key.DirectionUp, Key.DirectionRight, Key.DirectionDown, Key.DirectionLeft,
+                Key.DirectionCenter, Key.Back).forEach { assertEquals(it, readerLogicalKey(it, rotated)) }
+        }
     }
 }

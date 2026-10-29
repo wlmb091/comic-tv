@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.tv.material3.Text
 import com.pelican.comictv.library.LibraryRepository
@@ -34,7 +35,8 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
     val toolbar = remember { FocusRequester() }
     val downloader = remember { BrowserDownloader() }
     var view by remember { mutableStateOf<WebView?>(null) }
-    var address by remember { mutableStateOf("https://") }
+    var address by remember { mutableStateOf("") }
+    var ready by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Abra uma página, escolha um arquivo e confirme o download. MENU retorna à barra; Voltar percorre o histórico.") }
     var offered by remember { mutableStateOf<OfferedDownload?>(null) }
     var complete by remember { mutableStateOf<Pair<File, String>?>(null) }
@@ -44,7 +46,11 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
     var foreground by remember { mutableStateOf(true) }
     fun cancel() { downloader.cancel(); task?.cancel() }
     fun navigate() {
-        try { val url = BrowserPolicy.url(address); view?.loadUrl(url.toString()) }
+        try {
+            val url = BrowserPolicy.destination(address)
+            if (foreground && view != null) { message = "Carregando…"; view?.loadUrl(url.toString()) }
+            else message = "Aguarde a inicialização do navegador."
+        }
         catch (e: Exception) { message = e.message ?: "Endereço inválido." }
     }
     fun back() { if (view?.canGoBack() == true) view?.goBack() else onBack() }
@@ -67,12 +73,21 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
             if (running != null && !running.isCompleted) running.invokeOnCompletion { cleanup?.delete() } else cleanup?.delete()
         }
     }
-    LaunchedEffect(Unit) { toolbar.requestFocus() }
-    Column(Modifier.fillMaxSize().background(TvColors.Background).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Create the native surface after the navigation transition, not in its fading layer.
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            withFrameNanos { }; ready = true
+            toolbar.requestFocus()
+            awaitCancellation()
+        }
+    }
+    BrowserViewport(controls = {
+      Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Navegador · downloads para sua biblioteca")
+        Text("Endereço ou pesquisa no Google · OK abre o teclado", color = TvColors.Muted)
         TvTextInput(address, { address = it }, Modifier.fillMaxWidth().focusRequester(toolbar).background(TvColors.Panel).padding(10.dp), onSubmit = { navigate() }, maxLength = 4096)
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            TvButton("Abrir endereço", { navigate() })
+            TvButton("Buscar / acessar", { navigate() })
             TvButton("Voltar", { back() })
             TvButton("Recarregar", { if (foreground) view?.reload() })
             TvButton("Entrar na página", { view?.requestFocus() })
@@ -123,14 +138,18 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
         importedId?.let { id -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton("Ler agora", { onRead(id) }); TvButton("Ver detalhes", { onDetails(id) })
         } }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+      }
+    }, page = {
+        Box(Modifier.fillMaxSize()) {
             var unavailable by remember { mutableStateOf(false) }
             if (unavailable) Text("Esta TV não tem um provedor Android System WebView disponível. Use a importação local ou pela rede.")
+            else if (!ready) Text("Iniciando navegador…")
             else AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
                 // Provider creation can fail on TV firmware; return a harmless native view.
                 try {
                     WebView(ctx).apply {
                         view = this
+                        setBackgroundColor(android.graphics.Color.rgb(15, 15, 15))
                         settings.apply {
                             javaScriptEnabled = true; domStorageEnabled = true
                             allowFileAccess = false; allowContentAccess = false
@@ -144,7 +163,18 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
                             override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean =
                                 try { BrowserPolicy.url(request.url.toString()); !foreground }
                                 catch (_: Exception) { message = "Somente páginas HTTP/HTTPS são permitidas. Downloads blob/data/file/intent não são suportados."; true }
-                            override fun onPageFinished(v: WebView, url: String) { if (url.startsWith("http")) address = url }
+                            override fun onPageStarted(v: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                                if (url.startsWith("http")) message = "Carregando…"
+                            }
+                            override fun onPageFinished(v: WebView, url: String) {
+                                if (url.startsWith("http")) { address = url; if (message == "Carregando…") message = "Página carregada · MENU volta à barra." }
+                            }
+                            override fun onReceivedError(v: WebView, request: WebResourceRequest, error: WebResourceError) {
+                                if (request.isForMainFrame) message = "Não foi possível abrir a página (${error.errorCode}): ${error.description}. Confira o endereço ou tente uma pesquisa."
+                            }
+                            override fun onReceivedHttpError(v: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                                if (request.isForMainFrame) message = "O site respondeu HTTP ${response.statusCode}."
+                            }
                             override fun onReceivedSslError(v: WebView, handler: android.webkit.SslErrorHandler, error: android.net.http.SslError) {
                                 handler.cancel(); message = "A página tem um certificado TLS inválido; conexão bloqueada."
                             }
@@ -164,9 +194,11 @@ private data class OfferedDownload(val url: String, val name: String, val agent:
                             } else false
                         }
                         isFocusable = true; isFocusableInTouchMode = true
+                        // Render a local welcome document immediately; no network required to open the UI.
+                        loadData("<html><body style='background:#0f0f0f;color:#eeeeee;font-family:sans-serif;padding:24px'><h2>Navegador pronto</h2><p>Digite uma pesquisa ou o endereço de um site na barra acima.</p></body></html>", "text/html", "UTF-8")
                     }
                 } catch (_: Exception) { unavailable = true; android.view.View(ctx) }
             })
         }
-    }
+    })
 }

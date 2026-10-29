@@ -63,6 +63,7 @@ internal class GlobalSearchSession : ViewModel() {
     var lastFocus by rememberSaveable { mutableStateOf("query") }
     var restoredFocus by remember { mutableStateOf(false) }
     val queryFocus = remember { FocusRequester() }
+    val list = rememberLazyGridState()
     var optionsKey by remember { mutableStateOf<String?>(null) }
     var optionsTitle by remember { mutableStateOf("") }
     var pendingClassification by remember { mutableStateOf<Pair<String, SearchCategory>?>(null) }
@@ -76,6 +77,8 @@ internal class GlobalSearchSession : ViewModel() {
     LaunchedEffect(pendingClassification) {
         pendingClassification?.let { (key, type) ->
             // The dialog has closed: park on a persistent field before removing a filtered card.
+            list.scrollToItem(0)
+            withFrameNanos { }
             queryFocus.requestFocus(); lastFocus = "query"
             withFrameNanos { }
             classifications[key] = type.name; classificationRevision++
@@ -109,7 +112,6 @@ internal class GlobalSearchSession : ViewModel() {
         }
     }
     val local = remember(comics, query) { comics.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) } }
-    val list = rememberLazyGridState()
     val installed = sourceState.installed.map { it.packageName }.toSet()
     val candidates = sourceState.availableExtensions.filter { it.entry.packageName !in installed }
     val matchingCandidates = candidates.filter { (listOf(it.entry.name) + it.entry.sourceNames).any { name -> name.contains(query.trim(), true) } }
@@ -138,7 +140,8 @@ internal class GlobalSearchSession : ViewModel() {
             }
         }
     }
-    Column(Modifier.fillMaxSize().background(TvColors.Background).padding(28.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    SearchPageGrid(list, header = {
+      Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Buscar", fontSize = 30.sp, modifier = Modifier.weight(1f))
             onBrowserOpen?.let { FocusButton("browser", "Navegador", it) }
@@ -161,8 +164,8 @@ internal class GlobalSearchSession : ViewModel() {
             FocusButton("clear", "Limpar", { query = ""; browseRequested = false })
         }
         Text("Tags consultam as fontes. Segure OK numa capa para classificar o tipo nesta sessão; sem classificação aparece em Todos.", fontSize = 13.sp)
-        LazyVerticalGrid(columns = GridCells.Adaptive(140.dp), modifier = Modifier.weight(1f).fillMaxWidth(), state = list,
-            horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(6.dp)) {
+      }
+    }) {
             item("modes", span = { GridItemSpan(maxLineSpan) }) { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FocusButton("catalog", "Catálogo", { query = ""; latest = false; browseRequested = true })
                 FocusButton("latest", "Novidades", { query = ""; latest = true; browseRequested = true })
@@ -208,7 +211,6 @@ internal class GlobalSearchSession : ViewModel() {
                     Text("${candidate.entry.name} · ${candidate.repository.name}\nFontes: ${candidate.entry.sourceNames.joinToString().ifBlank { "não informadas no índice" }} · Títulos não indexados", fontSize = 14.sp)
                 }
             } }
-        }
     }
     optionsKey?.let { key ->
         LibraryDialog("Classificar: $optionsTitle", { optionsKey = null }) {
@@ -220,5 +222,20 @@ internal class GlobalSearchSession : ViewModel() {
             }
             TvButton("Cancelar", { optionsKey = null })
         }
+    }
+}
+
+/** A single scroll owner: the address/filter header must leave the viewport with results. */
+@Composable internal fun SearchPageGrid(
+    state: LazyGridState,
+    header: @Composable () -> Unit,
+    content: LazyGridScope.() -> Unit,
+) {
+    LazyVerticalGrid(columns = GridCells.Adaptive(140.dp), state = state,
+        modifier = Modifier.fillMaxSize().background(TvColors.Background),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(28.dp)) {
+        item("search-header", span = { GridItemSpan(maxLineSpan) }) { header() }
+        content()
     }
 }
