@@ -127,3 +127,5 @@
 - Complemento1.2.9: Configurações permitem desligar carrosselcompleto (sem troca/pan/indicadoresanimados) e desligar apenaspanvertical. carouselAutoplay/carouselVerticalPan persistidosseparadamente,defaulttrue,backupantigodefaulttrue. Filtrosempreindependentes eOriginaldesativa. Manternavegaçãomanual e foco.
 
 - Complemento1.2.9movimentoautorizado: carouselMotion=Pan(default)/None/ZoomIn/ZoomOut/Dynamic, persistido+backupestritoopcional;Dinâmico alterna pelos3efeitos a cadaedição. Zoom1.00–1.08,painterlimitadoao viewport;desligarautoplayremove movimentocompleto e filtroficaindependente. Toggleverticaldesativapanapenas,separadodoszoom.
+
+- 1.2.9publicada28/10/2026às23:00:24BRT/code71;CI40801826395tentativa2e40803729319aprovados. Manifesto/asset23.591.785bytes/SHA2565d8fbab42e08b15f7ba3bf0db2ca89eaceae0c1c267c12eaebc9652e755e31a1 conferidos,semexecuçãoBoxinferida. Tentativa1timeouttesteLocalUpload,isoladopassouererunsemcódigopassou. Detalhesdocs/validation/1.2.9.md.
