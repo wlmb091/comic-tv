@@ -6,9 +6,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.room.Room
 import androidx.test.platform.app.InstrumentationRegistry
 import com.pelican.comictv.sources.*
@@ -24,7 +27,8 @@ import java.io.File
 class HomeRows127Test {
     @get:Rule val compose = createComposeRule()
 
-    private fun fixture(preset: ColorPreset, textPercent: Int = 130, highContrast: Boolean = false, body: () -> Unit) = runBlocking {
+    private fun fixture(preset: ColorPreset, textPercent: Int = 130, highContrast: Boolean = false,
+        withShell: Boolean = false, longTitle: Boolean = false, body: () -> Unit) = runBlocking {
         val real = InstrumentationRegistry.getInstrumentation().targetContext
         val root = File(real.cacheDir, "home-rows-${System.nanoTime()}").apply { mkdirs() }
         val context = object : ContextWrapper(real) {
@@ -33,7 +37,9 @@ class HomeRows127Test {
         }
         val db = Room.inMemoryDatabaseBuilder(real, LibraryDatabase::class.java).build()
         val repository = LibraryRepository(context, db.comics(), collectionDao = db.collections())
-        val books = (0 until 24).map { ComicEntity("home-$it", "Livro $it", 30, currentPage = 3, lastRead = (100 - it).toLong()) }
+        val books = (0 until 24).map { ComicEntity("home-$it",
+            if (longTitle && it == 0) "A fantástica jornada dos guardiões da cidade perdida" else "Livro $it",
+            30, currentPage = 3, lastRead = (100 - it).toLong()) }
         val sample = (0 until 24).map { OnlineTitle("source-$it", "Fonte $it") }
         var shown by mutableStateOf(true)
         try {
@@ -43,16 +49,20 @@ class HomeRows127Test {
                 var details by remember { mutableStateOf(false) }
                 var focusedId by remember { mutableStateOf<String?>(null) }
                 var initial by remember { mutableStateOf(true) }
+                val platformDensity = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(platformDensity.density, 1f)) {
                 ComicTvTheme(AppearanceOptions(preset = preset, textPercent = textPercent, highContrast = highContrast)) {
-                    if (shown) Box(Modifier.fillMaxSize()) {
+                    if (shown) Box(if (withShell) Modifier.requiredSize(960.dp, 540.dp) else Modifier.fillMaxSize()) {
                         if (details) TvButton("Voltar do teste", { details = false })
                         else screens.SaveableStateProvider("library") {
-                            LibraryScreen(books, repository, focusedId, { focusedId = it }, { details = true }, {},
+                            val library: @Composable () -> Unit = { LibraryScreen(books, repository, focusedId, { focusedId = it }, { details = true }, {},
                                 requestInitialFocus = initial, onInitialFocus = { initial = false },
                                 homeSources = HomeSourcePreviews(catalog = sample, latest = sample),
-                                onSourceSection = { details = true }, onSourceTitle = { _, _ -> details = true })
+                                onSourceSection = { details = true }, onSourceTitle = { _, _ -> details = true }) }
+                            if (withShell) TvShell("library", {}) { library() } else library()
                         }
                     }
+                }
                 }
             }
             body()
@@ -84,6 +94,39 @@ class HomeRows127Test {
     @Test fun primeHasOrderedBoundedRowsAt130Percent() = orderedBoundedRows(ColorPreset.Prime)
     @Test fun maxHasOrderedBoundedRowsAt130Percent() = orderedBoundedRows(ColorPreset.Max)
     @Test fun cinemaHasOrderedBoundedRowsAt130Percent() = orderedBoundedRows(ColorPreset.Cinema)
+
+    private fun firstRowInsideInitialViewport(preset: ColorPreset, percentage: Int, longTitle: Boolean = false) =
+        fixture(preset, percentage, withShell = true, longTitle = longTitle) {
+            val viewport = compose.onNodeWithTag("library-grid").getUnclippedBoundsInRoot()
+            val hero = compose.onNodeWithTag("library-hero").getUnclippedBoundsInRoot()
+            val firstRow = compose.onNodeWithTag(if (preset == ColorPreset.Max) "max-explore" else "library-recent-home-0")
+                .assertIsDisplayed().getUnclippedBoundsInRoot()
+            assertTrue("Cabeçalho permanece integralmente abaixo do topo", hero.top >= viewport.top)
+            assertTrue("Primeira fileira inteira sem seta↓ inicial", firstRow.bottom <= viewport.bottom + 1.dp)
+            compose.onNodeWithText("Continuar leitura").assertIsDisplayed().assertIsFocused()
+            compose.onAllNodes(isFocused()).assertCountEquals(1)
+            if (longTitle) {
+                val layouts = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                compose.onNodeWithTag("library-hero-title").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+                assertTrue("Fixture exercises both title lines", layouts.single().lineCount == 2)
+                assertTrue("Responsive title stays readable", layouts.single().layoutInput.style.fontSize.value >= 24f)
+            }
+        }
+
+    @Test fun comicInitialRowFitsAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Amber, 100)
+    @Test fun comicInitialRowFitsAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Amber, 130)
+    @Test fun flixInitialRowFitsAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Flix, 100)
+    @Test fun flixInitialRowFitsAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Flix, 130)
+    @Test fun primeInitialRowFitsAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Prime, 100)
+    @Test fun primeInitialRowFitsAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Prime, 130)
+    @Test fun maxInitialExplorerFitsAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 100)
+    @Test fun maxInitialExplorerFitsAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 130)
+    @Test fun flixTwoLineTitleAndFirstRowFitAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Flix, 100, true)
+    @Test fun flixTwoLineTitleAndFirstRowFitAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Flix, 130, true)
+    @Test fun primeTwoLineTitleAndFirstRowFitAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Prime, 100, true)
+    @Test fun primeTwoLineTitleAndFirstRowFitAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Prime, 130, true)
+    @Test fun maxTwoLineTitleAndExplorerFitAt100Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 100, true)
+    @Test fun maxTwoLineTitleAndExplorerFitAt130Percent() = firstRowInsideInitialViewport(ColorPreset.Max, 130, true)
 
     @Test fun localDetailsRestoreSameRowAndCover() = fixture(ColorPreset.Flix) {
         compose.onNodeWithTag("library-grid").performScrollToIndex(4)

@@ -22,6 +22,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import com.pelican.comictv.BuildConfig
+import com.pelican.comictv.reader.ImagePreset
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
@@ -42,7 +43,7 @@ import kotlinx.coroutines.sync.withLock
     var diagnostics by remember { mutableStateOf(false) }
     var themeHelp by remember { mutableStateOf(false) }
     if (themeHelp) com.pelican.comictv.library.LibraryDialog("Sobre os temas", { themeHelp = false }) {
-        Text("O tema muda fundos, barras, cartões, botões, foco e a cor da marca. Capas e páginas mantêm suas cores originais.", color = TvColors.Muted)
+        Text("O tema muda fundos, barras, cartões, botões, foco e a cor da marca. Os arquivos originais das capas e páginas são preservados. O filtro do carrossel tem seu próprio ajuste nesta tela.", color = TvColors.Muted)
         TvButton("Fechar", { themeHelp = false })
     }
     if (diagnostics) LoadingDiagnosticsDialog({ diagnostics = false })
@@ -98,6 +99,51 @@ import kotlinx.coroutines.sync.withLock
                 } }
                 settingsRow("cinema-title") { Text("Arte cinematográfica", fontSize = 23.sp) }
                 settingsRow("cinema-description") { Text("Flix, Prime, Max e Cinema mostram automaticamente o fundo da edição em foco. A arte horizontal escolhida em Detalhes → Mais opções tem prioridade; quando não houver, será usada a própria capa, ampliada com proporção preservada e recorte para preencher a área. Alto contraste mantém o fundo preto. O Comic TV original mantém sua estante.", color = TvColors.Muted) }
+                settingsRow("carousel-motion-title") { Text("Movimento do carrossel", fontSize = 23.sp) }
+                settingsRow("carousel-autoplay") {
+                    TvChoice("Troca automática: " + if (options.carouselAutoplay) "ligada" else "desligada",
+                        options.carouselAutoplay, { save { it.copy(carouselAutoplay = !it.carouselAutoplay) } })
+                }
+                settingsRow("carousel-vertical-pan") {
+                    TvChoice("Movimento vertical da imagem: " + if (options.carouselVerticalPan) "ligado" else "desligado",
+                        options.carouselVerticalPan, { save { it.copy(carouselVerticalPan = !it.carouselVerticalPan) } })
+                }
+                settingsRow("carousel-motion-type") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Tipo de movimento", fontSize = 18.sp)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            carouselMotionChoices.forEach { (motion, label) ->
+                                TvChoice(label, options.carouselMotion == motion, { save { it.copy(carouselMotion = motion) } })
+                            }
+                        }
+                    }
+                }
+                settingsRow("carousel-motion-description") {
+                    Text("Em Flix, Max e Cinema, a troca automática alterna as edições a cada 10 segundos. Ao desligá-la, o destaque fica parado. Sem movimento mantém a imagem parada durante cada destaque; Vertical revela o alto da imagem, Zoom in aproxima e Zoom out afasta. Dinâmico alterna esses movimentos. O controle vertical pode desligar apenas essa parte, inclusive no modo Dinâmico. O filtro de imagem permanece como foi escolhido.", color = TvColors.Muted)
+                }
+                settingsRow("carousel-filter-title") { Text("Filtro das imagens do carrossel", fontSize = 23.sp) }
+                settingsRow("carousel-filter-presets") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        ImagePreset.entries.forEach { preset ->
+                            TvChoice(if (preset == ImagePreset.Original) "Desligado · Original" else preset.label,
+                                options.carouselImagePreset == preset, { save { it.copy(carouselImagePreset = preset) } })
+                        }
+                    }
+                }
+                settingsRow("carousel-filter-intensity") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Intensidade", fontSize = 18.sp)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            listOf("Suave", "Média", "Forte").forEachIndexed { intensity, label ->
+                                TvChoice(label, options.carouselImageIntensity == intensity,
+                                    { save { it.copy(carouselImageIntensity = intensity) } })
+                            }
+                        }
+                    }
+                }
+                settingsRow("carousel-filter-description") {
+                    Text("Ajusta as imagens grandes dos destaques de Flix, Max e Cinema, sem alterar os arquivos originais. Original desliga o filtro; a intensidade fica guardada para quando você ativar novamente. Este ajuste não muda Prime, a estante Comic TV nem os filtros do leitor.", color = TvColors.Muted)
+                }
                 settingsRow("background-title") { Text("Fundo dos detalhes", fontSize = 23.sp) }
                 settingsRow("background-toggle") { TvButton(if (options.coverBackground) "Fundo: capa desfocada" else "Fundo: identidade Comic TV",
                     { save { it.copy(coverBackground = !it.coverBackground) } }) }

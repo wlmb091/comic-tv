@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -24,34 +25,49 @@ import com.pelican.comictv.ui.*
     modifier: Modifier = Modifier, readModifier: Modifier = Modifier,
     comics: List<ComicEntity> = emptyList(), onSelect: (String) -> Unit = {},
     onActionFocused: () -> Unit = {},
+    posterHeightLimitDp: Float? = null,
+    minimumHeightOverrideDp: Float? = null,
 ) {
     val theme = LocalThemeSpec.current
     val hero = theme.hero
     val actionFocus = Modifier.onFocusChanged { if (it.isFocused) onActionFocused() }
     if (hero.variant == HeroVariant.FullbleedCarousel) {
-        PrimeLibraryHero(comic, comics, repository, onRead, onOpen, onImport, onSelect, modifier, readModifier)
+        PrimeLibraryHero(comic, comics, repository, onRead, onOpen, onImport, onSelect, modifier, readModifier,
+            minimumHeightOverrideDp = minimumHeightOverrideDp)
         return
     }
     val cinema = theme.navigation.layout == ThemeNavigationPolicy.ImmersiveMenu
     val editorial = hero.editorial
-    Box(modifier.fillMaxWidth().heightIn(min = hero.minimumHeightDp.dp).testTag("library-hero")) {
+    val fontScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
+    val actionHeight = maxOf(48f, 32f * fontScale + 24f)
+    val normalOtherContent = hero.verticalPaddingDp * 2f + 22f * fontScale + actionHeight + 4f + hero.contentGapDp * 3f
+    val compact = !editorial && minimumHeightOverrideDp != null &&
+        theme.typography.titleLineHeightSp * hero.titleMaxLines * fontScale + normalOtherContent > minimumHeightOverrideDp
+    val verticalPadding = if (compact) minOf(hero.verticalPaddingDp, 4) else hero.verticalPaddingDp
+    val contentGap = if (compact) minOf(hero.contentGapDp, 4) else hero.contentGapDp
+    val titleSize = homeHeroTitleSizeSp(theme.typography.titleSp.toFloat(), theme.typography.titleLineHeightSp.toFloat(),
+        hero.titleMaxLines, fontScale, if (editorial || cinema) null else minimumHeightOverrideDp,
+        verticalPadding * 2f + 22f * fontScale + actionHeight + 4f + contentGap * 3f)
+    Box(modifier.fillMaxWidth().heightIn(min = (minimumHeightOverrideDp ?: hero.minimumHeightDp.toFloat()).dp).testTag("library-hero")) {
         Row(Modifier.align(if (hero.bottomAligned) Alignment.BottomStart else Alignment.CenterStart)
-            .fillMaxWidth().padding(horizontal = hero.horizontalPaddingDp.dp, vertical = hero.verticalPaddingDp.dp),
+            .fillMaxWidth().padding(horizontal = hero.horizontalPaddingDp.dp, vertical = verticalPadding.dp),
             horizontalArrangement = Arrangement.spacedBy(hero.posterGapDp.dp), verticalAlignment = Alignment.CenterVertically) {
             if (editorial && comic != null) {
-                Box(Modifier.width(hero.posterWidthDp.dp).height(hero.posterHeightDp.dp).testTag("library-hero-poster")
+                val posterHeight = posterHeightLimitDp?.let { hero.posterHeightDp.toFloat().coerceAtMost(it.coerceAtLeast(150f)) }
+                    ?: hero.posterHeightDp.toFloat()
+                Box(Modifier.width(hero.posterWidthDp.dp).height(posterHeight.dp).testTag("library-hero-poster")
                     .border(hero.posterBorderDp.dp, TvColors.FocusAccent, RoundedCornerShape(theme.shapes.posterRadiusDp.dp))
                     .background(Color.Black, RoundedCornerShape(6.dp)).padding(3.dp)) {
                     AsyncImage(repository.cover(comic.id), comic.title, Modifier.fillMaxSize(), contentScale = if (hero.cropPoster) ContentScale.Crop else ContentScale.Fit)
                 }
             }
             Column(Modifier.fillMaxWidth(hero.textWidthFraction),
-                verticalArrangement = Arrangement.spacedBy(hero.contentGapDp.dp)) {
+                verticalArrangement = Arrangement.spacedBy(contentGap.dp)) {
                 if (editorial) Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUE SUA HISTÓRIA" else "SUA PRÓXIMA HISTÓRIA",
                     color = TvColors.Amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(comic?.title ?: "Seu universo de quadrinhos", Modifier.testTag("library-hero-title"),
-                    fontSize = theme.typography.titleSp.sp,
-                    lineHeight = theme.typography.titleLineHeightSp.sp,
+                    fontSize = titleSize.first.sp,
+                    lineHeight = titleSize.second.sp,
                     fontFamily = libraryTitleFont(theme.typography.titleFamily),
                     fontWeight = if (theme.typography.titleExtraBold) FontWeight.ExtraBold else if (theme.typography.titleFamily == ThemeTitleFamily.Serif) FontWeight.SemiBold else FontWeight.Normal,
                     maxLines = hero.titleMaxLines, overflow = TextOverflow.Ellipsis)
@@ -71,5 +87,8 @@ import com.pelican.comictv.ui.*
                 if (cinema) Text("↓ Biblioteca    ·    → Menu", color = TvColors.Muted, fontSize = 14.sp)
             }
         }
+        // Overlay in the existing hero bounds: changing slides never moves text or focus targets.
+        if (!editorial) HeroCarouselIndicator(Modifier.align(Alignment.BottomEnd)
+            .padding(end = hero.horizontalPaddingDp.dp, bottom = hero.verticalPaddingDp.dp))
     }
 }

@@ -394,12 +394,32 @@ import kotlinx.coroutines.launch
             onFocus = { collectionFocusedId = it; onFocus(it) }, onOpen = onOpen,
             onOptions = { optionsCollection = true; optionsFor = it }, onBack = ::returnHome)
     } else BoxWithConstraints(Modifier.fillMaxSize()) {
-    val streamingHeroHeight = when (theme.hero.heightPolicy) {
+    val density = LocalDensity.current
+    var brandHeightPx by remember { mutableIntStateOf(0) }
+    var followingHeadingPx by remember { mutableIntStateOf(0) }
+    var followingRowPx by remember { mutableIntStateOf(0) }
+    val gridTop = maxOf(20, theme.cards.gridVerticalPaddingDp ?: if (footerControls) 8 else 16).toFloat()
+    val gridBottom = (theme.cards.gridVerticalPaddingDp ?: if (footerControls) 8 else 16).toFloat()
+    val requestedHeroHeight = when (theme.hero.heightPolicy) {
         HeroHeightPolicy.ViewportInset -> maxHeight - theme.hero.viewportInsetDp.dp
         HeroHeightPolicy.ReservedReadingRow -> (maxHeight - theme.hero.viewportInsetDp.dp)
             .coerceAtLeast(theme.hero.minimumHeightDp.dp)
         HeroHeightPolicy.Fraction -> maxHeight * theme.hero.viewportFraction
     }
+    val firstRowEstimate = if (showExplorer) 12f + 24f * textScale + 8f + 88f + 8f + 36f * textScale + 8f
+        else if (!history && recent.isNotEmpty()) {
+            val cards = theme.cards
+            val cardHeight = if (cards.continueStyle in setOf(ContinueCardStyle.ArtLarge, ContinueCardStyle.Art16x9))
+                cards.recentHeightDp.coerceAtLeast(114) * textScale
+            else maxOf(cards.recentHeightDp.toFloat(), cards.recentThumbnailHeightDp + 2f * cards.recentPaddingDp,
+                (2f * theme.typography.cardLineHeightSp + 1.4f * theme.typography.cardStatusSp) * textScale + 18f + 2f * cards.recentPaddingDp)
+            24f * textScale + cardHeight + 8f
+        } else 0f
+    val measuredFollowing = with(density) { followingHeadingPx.toDp().value + followingRowPx.toDp().value }
+    val brandHeight = if (theme.navigation.libraryBrand) with(density) { brandHeightPx.toDp().value }.coerceAtLeast(38f) else 0f
+    val streamingHeroHeight = if (footerControls && !cinema) homeHeroViewportBudget(maxHeight.value,
+        requestedHeroHeight.value, brandHeight, maxOf(firstRowEstimate, measuredFollowing), gridTop, gridBottom,
+        rowGapsDp = if (showExplorer) 10f else 20f).dp else requestedHeroHeight
     // Flix/Prime/Max share TvShell's full-viewport artwork, including navigation.
     if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
     var consumeHeaderUp by remember { mutableStateOf(false) }
@@ -417,8 +437,7 @@ import kotlinx.coroutines.launch
         columns = GridCells.Adaptive(theme.cards.gridMinimumWidthDp.dp * (if (theme.cards.scaleGridWithText) textScale else 1f)), state = grid,
         modifier = Modifier.fillMaxSize().focusRestorer().testTag("library-grid"),
         contentPadding = PaddingValues(start = theme.cards.gridHorizontalPaddingDp.dp, end = theme.cards.gridHorizontalPaddingDp.dp,
-            top = maxOf(20, theme.cards.gridVerticalPaddingDp ?: if (footerControls) 8 else 16).dp,
-            bottom = (theme.cards.gridVerticalPaddingDp ?: if (footerControls) 8 else 16).dp),
+            top = gridTop.dp, bottom = gridBottom.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -443,7 +462,8 @@ import kotlinx.coroutines.launch
                 }.focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(if (footerControls) 10.dp else 18.dp)) {
                 if (footerControls) {
-                    if (theme.navigation.libraryBrand) ComicWordmark(Modifier.width(180.dp * textScale).heightIn(min = 38.dp).testTag("library-brand"))
+                    if (theme.navigation.libraryBrand) ComicWordmark(Modifier.width(180.dp * textScale).heightIn(min = 38.dp)
+                        .onSizeChanged { brandHeightPx = it.height }.testTag("library-brand"))
                     if (topSearch) FlowRow(Modifier.fillMaxWidth().testTag("library-top-search"),
                         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
                         TvChoice("Buscar", searching || query.isNotBlank(), { openSearch() },
@@ -454,7 +474,9 @@ import kotlinx.coroutines.launch
                         modifier = Modifier.heightIn(min = streamingHeroHeight),
                         readModifier = if (topSearch) Modifier else Modifier.focusRequester(headerFocus).then(firstControl)
                             .onFocusChanged { if (it.isFocused) clearExplorerOrigin() },
-                        comics = comics, onSelect = ::focusComic, onActionFocused = ::clearExplorerOrigin)
+                        comics = comics, onSelect = ::focusComic, onActionFocused = ::clearExplorerOrigin,
+                        minimumHeightOverrideDp = streamingHeroHeight.value,
+                        posterHeightLimitDp = (streamingHeroHeight.value - theme.hero.verticalPaddingDp * 2).coerceAtLeast(150f))
                 } else {
                     LibraryHeader(comics.size, recent.size, history, searching || query.isNotBlank(),
                         { openSearch() }, { history = false }, { history = true },
@@ -468,6 +490,7 @@ import kotlinx.coroutines.launch
         }
         if (showExplorer) {
             item(key = "max-explore", span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.onSizeChanged { followingRowPx = it.height }) {
                 MaxExploreRow(comics, collections, memberships, repository, filter, onFilter,
                     onCollectionOpen = { id -> navigateWithinContent {
                         collectionFocusedId = null; activeCollectionId = id; collectionFocusRequest++
@@ -479,15 +502,18 @@ import kotlinx.coroutines.launch
                         comicId?.let { featuredId = it; onFocus(it) }
                     }, restoreKey = explorerRestoreKey, restoreRequest = explorerRestoreRequest,
                     onRestoreHandled = { explorerRestoreKey = null })
+                }
             }
         }
         if (!history && recent.isNotEmpty()) {
             item(key = "recent-heading", span = { GridItemSpan(maxLineSpan) }) {
-                Text("Continuar lendo", fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text("Continuar lendo", Modifier.onSizeChanged { if (!showExplorer) followingHeadingPx = it.height },
+                    fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
             item(key = "recent-row", span = { GridItemSpan(maxLineSpan) }) {
                 LazyRow(
                     state = recentList,
+                    modifier = Modifier.onSizeChanged { if (!showExplorer) followingRowPx = it.height },
                     contentPadding = PaddingValues(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {

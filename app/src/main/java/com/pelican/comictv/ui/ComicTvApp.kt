@@ -20,7 +20,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.input.key.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
@@ -59,6 +58,7 @@ import com.pelican.comictv.transfer.FtpTransferScreen
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 /** Explicit shell action so horizontal navigation can search from any main section. */
 internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null }
@@ -156,8 +156,10 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             var shellInteraction by remember { mutableStateOf(false) }
             val autoplay = TvColors.options.preset in setOf(ColorPreset.Flix, ColorPreset.Max, ColorPreset.Cinema)
             val carousel = rememberHeroCarousel(comics.map { it.id }, featuredComic(comics, library.focusedId)?.id,
-                enabled = autoplay && !TvColors.options.highContrast, paused = heroInteraction || shellInteraction)
+                enabled = autoplay && TvColors.options.carouselAutoplay && !TvColors.options.highContrast, paused = heroInteraction || shellInteraction)
             val backdropId = if (autoplay) carousel.id else library.focusedId
+            CompositionLocalProvider(LocalHeroCarouselInfo provides carousel.info,
+                LocalHeroCarouselProgress provides carousel.info.progress) {
             TvShell("library", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { launchSingleTop = true } },
                 contentFocusPending = startupFocusPending, focusContentOnEntry = navigationContentTarget == "library", onSectionFocused = { navigationContentTarget = null },
                 onSearch = openLibrarySearch, onMenuInteractionChanged = { shellInteraction = it },
@@ -193,6 +195,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     searchRequested = librarySearchPending, onSearchHandled = { librarySearchPending = false },
                     onQuery = library.browse::setQuery, onFilter = library.browse::setFilter,
                     offlineIds = downloadsState.complete,onDownload = ::openDownload, onDeleteOnline = container::deleteOnlineEdition)
+            }
             }
         }
         composable("import") {
@@ -350,12 +353,16 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     }
     var navigationFocusPending by remember { mutableStateOf(false) }
     var savedContentFocus by remember { mutableStateOf(false) }
+    var dockVisible by remember { mutableStateOf(false) }
+    var dockActivity by remember { mutableIntStateOf(0) }
+    var dockKeyHeld by remember { mutableStateOf(false) }
     fun returnToContent(resetToFirst: Boolean = false) {
         val restored = !resetToFirst && savedContentFocus && contentChildren.restoreFocusedChild()
         if (!restored && !preferredEntry.requestFocus(resetToFirst)) contentFocus.requestFocus()
         savedContentFocus = false
         navigationFocusPending = false
         overlayOpen = false
+        dockVisible = false
     }
     fun closeOverlay() {
         // A default-open Flix panel does not take the initial hero's focus.
@@ -364,7 +371,11 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     fun openNavigation() {
         preferredEntry.cancel()
         if (!focusWithin) savedContentFocus = contentChildren.saveFocusedChild()
-        if (!horizontal && !overlayOpen) {
+        if (policy == ThemeNavigationPolicy.BottomDock && !dockVisible) {
+            navigationFocusPending = true
+            dockVisible = true
+            dockActivity++
+        } else if (!horizontal && !overlayOpen) {
             navigationFocusPending = true
             overlayOpen = true
         } else sectionFocus.requestFocus()
@@ -382,11 +393,18 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             if (atContentEntry) returnToContent(true) else internalEntry = false
         }
     }
-    LaunchedEffect(overlayOpen, navigationFocusPending) {
-        if (overlayOpen && navigationFocusPending) {
+    LaunchedEffect(overlayOpen, dockVisible, navigationFocusPending) {
+        if ((overlayOpen || dockVisible) && navigationFocusPending) {
             withFrameNanos { }
             sectionFocus.requestFocus()
             navigationFocusPending = false
+        }
+    }
+    LaunchedEffect(dockVisible, dockActivity, dockKeyHeld) {
+        if (policy == ThemeNavigationPolicy.BottomDock && maxDockIdleCanHide(dockVisible, dockKeyHeld)) {
+            delay(MAX_DOCK_IDLE_MS)
+            // Restore the last content child before translated navigation becomes unfocusable.
+            if (focusWithin) returnToContent() else dockVisible = false
         }
     }
     LaunchedEffect(focusContentOnEntry) {
@@ -409,9 +427,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         "import" to R.drawable.nav_import, "settings" to R.drawable.nav_settings)
     val density = LocalDensity.current
     val fontScale = density.fontScale.coerceAtLeast(1f)
-    var measuredDockHeight by remember { mutableStateOf(74.dp) }
     val immersiveLibrary = policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"
-    SideEffect { onMenuInteractionChanged(overlayOpen || focusWithin) }
+    SideEffect { onMenuInteractionChanged(overlayOpen || focusWithin || dockVisible) }
     val expanded = overlayOpen
     val flix = theme.navigation.framelessSidebar
     val framelessSidebar = flix && !TvColors.options.highContrast
@@ -472,7 +489,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             colors = androidx.tv.material3.ButtonDefaults.colors(
                 containerColor = if (active && !iconOnlySidebar && policy != ThemeNavigationPolicy.TopBar)
                     TvColors.Amber.copy(alpha = if (policy == ThemeNavigationPolicy.BottomDock) theme.navigation.dockActiveAlpha else .15f) else Color.Transparent,
-                contentColor = if (active) TvColors.Amber else Color.White,
+                contentColor = if (textOnlyTop && active) Color(0xFF5BB5CD) else if (active) TvColors.Amber else Color.White,
                 focusedContainerColor = if (textOnlyTop) Color.Transparent else TvColors.Action,
                 focusedContentColor = if (textOnlyTop) Color(0xFF9DE8FF) else TvColors.OnAction)) {
             if (policy == ThemeNavigationPolicy.TopBar) {
@@ -510,7 +527,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 overlayOpen = true
                 navigationFocusPending = true
             }
-        } else if (wasFocused) overlayOpen = false
+        } else if (wasFocused) { overlayOpen = false; dockVisible = false }
     }.onPreviewKeyEvent { event ->
         if (event.key == navigationToContentKey) {
             if (event.type == KeyEventType.KeyDown) returnToContent()
@@ -522,9 +539,15 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     }.focusGroup()
     val overlayProgress by animateFloatAsState(if (!horizontal && expanded) 1f else 0f,
         tween(theme.navigation.overlayDurationMs, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-overlay-translation")
+    val dockProgress by animateFloatAsState(if (dockVisible) 1f else 0f,
+        tween(theme.navigation.overlayDurationMs, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "dock-translation")
     CompositionLocalProvider(androidx.tv.material3.LocalTextStyle provides androidx.tv.material3.LocalTextStyle.current.copy(fontFamily = ComicFonts.Body)) {
     Box(Modifier.fillMaxSize().background(TvColors.Background).testTag("theme-shell")
         .onPreviewKeyEvent { event ->
+            if (policy == ThemeNavigationPolicy.BottomDock && dockVisible) {
+                dockKeyHeld = event.type == KeyEventType.KeyDown
+                dockActivity++
+            }
             if (!horizontal && expanded && !focusWithin && event.key == navigationToContentKey) {
                 if (event.type == KeyEventType.KeyDown) closeOverlay()
                 true
@@ -532,14 +555,14 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         }) {
         if (selected == "library") BrandedBackground(modifier = Modifier.matchParentSize())
         backdrop()
-        val shellInsets = if (immersiveLibrary) Modifier else if (policy == ThemeNavigationPolicy.TopBar && selected == "library")
+        val shellInsets = if (immersiveLibrary) Modifier else if (selected == "library")
             Modifier.padding(start = theme.navigation.safeHorizontalDp.dp, end = theme.navigation.safeHorizontalDp.dp, top = theme.navigation.safeVerticalDp.dp)
             else Modifier.padding(horizontal = theme.navigation.safeHorizontalDp.dp, vertical = theme.navigation.safeVerticalDp.dp)
         Box(Modifier.fillMaxSize()) {
             val contentPadding = when (policy) {
                 ThemeNavigationPolicy.Sidebar -> PaddingValues(start = railWidth + 16.dp)
                 ThemeNavigationPolicy.TopBar -> PaddingValues(top = 72.dp * fontScale)
-                ThemeNavigationPolicy.BottomDock -> PaddingValues(bottom = measuredDockHeight + 12.dp)
+                ThemeNavigationPolicy.BottomDock -> PaddingValues(0.dp) // Overlay; never reflow rows on reveal/hide.
                 ThemeNavigationPolicy.ImmersiveMenu -> if (immersiveLibrary) PaddingValues(0.dp) else PaddingValues(top = 64.dp * fontScale)
             }
             CompositionLocalProvider(LocalPreferredContentEntry provides preferredEntry,
@@ -559,16 +582,17 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         Brush.horizontalGradient(*stops.reversedArray().map { (at, color) -> (1f - at) to color }.toTypedArray())
                     else Brush.horizontalGradient(*stops)))
             }
-            Box(Modifier.fillMaxSize().then(shellInsets)) {
+            Box(Modifier.fillMaxSize().then(shellInsets).then(if (policy == ThemeNavigationPolicy.BottomDock && selected == "library")
+                Modifier.padding(bottom = theme.navigation.safeVerticalDp.dp) else Modifier)) {
                 if (policy == ThemeNavigationPolicy.ImmersiveMenu && !expanded) {
                     Box(Modifier.align(Alignment.TopEnd).then(if (immersiveLibrary) Modifier.padding(horizontal = 20.dp, vertical = 16.dp) else Modifier)) {
-                        TvButton("Menu", ::openNavigation, Modifier.testTag("cinema-menu")
+                        CinemaMenuButton(::openNavigation, Modifier.testTag("cinema-menu")
                             .onPreviewKeyEvent { event ->
                                 if (event.key == Key.DirectionDown) {
                                     if (event.type == KeyEventType.KeyDown) returnToContent()
                                     true
                                 } else false
-                            }, transparentBackground = true)
+                            })
                     }
                 }
                 if (policy == ThemeNavigationPolicy.TopBar) {
@@ -588,14 +612,14 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         ComicWordmark(Modifier.align(Alignment.CenterEnd).width(brandWidth)
                             .testTag("prime-wordmark"))
                     }
-                } else if (policy == ThemeNavigationPolicy.BottomDock) {
+                } else if (policy == ThemeNavigationPolicy.BottomDock && (dockVisible || dockProgress > 0f)) {
                     Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().testTag("navigation-bottom")
-                        .onSizeChanged { measuredDockHeight = with(density) { it.height.toDp() } }
+                        .graphicsLayer { translationY = (size.height + theme.navigation.safeVerticalDp.dp.toPx()) * (1f - dockProgress) }
                         .background(if (TvColors.options.highContrast) Color.Black else Color(theme.navigation.dockSurface ?: 0xD11E1440), RoundedCornerShape(10.dp))
                         .border(1.dp, if (TvColors.options.highContrast) Color.White else Color(theme.navigation.dockBorder ?: 0x739B6DFF), RoundedCornerShape(10.dp))
                         .padding(5.dp), verticalAlignment = Alignment.CenterVertically) {
                         Row(navigationModifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            routes.indices.forEach { NavigationItem(it, Modifier.weight(1f)) }
+                            routes.indices.forEach { NavigationItem(it, Modifier.weight(1f), enabled = dockVisible) }
                         }
                     }
                 } else if (policy == ThemeNavigationPolicy.Sidebar || expanded || overlayProgress > 0f) {
@@ -637,7 +661,21 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     }
     }
     // Registered after route handlers: Back closes the overlay before navigating its underlying page.
-    androidx.activity.compose.BackHandler(!horizontal && expanded) {
-        closeOverlay()
+    androidx.activity.compose.BackHandler((!horizontal && expanded) || dockVisible) {
+        if (dockVisible) returnToContent() else closeOverlay()
+    }
+}
+
+@Composable private fun CinemaMenuButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    if (TvColors.options.highContrast) {
+        TvButton("Menu", onClick, modifier)
+    } else androidx.tv.material3.Button(onClick, modifier.heightIn(min = 48.dp),
+        colors = androidx.tv.material3.ButtonDefaults.colors(containerColor = Color.Transparent,
+            contentColor = Color.White, focusedContainerColor = Color.Transparent,
+            focusedContentColor = Color(0xFF9DE8FF)),
+        border = androidx.tv.material3.ButtonDefaults.border(border = androidx.tv.material3.Border.None,
+            focusedBorder = androidx.tv.material3.Border.None),
+        scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1.05f)) {
+        Text("Menu", fontSize = 17.sp)
     }
 }

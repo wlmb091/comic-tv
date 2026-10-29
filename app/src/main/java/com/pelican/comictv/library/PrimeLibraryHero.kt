@@ -13,6 +13,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -28,12 +29,14 @@ import com.pelican.comictv.ui.LocalThemeSpec
 import com.pelican.comictv.ui.ProgressTrack
 import com.pelican.comictv.ui.TvButton
 import com.pelican.comictv.ui.TvColors
+import com.pelican.comictv.ui.homeHeroTitleSizeSp
 
 /** Prime's broad banner shares the screen artwork and adds real edition cards over its right side. */
 @Composable internal fun PrimeLibraryHero(
     comic: ComicEntity?, comics: List<ComicEntity>, repository: LibraryRepository,
     onRead: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
     onSelect: (String) -> Unit, modifier: Modifier = Modifier, readModifier: Modifier = Modifier,
+    minimumHeightOverrideDp: Float? = null,
 ) {
     val theme = LocalThemeSpec.current
     // The strip does not reorder when focus changes the selected banner edition.
@@ -41,18 +44,31 @@ import com.pelican.comictv.ui.TvColors
         (comics.ifEmpty { listOfNotNull(comic) }).distinctBy { it.id }.take(theme.hero.carouselChoices)
     }
     val highContrast = TvColors.options.highContrast
-    BoxWithConstraints(modifier.fillMaxWidth().heightIn(min = theme.hero.minimumHeightDp.dp)) {
+    BoxWithConstraints(modifier.fillMaxWidth()
+        .heightIn(min = (minimumHeightOverrideDp ?: theme.hero.minimumHeightDp.toFloat()).dp).testTag("library-hero")) {
         val fontScale = LocalDensity.current.fontScale
+        val compact = minimumHeightOverrideDp != null && minimumHeightOverrideDp < 300f
+        val titleSize = homeHeroTitleSizeSp(theme.typography.titleSp.toFloat(), theme.typography.titleLineHeightSp.toFloat(),
+            theme.hero.titleMaxLines, fontScale, minimumHeightOverrideDp,
+            (if (compact) 4f else 48f) + 40f * fontScale + maxOf(48f, 32f * fontScale + 24f) + 4f +
+                (if (compact) 8f else 40f))
         val wide = maxWidth >= 720.dp * fontScale
         val visibleChoices = choices.take(if (wide) 3 else 2)
-        val cardWidth = (maxWidth * if (wide) .165f else .20f).coerceIn(82.dp, 136.dp)
+        val ordinaryCardWidth = (maxWidth * if (wide) .165f else .20f).coerceIn(82.dp, 136.dp)
+        // Account for the caption and position markers as well as the image itself.
+        val cardWidth = if (compact) minOf(ordinaryCardWidth,
+            ((minimumHeightOverrideDp!! - 4f - 12f - (36f * fontScale + 16f)) * .68f).coerceAtLeast(52f).dp)
+            else ordinaryCardWidth
         if (highContrast) Box(Modifier.matchParentSize().background(Color.Black))
-        Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 24.dp, bottom = 24.dp),
+        Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = 18.dp, end = 10.dp,
+            top = if (compact) 2.dp else 24.dp, bottom = if (compact) 2.dp else 24.dp),
             horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(if (wide) .43f else .51f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(if (wide) .43f else .51f), verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 10.dp)) {
                 Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUAR SUA LEITURA" else "NA SUA BIBLIOTECA",
                     color = TvColors.Amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(comic?.title ?: "Seu universo de quadrinhos", fontSize = theme.typography.titleSp.sp, lineHeight = theme.typography.titleLineHeightSp.sp,
+                Text(comic?.title ?: "Seu universo de quadrinhos", Modifier.testTag("library-hero-title"),
+                    fontSize = titleSize.first.sp,
+                    lineHeight = titleSize.second.sp,
                     fontFamily = libraryTitleFont(theme.typography.titleFamily),
                     fontWeight = FontWeight.ExtraBold, maxLines = theme.hero.titleMaxLines, overflow = TextOverflow.Ellipsis)
                 if (comic != null) {
@@ -70,7 +86,7 @@ import com.pelican.comictv.ui.TvColors
                 }
             }
             if (visibleChoices.isNotEmpty()) Column(Modifier.weight(if (wide) .57f else .49f),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 18.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                     verticalAlignment = Alignment.Bottom) {
                     visibleChoices.forEach { edition -> key(edition.id) {

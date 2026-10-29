@@ -19,7 +19,8 @@ object BackupCodec {
             }
         }).create()
     private data class Rule(val fields: Map<String, Rule>? = null, val element: Rule? = null,
-        val limit: Int = 0, val kind: JsonToken? = null, val optional: Boolean = false, val decimal: Boolean = false, val intValue: Boolean = false)
+        val limit: Int = 0, val kind: JsonToken? = null, val optional: Boolean = false, val decimal: Boolean = false,
+        val intValue: Boolean = false, val nullable: Boolean = true)
     private fun text(max: Int, optional: Boolean = false) = Rule(limit = max, kind = JsonToken.STRING, optional = optional)
     private val number = Rule(kind = JsonToken.NUMBER)
     private val smallNumber = number.copy(intValue = true)
@@ -38,7 +39,11 @@ object BackupCodec {
         "collections" to Rule(element = obj("id" to text(100), "name" to text(100)), limit = 2000),
         "links" to Rule(element = obj("comicId" to text(100), "collectionId" to text(100)), limit = 100000),
         "appearance" to obj("preset" to text(30), "textSize" to smallNumber, "highContrast" to boolean, "coverBackground" to boolean,
-            "textPercent" to smallNumber.copy(optional = true), "cinemaMode" to boolean.copy(optional = true)))
+            "textPercent" to smallNumber.copy(optional = true), "cinemaMode" to boolean.copy(optional = true),
+            "carouselImagePreset" to text(30, true), "carouselImageIntensity" to smallNumber.copy(optional = true),
+            "carouselAutoplay" to boolean.copy(optional = true, nullable = false),
+            "carouselVerticalPan" to boolean.copy(optional = true, nullable = false),
+            "carouselMotion" to text(20).copy(optional = true, nullable = false)))
 
     fun decode(input: InputStream): BackupDocument {
         val bytes = ByteArrayOutputStream().also { output ->
@@ -69,7 +74,7 @@ object BackupCodec {
         return result
     }
     private fun checkRule(reader: JsonReader, rule: Rule) {
-        if (reader.peek() == JsonToken.NULL && rule.optional) { reader.nextNull(); return }
+        if (reader.peek() == JsonToken.NULL && rule.optional && rule.nullable) { reader.nextNull(); return }
         when {
             rule.fields != null -> {
                 require(reader.peek() == JsonToken.BEGIN_OBJECT) { "Objeto inválido no backup." }
@@ -119,5 +124,10 @@ object BackupCodec {
         require(document.links.all { it.comicId in comics && it.collectionId in collections }) { "Vínculo sem edição/coleção correspondente." }
         require(document.appearance.textSize in 0..2 && document.appearance.preset in setOf("Amber", "Flix", "Prime", "Max", "Cinema", "Green", "Blue", "Violet"))
         document.appearance.textPercent?.let { require(it in 85..130 && it % 5 == 0) { "Tamanho do texto inválido." } }
+        require(document.appearance.carouselImagePreset in setOf("Original", "Ink", "Vintage") &&
+            document.appearance.carouselImageIntensity in 0..2) { "Filtro do carrossel inválido." }
+        require(document.appearance.carouselMotion in setOf("None", "Pan", "ZoomIn", "ZoomOut", "Dynamic")) {
+            "Movimento do carrossel inválido."
+        }
     }
 }

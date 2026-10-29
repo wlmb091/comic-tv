@@ -4,6 +4,63 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BackupCodecTest {
+    @Test fun optionalCarouselMotionReadsOldBackupsAndOnlyAcceptsKnownNames() {
+        val json = BackupCodec.encode(document()).toString(Charsets.UTF_8)
+        val oldJson = json.replace(",\"carouselMotion\":\"Pan\"", "")
+        assertEquals("Pan", BackupCodec.decode(oldJson.byteInputStream()).appearance.carouselMotion)
+        for (motion in listOf("None", "Pan", "ZoomIn", "ZoomOut", "Dynamic")) {
+            val value = document().copy(appearance = BackupAppearance(carouselAutoplay = false,
+                carouselVerticalPan = false, carouselMotion = motion))
+            assertEquals(value, BackupCodec.decode(BackupCodec.encode(value).inputStream()))
+        }
+        for (invalid in listOf("\"unknown\"", "\"pan\"", "null", "true", "1", "{}", "[]")) {
+            assertThrows(Exception::class.java) {
+                BackupCodec.decode(json.replace("\"carouselMotion\":\"Pan\"", "\"carouselMotion\":$invalid").byteInputStream())
+            }
+        }
+    }
+    @Test fun optionalCarouselMotionFlagsDefaultOnAndRejectNonBooleanValues() {
+        val json = BackupCodec.encode(document()).toString(Charsets.UTF_8)
+        val oldJson = json.replace(",\"carouselAutoplay\":true", "")
+            .replace(",\"carouselVerticalPan\":true", "")
+        val legacy = BackupCodec.decode(oldJson.byteInputStream()).appearance
+        assertTrue(legacy.carouselAutoplay)
+        assertTrue(legacy.carouselVerticalPan)
+        for (autoplay in listOf(false, true)) for (pan in listOf(false, true)) {
+            val value = document().copy(appearance = BackupAppearance(carouselImagePreset = "Ink", carouselImageIntensity = 1,
+                carouselAutoplay = autoplay, carouselVerticalPan = pan))
+            assertEquals(value, BackupCodec.decode(BackupCodec.encode(value).inputStream()))
+        }
+        for (field in listOf("carouselAutoplay", "carouselVerticalPan")) {
+            for (invalid in listOf("\"true\"", "1", "null", "{}", "[]")) {
+                assertThrows(Exception::class.java) {
+                    BackupCodec.decode(json.replace("\"$field\":true", "\"$field\":$invalid").byteInputStream())
+                }
+            }
+        }
+    }
+    @Test fun carouselFilterReadsOldBackupsAndPreservesEveryPresetAndIntensity() {
+        val json = BackupCodec.encode(document()).toString(Charsets.UTF_8)
+        val legacy = json.replace(",\"carouselImagePreset\":\"Vintage\"", "")
+            .replace(",\"carouselImageIntensity\":2", "")
+        val restored = BackupCodec.decode(legacy.byteInputStream())
+        assertEquals("Vintage", restored.appearance.carouselImagePreset)
+        assertEquals(2, restored.appearance.carouselImageIntensity)
+        for (preset in listOf("Original", "Ink", "Vintage")) for (intensity in 0..2) {
+            val value = document().copy(appearance = BackupAppearance(carouselImagePreset = preset, carouselImageIntensity = intensity))
+            assertEquals(value, BackupCodec.decode(BackupCodec.encode(value).inputStream()))
+        }
+        for (invalid in listOf("\"unknown\"", "null", "true", "2", "{}")) {
+            assertThrows(Exception::class.java) {
+                BackupCodec.decode(json.replace("\"carouselImagePreset\":\"Vintage\"", "\"carouselImagePreset\":$invalid").byteInputStream())
+            }
+        }
+        for (invalid in listOf("-1", "3", "1.5", "\"2\"", "true")) {
+            assertThrows(Exception::class.java) {
+                BackupCodec.decode(json.replace("\"carouselImageIntensity\":2", "\"carouselImageIntensity\":$invalid").byteInputStream())
+            }
+        }
+    }
     @Test fun optionalCinemaPreferenceReadsOldBackupsAndRejectsNonBooleanValues() {
         val oldJson = BackupCodec.encode(document()).toString(Charsets.UTF_8).replace(",\"cinemaMode\":false", "")
         assertFalse(BackupCodec.decode(oldJson.byteInputStream()).appearance.cinemaMode)

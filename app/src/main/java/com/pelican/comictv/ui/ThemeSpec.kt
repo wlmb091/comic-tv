@@ -178,3 +178,26 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
 }
 
 internal val LocalThemeSpec = staticCompositionLocalOf { ThemeSpec.forPreset(ColorPreset.Amber) }
+
+/** The hero shares the initial viewport with its brand and first complete content row. */
+internal fun homeHeroViewportBudget(viewportDp: Float, requestedHeroDp: Float,
+    brandDp: Float, followingRowDp: Float, gridTopDp: Float, gridBottomDp: Float,
+    brandGapDp: Float = 10f, rowGapsDp: Float = 20f): Float =
+    minOf(requestedHeroDp, (viewportDp - brandDp - (if (brandDp > 0f) brandGapDp else 0f) -
+        followingRowDp - gridTopDp - gridBottomDp - (if (followingRowDp > 0f) rowGapsDp else 0f))
+        .coerceAtLeast(0f))
+
+internal const val MAX_DOCK_IDLE_MS = 4_000L
+
+/** A held D-pad key is interaction, even when Android has not emitted another repeat yet. */
+internal fun maxDockIdleCanHide(visible: Boolean, keyHeld: Boolean): Boolean = visible && !keyHeld
+
+/** Budget the complete two-line title after the other hero content, preserving readable sp. */
+internal fun homeHeroTitleSizeSp(titleSp: Float, lineHeightSp: Float, maxLines: Int,
+    fontScale: Float, availableHeightDp: Float?, otherContentHeightDp: Float): Pair<Float, Float> {
+    if (availableHeightDp == null) return titleSp to lineHeightSp
+    val lineBudget = ((availableHeightDp - otherContentHeightDp) / maxLines.coerceAtLeast(1) /
+        fontScale.coerceAtLeast(1f)).coerceAtLeast(0f)
+    val size = minOf(titleSp, lineBudget * titleSp / lineHeightSp).coerceAtLeast(24f)
+    return size to maxOf(size * lineHeightSp / titleSp, 26f)
+}

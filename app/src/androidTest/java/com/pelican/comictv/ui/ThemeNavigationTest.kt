@@ -93,7 +93,7 @@ class ThemeNavigationTest {
 
     @Test fun maxMovesDownToDockAndUpToContent() {
         setShell(ColorPreset.Max)
-        compose.onNodeWithTag("navigation-bottom").assertExists()
+        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
         compose.onNodeWithTag("sidebar-collapsed").assertDoesNotExist()
         compose.onNodeWithText("Primeiro controle").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithTag("nav-library").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
@@ -112,6 +112,8 @@ class ThemeNavigationTest {
         } }
         listOf("library", "recent", "sources", "extensions", "import", "settings").forEachIndexed { index, section ->
             compose.runOnIdle { route = section }
+            compose.onNodeWithText("Conteúdo").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+                .performKeyInput { pressKey(Key.DirectionDown) }
             compose.onNodeWithTag("nav-search").assertIsDisplayed().assertIsNotSelected().performClick()
             compose.onNodeWithTag("nav-$section").assertIsSelected()
             compose.runOnIdle { assertTrue(searches == index + 1) }
@@ -175,7 +177,7 @@ class ThemeNavigationTest {
         compose.onNodeWithTag("navigation-top").assertExists()
     }
 
-    @Test fun maxCompactDockPreservesTargetsAndContentClearanceAt130Percent() {
+    @Test fun maxCompactDockOverlaysWithoutChangingContentBoundsAt130Percent() {
         var density = 0f
         var scale = 0f
         compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Max, textPercent = 130)) {
@@ -183,12 +185,17 @@ class ThemeNavigationTest {
             scale = LocalDensity.current.fontScale.coerceAtLeast(1f)
             TvShell("library", {}, onSearch = {}) { TvButton("Conteúdo", {}, preferredContentEntryModifier()) }
         } }
+        val contentBefore = compose.onNodeWithTag("content-entry").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
+        compose.onNodeWithText("Conteúdo").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+            .performKeyInput { pressKey(Key.DirectionDown) }
         val dock = compose.onNodeWithTag("navigation-bottom").fetchSemanticsNode().boundsInRoot
         val content = compose.onNodeWithTag("content-entry").fetchSemanticsNode().boundsInRoot
         val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
         assertTrue("Dock respects horizontal safe area", dock.left >= shell.left + 47f * density && dock.right <= shell.right - 47f * density)
         assertTrue("Dock respects bottom safe area", dock.bottom <= shell.bottom - 26f * density)
-        assertTrue("Dock compacto sem cobrir o conteúdo", content.bottom <= dock.top)
+        assertTrue("Revelar o dock não muda a altura das fileiras", content == contentBefore)
+        assertTrue("Conteúdo vai até a borda inferior", content.bottom == shell.bottom)
         assertTrue("Dock usa altura compacta mesmo a130%", dock.height <= 74f * scale * density + 1f)
         listOf("search", "library", "recent", "sources", "extensions", "import", "settings").forEach { section ->
             val item = compose.onNodeWithTag("nav-$section").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
@@ -280,7 +287,30 @@ class ThemeNavigationTest {
         val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
         val backdrop = compose.onNodeWithTag("test-shell-backdrop").fetchSemanticsNode().boundsInRoot
         assertTrue("Arte Max alcança toda a tela atrás do dock", backdrop == shell)
-        compose.onNodeWithTag("navigation-bottom").assertExists()
+        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
+    }
+
+    @Test fun maxNormalDownStaysInContentThenBoundaryRevealsDockAndIdleRestoresLastControl() {
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Max)) {
+            var pending by remember { mutableStateOf(true) }
+            TvShell("library", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
+                Column {
+                    TvButton("Primeira fileira", {}, preferredContentEntryModifier())
+                    TvButton("Última fileira", {})
+                }
+            }
+        } }
+        compose.onNodeWithText("Primeira fileira").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Última fileira").assertIsFocused()
+        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
+        compose.onNodeWithText("Última fileira").performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithTag("nav-library").assertIsFocused()
+        compose.mainClock.autoAdvance = false
+        compose.mainClock.advanceTimeBy(MAX_DOCK_IDLE_MS + 300L)
+        compose.waitForIdle()
+        compose.onNodeWithText("Última fileira").assertIsFocused()
+        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
+        compose.onAllNodes(isFocused()).assertCountEquals(1)
     }
 
     @Test fun flixHighContrastRetainsOpaqueSidebar() {
