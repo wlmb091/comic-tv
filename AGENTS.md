@@ -1,5 +1,7 @@
 # Comic TV — decisões persistentes do usuário
 
+- 1.4.4 PUBLICADA30/10/2026 às03:31:30BRT/code78;fonte7fcab40bf38b59acb9f5601e0a59e2e962e72713,CI41012528210/41014542238aprovados,Gradle19m15. CBZCP437/MALFORMED eHomeBrowserfoco/Backcorrigidos;cookiesinalterados.67JVMlocais+8Node0falhas,Androidcompilado;semBox. Manifesto/asset/logassinadorcoincidem23.952.301bytes/SHA256375b778e66d13050ea32c075d805258e1f5f3cf290ac3028d42709cd2f47430e;latest1.4.4,assinaturahistórica/ABI/alinhamentoCIpúblico. Registrodocs/validation/1.4.4.md. LoteENCERRADO,aguardarobservações.
+
 - 30/10/2026: usuário encerrou lote e AUTORIZOU corrigir/gerar/publicar1.4.4/code78 com CBZlegadoCP437 e focoHomeNavegador/Back. Substituiholds anterioresdeste lote. Semnovasfunçõesdecookies;preservardados/USB/assinaturahistórica. Verificaçõeslocaisfocadas+CIcompletoumaexecução;publicaçãosóconfirmadaapósmanifesto/asset/assinatura.
 
 - 30/10/2026 pós1.4.3: vídeoBusca→Navegador mostroufocobarras/homepreso eBacksaindoparaBusca. CódigocorrigidoBrowserFocusOwner Controls/Home/Page/None;HomeComposecomrequester/restorer,↓abas/↑rodapéparaHome,Homefocadarecolhechrome,WebViewinputsomentePage;▶habilitadonavazia;Backrecolhecontrolesmesmonavazia,saídaexplícitapreservada.34BrowserJVM0falhas,2ComposeD-padcompilados31s(nãoexecutados),revisãoindependentesemP1/P2. docs/validation/2026-10-30-browser-home-focus.md. PreservarcorreçãoCBZCP437;SEMnovoAPK/push/publicação,Boxpendente.
