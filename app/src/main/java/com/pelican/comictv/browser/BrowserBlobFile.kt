@@ -3,7 +3,7 @@ package com.pelican.comictv.browser
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
-import java.util.zip.ZipFile
+import com.pelican.comictv.archive.openComicZip
 
 /** Inspect the received bytes; a generic .bin is never assumed to be a comic. Originals stay untouched. */
 internal object BrowserBlobFile {
@@ -24,7 +24,7 @@ internal object BrowserBlobFile {
             starts(82,97,114,33,26,7,0) || starts(82,97,114,33,26,7,1,0) -> if (extension == "rar") "rar" else "cbr"
             starts(80,75,3,4) || starts(80,75,5,6) || starts(80,75,7,8) -> {
               checkZipDirectory(file)
-              ZipFile(file).use { zip ->
+              openComicZip(file).use { zip ->
                 if (zip.getEntry("AndroidManifest.xml") != null) throw IOException("Downloads de aplicativos Android não são permitidos neste navegador.")
                 val epub = zip.getEntry("mimetype")?.let { entry -> zip.getInputStream(entry).use { input ->
                     val bytes = ByteArray(32); val n = input.read(bytes)

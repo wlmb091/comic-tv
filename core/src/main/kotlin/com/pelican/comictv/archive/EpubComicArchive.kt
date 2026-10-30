@@ -103,10 +103,10 @@ class EpubComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Co
     }
 
     override fun index(file: File): List<PageRef> = guarded {
-        ZipFile(file).use { zip -> book(zip).mapIndexed { i, part -> PageRef(i, "epub:${if (part.text != null) "text" else "image"}:$i") } }
+        openComicZip(file, limits.maxEntries).use { zip -> book(zip).mapIndexed { i, part -> PageRef(i, "epub:${if (part.text != null) "text" else "image"}:$i") } }
     }
     override fun extract(file: File, page: PageRef, destination: File): File = guarded {
-        ZipFile(file).use { zip ->
+        openComicZip(file, limits.maxEntries).use { zip ->
             val parts = book(zip)
             val part = parts.getOrNull(page.index) ?: fail("Seção não encontrada no EPUB.")
             val expected = "epub:${if (part.text != null) "text" else "image"}:${page.index}"

@@ -2,7 +2,6 @@ package com.pelican.comictv.archive
 
 import com.pelican.comictv.model.PageRef
 import java.io.File
-import java.util.zip.ZipFile
 
 data class CollectionEntry(val name: String, val size: Long)
 
@@ -29,7 +28,7 @@ class CollectionArchive(
         val format = kind(file)
         if (format == 1) guardCollectionZip(file, maxEntries)
         val entries = when (format) {
-            1 -> ZipFile(file).use { zip ->
+            1 -> openComicZip(file, maxEntries).use { zip ->
                 val result = mutableListOf<CollectionEntry>()
                 val iterator = zip.entries()
                 var count = 0
@@ -69,7 +68,7 @@ class CollectionArchive(
         try {
             checkInterrupted()
             when (kind(file)) {
-                1 -> ZipFile(file).use { zip ->
+                1 -> openComicZip(file, maxEntries).use { zip ->
                     val source = zip.getEntry(entry.name) ?: throw ComicArchiveException("Arquivo da coleção não encontrado.")
                     if (source.size != entry.size) throw ComicArchiveException("A coleção mudou durante a importação.")
                     zip.getInputStream(source).use { copyLimited(it, destination, entry.size) }

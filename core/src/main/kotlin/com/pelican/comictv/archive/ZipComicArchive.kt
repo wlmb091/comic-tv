@@ -4,7 +4,6 @@ import com.pelican.comictv.model.PageRef
 import java.io.File
 import java.io.InputStream
 import java.io.IOException
-import java.util.zip.ZipFile
 
 data class ArchiveLimits(
     val maxEntries: Int = 5_000,
@@ -22,7 +21,7 @@ class ZipComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Com
         if (signature[0] != 0x50.toByte() || signature[1] != 0x4b.toByte()) {
             throw ComicArchiveException("O arquivo não é um CBZ/ZIP válido.")
         }
-        ZipFile(file).use { zip ->
+        openComicZip(file, limits.maxEntries).use { zip ->
             val names = ArrayList<String>()
             val seen = HashSet<String>()
             val entries = zip.entries()
@@ -52,7 +51,7 @@ class ZipComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Com
 
     override fun extract(file: File, page: PageRef, destination: File): File = guarded {
         validateName(page.key)
-        ZipFile(file).use { zip ->
+        openComicZip(file, limits.maxEntries).use { zip ->
             val entry = zip.getEntry(page.key) ?: throw ComicArchiveException("Página não encontrada no arquivo.")
             zip.getInputStream(entry).use { copyLimited(it, destination, limits.maxPageBytes) }
         }

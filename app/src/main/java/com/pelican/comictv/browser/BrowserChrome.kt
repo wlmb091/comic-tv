@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -23,7 +24,7 @@ import com.pelican.comictv.ui.*
 
 @Composable internal fun BrowserChrome(state: BrowserSessionState, address: String, onAddress: (String) -> Unit,
     addressFocus: FocusRequester, canBack: Boolean, canForward: Boolean, downloads: Int, progress: Int,
-    message: String, action: (String) -> Unit) {
+    message: String, action: (String) -> Unit, homeFocus: FocusRequester? = null) {
     var caption by remember { mutableStateOf("MENU abre ou fecha os controles · Segure OK sobre um link para opções") }
     val surface = if (TvColors.options.highContrast) Color.Black else Color(0xF20D1118)
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
@@ -38,7 +39,8 @@ import com.pelican.comictv.ui.*
                 BrowserIcon(if (state.bookmarks.any { it.url == state.tabs.firstOrNull { tab -> tab.id == state.selectedId }?.url }) "★" else "☆",
                     "Adicionar ou remover favorito", { action("bookmark") }, onFocus = { caption = it })
             }
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(6.dp)
+                .focusProperties { if (homeFocus != null) down = homeFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 state.tabs.forEachIndexed { index, tab ->
                     Button(onClick = { action("tab:${tab.id}") }, modifier = Modifier.width(155.dp).heightIn(min = 42.dp)
                         .semantics { contentDescription = "Aba ${index + 1}: ${tab.title}" }.onFocusChanged { if (it.isFocused) caption = "Aba ${index + 1}: ${tab.title}" },
@@ -58,7 +60,8 @@ import com.pelican.comictv.ui.*
         Column(Modifier.fillMaxWidth().background(surface).padding(horizontal = 24.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             if (message.isNotBlank()) Text(message, color = Color.White, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(caption, color = TvColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(6.dp)
+                .focusProperties { if (homeFocus != null) up = homeFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BrowserIcon("×", "Fechar aba atual", { action("close-tab") }, onFocus = { caption = it })
                 BrowserIcon("←", "Voltar página", { action("back") }, canBack, { caption = it })
                 BrowserIcon("→", "Avançar página", { action("forward") }, canForward, { caption = it })
@@ -66,7 +69,7 @@ import com.pelican.comictv.ui.*
                 BrowserIcon("⌂", "Página inicial", { action("home") }, onFocus = { caption = it })
                 BrowserIcon("↓", "Downloads${if (downloads > 0) ": $downloads em andamento" else ""}", { action("downloads") }, onFocus = { caption = it })
                 BrowserIcon("⋮", "Mais opções do navegador", { action("more") }, onFocus = { caption = it })
-                BrowserIcon("▶", "Voltar à página", { action("page") }, enabled = state.tabs.firstOrNull { it.id == state.selectedId }?.url?.isNotBlank() == true, onFocus = { caption = it })
+                BrowserIcon("▶", "Voltar à página", { action("page") }, enabled = true, onFocus = { caption = it })
                 BrowserIcon("⏻", "Sair do navegador", { action("exit") }, onFocus = { caption = it })
             }
         }

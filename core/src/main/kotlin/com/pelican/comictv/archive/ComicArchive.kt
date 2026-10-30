@@ -2,7 +2,6 @@ package com.pelican.comictv.archive
 
 import com.pelican.comictv.model.PageRef
 import java.io.File
-import java.util.zip.ZipFile
 
 interface ComicArchiveReader {
     fun index(file: File): List<PageRef>
@@ -24,7 +23,7 @@ class ComicArchive(private val limits: ArchiveLimits = ArchiveLimits(), private 
         if (magic.take(5).toByteArray().toString(Charsets.US_ASCII) == "%PDF-")
             return pdfReader ?: throw ComicArchiveException("A leitura de PDF requer o leitor Android.")
         if (magic[0] == 0x50.toByte() && magic[1] == 0x4b.toByte()) {
-            val epub = try { ZipFile(file).use { it.getEntry("META-INF/container.xml") != null } }
+            val epub = try { openComicZip(file, limits.maxEntries).use { it.getEntry("META-INF/container.xml") != null } }
                 catch (e: Exception) { throw ComicArchiveException("Não foi possível ler o ZIP/EPUB. Ele pode estar corrompido.", e) }
             return if (epub) EpubComicArchive(limits) else ZipComicArchive(limits)
         }

@@ -54,6 +54,7 @@ import kotlinx.coroutines.*
     val rows by downloads.items.collectAsStateWithLifecycle()
     val tab = state.tabs.first { it.id == state.selectedId }
     val addressFocus = remember { FocusRequester() }
+    val homeFocus = remember { FocusRequester() }
     var chrome by rememberSaveable { mutableStateOf(tab.url.isBlank()) }
     var address by rememberSaveable { mutableStateOf(tab.url) }
     var dirtyAddress by remember { mutableStateOf(false) }
@@ -135,14 +136,19 @@ import kotlinx.coroutines.*
     }
     LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
         withFrameNanos { }; ready = true; withFrameNanos { }
-        if (sheet == null && offer == null && removeId == null) { if (chrome) addressFocus.requestFocus() else host.current()?.requestFocus() }
+        pageFocus++
         awaitCancellation()
     } }
-    SideEffect { host.inputEnabled(ready && !chrome && sheet == null && offer == null && removeId == null && fullscreen == null) }
-    LaunchedEffect(chrome, tab.id, sheet, offer, ready, pageFocus, fullscreen, removeId) {
-        if (ready && sheet == null && offer == null && fullscreen == null && removeId == null) {
-            withFrameNanos { }
-            if (chrome) addressFocus.requestFocus() else host.current()?.requestFocus()
+    val focusOwner = browserFocusOwner(ready, tab.url, chrome,
+        sheet != null || offer != null || removeId != null || fullscreen != null)
+    SideEffect { host.inputEnabled(focusOwner == BrowserFocusOwner.Page) }
+    LaunchedEffect(focusOwner, tab.id, pageFocus) {
+        withFrameNanos { }
+        when (focusOwner) {
+            BrowserFocusOwner.Controls -> addressFocus.requestFocus()
+            BrowserFocusOwner.Home -> homeFocus.requestFocus()
+            BrowserFocusOwner.Page -> host.current()?.requestFocus()
+            BrowserFocusOwner.None -> Unit
         }
     }
     fun back() {
@@ -154,7 +160,7 @@ import kotlinx.coroutines.*
             offer != null -> { BrowserBlobPage.release(offer); offer = null }
             removeId != null -> removeId = null
             sheet != null -> sheet = null
-            chrome -> if (tab.url.isBlank()) onBack() else { chrome = false; pageFocus++ }
+            chrome -> { chrome = false; pageFocus++ }
             !state.cursor -> { session.options(cursor = true); host.updateOptions() }
             else -> chrome = true
         }
@@ -176,7 +182,7 @@ import kotlinx.coroutines.*
             key == "bookmark" -> { if (tab.url.isNotBlank()) session.bookmark(tab.url, tab.title) }
             key == "downloads" -> sheet = "downloads"
             key == "more" -> sheet = "more"
-            key == "page" -> { chrome = tab.url.isBlank(); pageFocus++ }
+            key == "page" -> { chrome = false; pageFocus++ }
             key == "exit" -> onBack()
         }
     }
@@ -192,13 +198,13 @@ import kotlinx.coroutines.*
             controls = { BrowserChrome(state, address, { address = it; dirtyAddress = true }, addressFocus,
                 host.current()?.canGoBack() == true, host.current()?.canGoForward() == true,
                 rows.count { it.status in setOf(BrowserDownloadStatus.Running, BrowserDownloadStatus.Queued) },
-                host.progress[tab.id] ?: 100, status, ::action) },
+                host.progress[tab.id] ?: 100, status, ::action, homeFocus = homeFocus.takeIf { tab.url.isBlank() }) },
             page = {
                 if (nativeError) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Android System WebView indisponível. Atualize o componente de navegação da TV.") }
                 else if (ready) AndroidView(modifier = Modifier.fillMaxSize(), factory = { FrameLayout(it) }, update = { frame ->
                     try { host.attach(frame, tab) } catch (_: Exception) { nativeError = true }
                 })
-                if (tab.url.isBlank()) BrowserHome(::navigate) { sheet = it }
+                if (tab.url.isBlank()) BrowserHome(::navigate, { sheet = it }, homeFocus) { chrome = false }
 
             })
         if (sheet == "downloads") BrowserDownloadsPanel(rows, exportBusy, { sheet = null }, message = status,

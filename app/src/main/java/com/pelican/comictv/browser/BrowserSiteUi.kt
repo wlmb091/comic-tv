@@ -71,10 +71,12 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
     }
 }
 
-@Composable internal fun BrowserHome(onOpen: (String) -> Unit, onSheet: (String) -> Unit) {
+@Composable internal fun BrowserHome(onOpen: (String) -> Unit, onSheet: (String) -> Unit, entryFocus: FocusRequester? = null, onFocused: () -> Unit = {}) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val sites = if (expanded) BrowserSites.all else BrowserSites.all.take(12)
-    LazyVerticalGrid(GridCells.Adaptive(165.dp), Modifier.fillMaxSize().background(TvColors.Background),
+    LazyVerticalGrid(GridCells.Adaptive(165.dp), Modifier.fillMaxSize().background(TvColors.Background)
+        .then(if (entryFocus != null) Modifier.focusRequester(entryFocus) else Modifier)
+        .focusRestorer().onFocusChanged { if (it.hasFocus) onFocused() },
         contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 145.dp, bottom = 110.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item(span = { GridItemSpan(maxLineSpan) }) { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
