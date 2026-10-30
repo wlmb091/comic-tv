@@ -3,7 +3,7 @@ package com.pelican.comictv.browser
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
-import com.pelican.comictv.archive.openComicZip
+import com.pelican.comictv.archive.*
 
 /** Inspect the received bytes; a generic .bin is never assumed to be a comic. Originals stay untouched. */
 internal object BrowserBlobFile {
@@ -15,14 +15,11 @@ internal object BrowserBlobFile {
     fun confirm(file: File, suggested: String): String {
         val name = BrowserDownloadNames.safe(suggested)
         BrowserDownloadNames.validate(name, null)
-        val prefix = ByteArray(32)
-        val count = file.inputStream().use { it.read(prefix) }
-        if (count <= 0) throw IOException("O site forneceu um arquivo vazio.")
-        fun starts(vararg bytes: Int) = count >= bytes.size && bytes.indices.all { prefix[it].toInt() and 255 == bytes[it] }
+        val format = ComicContainers.detect(file)
         val extension = name.substringAfterLast('.', "").lowercase()
-        val actual = when {
-            starts(82,97,114,33,26,7,0) || starts(82,97,114,33,26,7,1,0) -> if (extension == "rar") "rar" else "cbr"
-            starts(80,75,3,4) || starts(80,75,5,6) || starts(80,75,7,8) -> {
+        val actual = when (format) {
+            ComicContainer.Rar -> if (extension == "rar") "rar" else "cbr"
+            ComicContainer.Zip -> {
               checkZipDirectory(file)
               openComicZip(file).use { zip ->
                 if (zip.getEntry("AndroidManifest.xml") != null) throw IOException("Downloads de aplicativos Android não são permitidos neste navegador.")
@@ -33,7 +30,13 @@ internal object BrowserBlobFile {
                 if (epub) "epub" else if (extension == "cbz") "cbz" else "zip"
               }
             }
-            starts(37,80,68,70,45) -> "pdf"
+            ComicContainer.SevenZip -> {
+                val names = SevenZComicArchive(ArchiveLimits(maxPageBytes = BrowserPolicy.MAX_BYTES)).entryNames(file)
+                if ("AndroidManifest.xml" in names) throw IOException("Downloads de aplicativos Android não são permitidos neste navegador.")
+                if (extension == "cb7") "cb7" else "7z"
+            }
+            ComicContainer.Pdf -> "pdf"
+            ComicContainer.Empty, ComicContainer.Incomplete, ComicContainer.Html, ComicContainer.Executable -> throw IOException(ComicContainers.failure(format))
             else -> null
         }
         if (actual == null) {

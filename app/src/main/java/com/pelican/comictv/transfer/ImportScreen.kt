@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
 
-@Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit, onLocalTransfer: () -> Unit, onFtpTransfer: () -> Unit, onCancelImport: () -> Unit = {}, onBrowser: () -> Unit = {}) {
+@Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit, onLocalTransfer: () -> Unit, onFtpTransfer: () -> Unit, onCancelImport: () -> Unit = {}, onBrowser: () -> Unit = {}, onExplore: () -> Unit = {}, onCompanion: () -> Unit = {}) {
     val scroll = rememberScrollState()
     val first = preferredContentEntryModifier(prepare = { scroll.scrollTo(0) })
     val initial = remember { FocusRequester() }
@@ -27,13 +27,15 @@ import com.pelican.comictv.ui.*
         ScreenTitle("Traga suas histórias", "Escolha como adicionar quadrinhos à sua biblioteca.")
         Column(Modifier.fillMaxWidth().background(TvColors.Panel).padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Arquivo local", fontSize = 23.sp)
-            Text("Selecione CBZ, ZIP, CBR, RAR, PDF ou EPUB no armazenamento da TV ou em um dispositivo USB.", fontSize = 17.sp, color = TvColors.Muted)
+            Text("Selecione CBZ, ZIP, CBR, RAR, 7z, CB7, PDF ou EPUB no armazenamento da TV ou em um dispositivo USB.", fontSize = 17.sp, color = TvColors.Muted)
             Text("Coleção ZIP/RAR: as HQs dentro do pacote são importadas separadamente. Até 100 HQs e 1 GiB por pacote; cada HQ deve estar em seu próprio arquivo.", fontSize = 17.sp, color = TvColors.Muted)
             TvButton(if (busy) "Importando… aguarde" else "Escolher arquivo", {
                 if (!busy) try { picker.launch(arrayOf("*/*")) }
                 catch (_: ActivityNotFoundException) { onMessage("Esta TV não oferece um seletor de arquivos. Use a opção Enviar pela rede local para transferir pelo celular.") }
             }, first.focusRequester(initial), primary = true)
         }
+        TvButton("Explorar arquivos · TV / USB", { if (!busy) onExplore() })
+        TvButton("Conectar celular · iPhone / Android", {if(!busy)onCompanion()})
         if (busy) TvButton("Interromper importação", onCancelImport)
         if (message != null) Text(message, color = TvColors.Amber, fontSize = 17.sp)
         TvButton("Enviar pela rede local · Wi-Fi / Ethernet", { if (!busy) onLocalTransfer() }, primary = true)

@@ -88,6 +88,16 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         return
     }
     val nav = rememberNavController()
+    val companionContext=LocalContext.current
+    val companionActivity=remember(companionContext){generateSequence(companionContext){(it as? android.content.ContextWrapper)?.baseContext}.filterIsInstance<androidx.activity.ComponentActivity>().first()}
+    val companion=remember(companionActivity){com.pelican.comictv.companion.CompanionController(companionActivity,container)}
+    val companionLifecycle=LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(companion,companionLifecycle){
+        val observer=androidx.lifecycle.LifecycleEventObserver{_,event->if(event==Lifecycle.Event.ON_STOP)companion.stop("Sessão encerrada: Comic TV saiu do primeiro plano.")}
+        companionLifecycle.addObserver(observer)
+        onDispose{companionLifecycle.removeObserver(observer);companion.close()}
+    }
+    SideEffect{companion.onOpen={id->nav.navigate("reader/$id"){launchSingleTop=true}}}
     val updater: com.pelican.comictv.updates.AppUpdateViewModel = viewModel(key = "app-updates", factory = viewModelFactory {
         initializer { com.pelican.comictv.updates.AppUpdateViewModel(container.appUpdates) }
     })
@@ -231,12 +241,32 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 ImportScreen(busy, message, onMessage = library::message,
                     onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } },
                     onLocalTransfer = { nav.navigate("local-transfer") }, onFtpTransfer = { nav.navigate("ftp-transfer") },
-                    onCancelImport = library::cancelImport, onBrowser = { nav.navigate("browser") })
+                    onCancelImport = library::cancelImport, onBrowser = { nav.navigate("browser") },
+                    onExplore = { nav.navigate("file-explorer") },onCompanion={nav.navigate("companion")})
             }
+        }
+        composable("companion"){com.pelican.comictv.companion.CompanionScreen(companion){nav.popBackStack()}}
+        composable("file-explorer") {
+            val context = LocalContext.current.applicationContext
+            val explorer: com.pelican.comictv.explorer.ExplorerViewModel = viewModel(factory = viewModelFactory {
+                initializer { com.pelican.comictv.explorer.ExplorerViewModel(context) }
+            })
+            com.pelican.comictv.explorer.ExplorerScreen(explorer, busy, message, comics.associate { it.id to it.title },
+                onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") } },
+                onRead = { nav.navigate("reader/$it") }, onCancelImport = library::cancelImport,
+                onBack = { nav.popBackStack() },
+                onTools = { uri,name -> nav.navigate("archive-tools?uri=${android.net.Uri.encode(uri.toString())}&name=${android.net.Uri.encode(name)}") })
+        }
+        composable("archive-tools?uri={uri}&name={name}", arguments=listOf(navArgument("uri"){type=NavType.StringType},navArgument("name"){type=NavType.StringType})) {entry->
+            val context=LocalContext.current.applicationContext
+            val tools:com.pelican.comictv.explorer.ArchiveToolsViewModel=viewModel(factory=viewModelFactory {
+                initializer {com.pelican.comictv.explorer.ArchiveToolsViewModel(context,entry.arguments?.getString("name").orEmpty(),android.net.Uri.parse(entry.arguments?.getString("uri")))}
+            })
+            com.pelican.comictv.explorer.ArchiveToolsScreen(tools){nav.popBackStack()}
         }
         composable("browser?url={url}", arguments = listOf(navArgument("url") { type = NavType.StringType; defaultValue = "" })) { entry ->
             com.pelican.comictv.browser.BrowserScreen(container.library, initialUrl = entry.arguments?.getString("url").orEmpty(), onBack = { nav.popBackStack() },
-                onRead = { nav.navigate("reader/$it") }, onDetails = { nav.navigate("details/$it") })
+                onRead = { nav.navigate("reader/$it") }, onDetails = { nav.navigate("details/$it") },onCompanion={nav.navigate("companion")})
         }
         composable("local-transfer") {
             val context = LocalContext.current.applicationContext

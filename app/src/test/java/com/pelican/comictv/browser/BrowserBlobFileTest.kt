@@ -33,6 +33,15 @@ class BrowserBlobFileTest {
         rejected { BrowserBlobFile.confirm(file, "HQ.cbr") }
         assertEquals("uuid.bin", BrowserBlobFile.confirm(file, "uuid.bin"))
     }
+    @Test fun sevenZipIsRecognizedByBytesAndKeepsApkBlocking() = temporary { file ->
+        javaClass.getResourceAsStream("/browser/pages.7z")!!.use { input -> file.outputStream().use { input.copyTo(it) } }
+        assertEquals("HQ.7z",BrowserBlobFile.confirm(file,"HQ.cbr"))
+        assertEquals("HQ.cb7",BrowserBlobFile.confirm(file,"HQ.cb7"))
+        assertTrue(BrowserDownloadNames.importable("HQ.7z"))
+        assertTrue(BrowserDownloadNames.importable("HQ.cb7"))
+        javaClass.getResourceAsStream("/browser/apk.7z")!!.use { input -> file.outputStream().use { input.copyTo(it) } }
+        rejected { BrowserBlobFile.confirm(file,"HQ.7z") }
+    }
     private fun temporary(block: (File) -> Unit) {
         val path = Files.createTempFile("blob-format", ".data").toFile()
         try { block(path) } finally { path.delete() }

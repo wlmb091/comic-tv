@@ -24,15 +24,20 @@ fun openComicZip(file: File, maxEntries: Int = 5_000): ZipFile {
             throw failure
         }
     }
-    return try { open(Charsets.UTF_8) }
-    catch (failure: Exception) {
-        val nameDecodingFailure = generateSequence<Throwable>(failure) { it.cause }.take(8).any {
+    fun nameDecodingFailure(failure: Exception): Boolean = generateSequence<Throwable>(failure) { it.cause }.take(8).any {
             it is CharacterCodingException ||
                 it.message.orEmpty().contains("MALFORMED", ignoreCase = true) ||
                 it.message.orEmpty().contains("bad entry name", ignoreCase = true)
         }
-        if (!nameDecodingFailure) throw failure
+    return try { open(Charsets.UTF_8) }
+    catch (failure: Exception) {
+        if (!nameDecodingFailure(failure)) throw failure
         // ZIP entries explicitly marked UTF-8 remain UTF-8 even with this fallback.
-        open(Charset.forName("IBM437"))
+        try { open(Charset.forName("IBM437")) }
+        catch (legacyFailure: Exception) {
+            if (nameDecodingFailure(legacyFailure)) throw ComicArchiveException(
+                "O ZIP contém nomes internos inválidos ou metadados corrompidos. Recompacte o quadrinho como ZIP/CBZ válido.", legacyFailure)
+            throw legacyFailure
+        }
     }
 }

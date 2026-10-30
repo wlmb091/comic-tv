@@ -207,7 +207,7 @@ class FtpUploadServer(
 
         private fun upload(name: String) {
             if (name.length !in 1..200 || name.any { it.code < 32 || it.code == 127 || it == '/' || it == '\\' } ||
-                name.substringAfterLast('.', "").lowercase() !in setOf("cbz", "zip", "cbr", "rar", "pdf", "epub")) {
+                name.substringAfterLast('.', "").lowercase() !in com.pelican.comictv.archive.ComicContainers.extensions) {
                 closeData(); reply(550, "Nome ou formato inválido."); return
             }
             if (passive == null) { reply(425, "Use PASV ou EPSV."); return }

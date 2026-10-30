@@ -653,7 +653,7 @@ import kotlinx.coroutines.launch
                     Text(
                         if (filtered) "Tente outro título ou selecione Todas para mudar o filtro."
                         else if (history) "Abra uma edição para encontrá-la aqui, inclusive depois de terminar."
-                        else "Importe CBZ, ZIP, CBR, RAR, PDF ou EPUB para começar.",
+                        else "Importe CBZ, ZIP, CBR, RAR, 7z, CB7, PDF ou EPUB para começar.",
                         color = TvColors.Muted, fontSize = 17.sp,
                     )
                     if (history) TvButton("Ver biblioteca", { history = false })

@@ -1,6 +1,7 @@
 package com.pelican.comictv.browser
 
 import okhttp3.HttpUrl
+import com.pelican.comictv.archive.ComicContainers
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -26,8 +27,8 @@ internal object BrowserPolicy {
     } ?: throw IOException("Use um endereço HTTP ou HTTPS sem credenciais.")
     fun filename(name: String): String {
         val clean = name.substringAfterLast('/').substringAfterLast('\\').filter { it.code >= 32 && it != ':' }.take(180)
-        if (clean.substringAfterLast('.', "").lowercase() !in setOf("cbz", "zip", "cbr", "rar", "pdf", "epub"))
-            throw IOException("Formato não aceito. Use CBZ, ZIP, CBR, RAR, PDF ou EPUB; APK não é permitido.")
+        if (clean.substringAfterLast('.', "").lowercase() !in ComicContainers.extensions)
+            throw IOException("Formato não aceito. Use CBZ, ZIP, CBR, RAR, 7z, CB7, PDF ou EPUB; APK não é permitido.")
         return clean
     }
     fun redirect(from: HttpUrl, location: String, count: Int): HttpUrl {
@@ -55,7 +56,7 @@ internal object BrowserDownloadNames {
             mime?.substringBefore(';')?.trim()?.lowercase() == "application/vnd.android.package-archive")
             throw IOException("Downloads de aplicativos Android não são permitidos neste navegador.")
     }
-    fun importable(value: String) = value.substringAfterLast('.', "").lowercase() in setOf("cbz", "zip", "cbr", "rar", "pdf", "epub")
+    fun importable(value: String) = value.substringAfterLast('.', "").lowercase() in ComicContainers.extensions
     fun resolve(url: String, disposition: String?, mime: String?, suggested: String): String {
         val encoded = Regex("filename\\*\\s*=\\s*UTF-8''([^;]+)", RegexOption.IGNORE_CASE).find(disposition.orEmpty())?.groupValues?.get(1)
         val plain = Regex("filename\\s*=\\s*(?:\"([^\"]+)\"|([^;]+))", RegexOption.IGNORE_CASE).find(disposition.orEmpty())
@@ -66,6 +67,7 @@ internal object BrowserDownloadNames {
             "application/pdf" -> "pdf"; "application/epub+zip" -> "epub"
             "application/zip", "application/x-zip-compressed" -> "zip"
             "application/vnd.rar", "application/x-rar-compressed" -> "rar"
+            "application/x-7z-compressed" -> "7z"
             else -> null
         }
         if (extension != null && ('.' !in name || name.endsWith(".bin", true))) name = name.substringBeforeLast('.', name) + ".$extension"

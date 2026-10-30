@@ -3,7 +3,7 @@ package com.pelican.comictv.archive
 import com.pelican.comictv.model.PageRef
 import java.io.File
 
-data class CollectionEntry(val name: String, val size: Long)
+data class CollectionEntry(val name: String, val size: Long, val directory: Boolean = false)
 
 /** Only lists inner edition files. No paths from an archive are used as output paths. */
 class CollectionArchive(
@@ -14,17 +14,14 @@ class CollectionArchive(
     private val limits = ArchiveLimits(maxEntries = maxEntries, maxPageBytes = 1024L * 1024 * 1024,
         maxTotalBytes = maxTotalBytes)
     private val rar = RarComicArchive(limits)
-    private val editions = setOf("cbz", "zip", "cbr", "rar", "pdf", "epub")
+    private val editions = ComicContainers.extensions
     private val images = setOf("jpg", "jpeg", "png", "webp")
     private fun extension(name: String) = name.substringAfterLast('.', "").lowercase()
     private fun kind(file: File): Int {
         if (file.length() > limits.maxArchiveBytes) throw ComicArchiveException("O arquivo excede o limite de 1 GiB.")
-        val bytes = file.inputStream().use { input -> ByteArray(8).also { input.read(it) } }
-        if (bytes[0] == 0x50.toByte() && bytes[1] == 0x4b.toByte()) return 1
-        if (bytes.take(6) == listOf<Byte>(0x52, 0x61, 0x72, 0x21, 0x1a, 0x07)) return 2
-        return 0
+        return when(ComicContainers.detect(file)) { ComicContainer.Zip->1;ComicContainer.Rar->2;ComicContainer.SevenZip->3;else->0 }
     }
-    fun inspect(file: File): List<CollectionEntry>? {
+    fun contents(file: File): List<CollectionEntry> {
         val format = kind(file)
         if (format == 1) guardCollectionZip(file, maxEntries)
         val entries = when (format) {
@@ -37,12 +34,13 @@ class CollectionArchive(
                     val entry = iterator.nextElement()
                     if (++count > maxEntries) throw ComicArchiveException("A coleção contém entradas demais.")
                     // Directory names are validated too; sizes of every file count, even ignored files.
-                    result += CollectionEntry(entry.name, if (entry.isDirectory) 0 else entry.size)
+                    result += CollectionEntry(entry.name, if (entry.isDirectory) 0 else entry.size, entry.isDirectory)
                 }
                 result
             }
             2 -> rar.collectionEntries(file)
-            else -> return null
+            3 -> SevenZComicArchive(limits).collectionEntries(file)
+            else -> throw ComicArchiveException("Escolha um arquivo ZIP, RAR ou 7z.")
         }
         var total = 0L
         val seen = HashSet<String>()
@@ -55,7 +53,13 @@ class CollectionArchive(
                 throw ComicArchiveException("O conteúdo da coleção excede os limites permitidos.")
             total += entry.size
         }
-        val visible = entries.filter { it.name.replace('\\', '/').split('/').none { part -> part == "__MACOSX" || part.startsWith('.') } }
+        return entries
+    }
+    fun inspect(file: File): List<CollectionEntry>? {
+        if (kind(file) == 0) return null
+        val entries = contents(file)
+        val seen = entries.map { it.name }.toSet()
+        val visible = entries.filter { !it.directory && it.name.replace('\\', '/').split('/').none { part -> part == "__MACOSX" || part.startsWith('.') } }
         // Preserve ordinary image archives and EPUBs, including their optional attachments.
         if (visible.any { extension(it.name) in images } || seen.contains("META-INF/container.xml")) return null
         val comics = visible.filter { extension(it.name) in editions }
@@ -71,9 +75,12 @@ class CollectionArchive(
                 1 -> openComicZip(file, maxEntries).use { zip ->
                     val source = zip.getEntry(entry.name) ?: throw ComicArchiveException("Arquivo da coleção não encontrado.")
                     if (source.size != entry.size) throw ComicArchiveException("A coleção mudou durante a importação.")
-                    zip.getInputStream(source).use { copyLimited(it, destination, entry.size) }
+                    val crc = java.util.zip.CRC32()
+                    java.util.zip.CheckedInputStream(zip.getInputStream(source), crc).use { copyLimited(it, destination, entry.size) }
+                    if (source.crc >= 0 && crc.value != source.crc) throw ComicArchiveException("Arquivo ZIP corrompido: CRC inválido.")
                 }
                 2 -> rar.extract(file, PageRef(0, entry.name), destination)
+                3 -> SevenZComicArchive(limits).extract(file, PageRef(0, entry.name), destination)
                 else -> throw ComicArchiveException("Formato de coleção inválido.")
             }
             if (destination.length() != entry.size) throw ComicArchiveException("Arquivo da coleção incompleto.")

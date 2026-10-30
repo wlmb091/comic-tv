@@ -43,7 +43,7 @@ import com.pelican.comictv.library.LibraryRepository
 import com.pelican.comictv.ui.*
 import kotlinx.coroutines.*
 
-@Composable fun BrowserScreen(library: LibraryRepository, onBack: () -> Unit, onRead: (String) -> Unit, onDetails: (String) -> Unit, initialUrl: String = "") {
+@Composable fun BrowserScreen(library: LibraryRepository, onBack: () -> Unit, onRead: (String) -> Unit, onDetails: (String) -> Unit, initialUrl: String = "", onCompanion:()->Unit = {}) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
@@ -244,6 +244,7 @@ import kotlinx.coroutines.*
         TvButton("Cancelar", { removeId = null }); TvButton("Excluir download", { downloads.remove(id); removeId = null })
     } }
     if (sheet == "more") LibraryDialog("Opções do navegador", { sheet = null }) {
+        TvButton("Conectar celular · teclado e controle",{sheet=null;onCompanion()})
         TvButton("Favoritos", { sheet = "bookmarks" }); TvButton("Histórico", { sheet = "history" }); TvButton("Downloads", { sheet = "downloads" })
         TvButton("Localizar nesta página", { sheet = "find" })
         TvButton(if (state.desktop) "Versão para computador: ligada" else "Versão para computador: desligada", {

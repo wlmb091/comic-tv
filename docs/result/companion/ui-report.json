@@ -1,0 +1,44 @@
+{
+  "environment": "Edge headless, mobile viewport; mock library/TV. Not Safari or Android Box.",
+  "checks": [
+    {
+      "check": "portrait-library",
+      "response": {
+        "message": "Script ran on page and returned:\n```json\n{\"width\":390,\"cards\":24}\n```"
+      }
+    },
+    {
+      "check": "read-next-independent",
+      "response": {
+        "message": "Script ran on page and returned:\n```json\n{\"label\":\"Página 11 de 25\",\"section\":\"\"}\n```"
+      }
+    },
+    {
+      "check": "remote-preview",
+      "response": {
+        "message": "Script ran on page and returned:\n```json\n{\"preview\":1280,\"commands\":2}\n```"
+      }
+    },
+    {
+      "check": "file-upload",
+      "response": {
+        "message": "Script ran on page and returned:\n```json\n{\"transfers\":\"Orbit.cbz✓ Importado\",\"originals\":32}\n```"
+      }
+    },
+    {
+      "check": "landscape-no-overflow",
+      "response": {
+        "message": "Script ran on page and returned:\n```json\n{\"width\":844,\"scroll\":844,\"expanded\":true}\n```"
+      }
+    },
+    {
+      "check": "expanded-preview-touch-mapping",
+      "center": {
+        "action": "tap",
+        "x": 0.5,
+        "y": 0.4984917043740573
+      },
+      "letterbox": "ignored"
+    }
+  ]
+}

@@ -44,4 +44,17 @@ class LegacyZipNamesTest {
             assertThrows(ComicArchiveException::class.java) { CollectionArchive().inspect(file) }
         } finally { root.deleteRecursively() }
     }
+    @Test fun incorrectlyFlaggedUtf8NamesExplainTheProblemInsteadOfMalformed() {
+        val root=Files.createTempDirectory("invalid-name").toFile()
+        try {
+            val f=fixture(root,Charset.forName("IBM437"),"Máskara.jpg")
+            val bytes=f.readBytes()
+            bytes[7]=(bytes[7].toInt() or 8).toByte()
+            val central=bytes.indices.first { it+3<bytes.size && bytes[it]==80.toByte() && bytes[it+1]==75.toByte() && bytes[it+2]==1.toByte() && bytes[it+3]==2.toByte() }
+            bytes[central+9]=(bytes[central+9].toInt() or 8).toByte();f.writeBytes(bytes)
+            val e=assertThrows(ComicArchiveException::class.java) { CollectionArchive().inspect(f) }
+            assertTrue(e.message.orEmpty(),e.message.orEmpty().contains("nomes"))
+        } finally { root.deleteRecursively() }
+    }
+
 }
