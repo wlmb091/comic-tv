@@ -4,9 +4,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BrowserSitesTest {
-    @Test fun onlySevenApprovedSitesAndEncodedSearchTerms() {
-        assertEquals(7, BrowserSites.all.size)
-        assertEquals(7, BrowserSites.all.map { it.id }.toSet().size)
+    @Test fun approvedCatalogKeepsUniqueSitesAndEncodedSearchTerms() {
+        assertEquals(48, BrowserSites.all.size)
+        assertEquals(48, BrowserSites.all.map { it.id }.toSet().size)
+        assertEquals(48, BrowserSites.all.map { java.net.URI(it.home).host.removePrefix("www.") }.toSet().size)
+        assertTrue(BrowserSites.all.any { it.home == "https://multiversohq.com" })
+        assertTrue(BrowserSites.all.any { it.home == "https://www.hq-now.com" })
+        assertTrue(BrowserSites.all.any { it.home == "https://fummetidipoaco.blogspot.com" })
+        assertEquals(6, BrowserSites.all.count { it.kind != "manual" })
         BrowserSites.all.forEach { site ->
             val uri = java.net.URI(site.searchUrl("Batman & Robin #1"))
             assertEquals("https", uri.scheme)

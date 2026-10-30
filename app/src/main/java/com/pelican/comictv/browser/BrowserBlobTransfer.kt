@@ -17,6 +17,7 @@ import kotlinx.coroutines.channels.Channel
 
 /** A one-file, user-approved stream. No JavascriptInterface is exposed to web pages. */
 internal object BrowserBlobTransfer {
+    private data class BlobMetadata(val mime: String? = null, val name: String? = null)
     suspend fun transfer(web: WebView, request: BrowserDownloadRequest, target: File,
         progress: (Long, Long) -> Unit, headers: (BrowserTransferResult) -> Unit): BrowserTransferResult {
         try { return withTimeout(120_000) {
@@ -42,23 +43,36 @@ internal object BrowserBlobTransfer {
                     const receive=async function(event){
                         if(event.data!==token||!event.ports||event.ports.length!==1)return;
                         window.removeEventListener('message',receive);
-                        const port=event.ports[0]; let ack=null;
-                        port.onmessage=function(e){if(e.data===token+'|A'&&ack){const r=ack;ack=null;r();}};
-                        const send=(value)=>new Promise(resolve=>{ack=resolve;port.postMessage(token+'|'+value);});
+                        const port=event.ports[0]; let ack=null, stopped=false, timer=null;
+                        port.onmessage=function(e){
+                            if(e.data===token+'|S')stopped=true;
+                            if((e.data===token+'|A'||stopped)&&ack){const r=ack;ack=null;clearTimeout(timer);r(!stopped);}
+                        };
+                        const send=(value)=>new Promise(resolve=>{
+                            if(stopped){resolve(false);return;}
+                            ack=resolve;timer=setTimeout(()=>{stopped=true;ack=null;resolve(false);},30000);
+                            port.postMessage(token+'|'+value);
+                        });
+                        const encode=(text)=>{
+                            const bytes=new TextEncoder().encode(text);let value='';
+                            for(let i=0;i<bytes.length;i++)value+=String.fromCharCode(bytes[i]);return btoa(value);
+                        };
                         try{
-                            const response=await fetch(url); const blob=await response.blob();
-                            await send('M|'+blob.size+'|'+btoa(blob.type||'application/octet-stream'));
+                            const retained=KEY ? await window.__comicTvBlobV1.take(KEY,url) : null;
+                            const blob=retained ? retained.blob : await(await fetch(url)).blob();
+                            if(!await send('M|'+blob.size+'|'+encode(JSON.stringify({mime:blob.type||'application/octet-stream',name:retained?retained.name:''}))))return;
                             let seq=0;
                             for(let offset=0;offset<blob.size;offset+=196608){
+                                if(stopped)return;
                                 const bytes=new Uint8Array(await blob.slice(offset,offset+196608).arrayBuffer());
                                 let value='';for(let i=0;i<bytes.length;i+=8192)value+=String.fromCharCode.apply(null,bytes.subarray(i,i+8192));
-                                await send('C|'+seq+'|'+btoa(value));seq++;
+                                if(!await send('C|'+seq+'|'+btoa(value)))return;seq++;
                             }
                             port.postMessage(token+'|E|'+seq);
-                        }catch(error){port.postMessage(token+'|X|failed');}
+                        }catch(error){port.postMessage(token+'|X|failed');}finally{clearTimeout(timer);port.close();}
                     };
                     window.addEventListener('message',receive);return 'ready';
-                })();""".replace("TOKEN", quote.toJson(token)).replace("URL", quote.toJson(request.url))
+                })();""".replace("TOKEN", quote.toJson(token)).replace("URL", quote.toJson(request.url)).replace("KEY", quote.toJson(request.blobKey))
                 withContext(Dispatchers.Main.immediate) {
                     suspendCancellableCoroutine<Unit> { continuation ->
                         web.evaluateJavascript(script) { value ->
@@ -76,8 +90,11 @@ internal object BrowserBlobTransfer {
                     when (packet.getOrNull(1)) {
                         "M" -> {
                             val size = packet.getOrNull(2)?.toLongOrNull() ?: throw IOException("Tamanho inválido.")
-                            mime = runCatching { String(Base64.getDecoder().decode(packet.getOrNull(3).orEmpty()), Charsets.UTF_8).take(120) }.getOrNull()
-                            filename = BrowserDownloadNames.resolve(request.url, null, mime, request.suggestedName)
+                            val metadata = runCatching {
+                                Gson().fromJson(String(Base64.getDecoder().decode(packet.getOrNull(3).orEmpty()), Charsets.UTF_8), BlobMetadata::class.java)
+                            }.getOrNull() ?: throw IOException("Metadados inválidos do arquivo temporário.")
+                            mime = metadata.mime?.take(120)
+                            filename = BrowserBlobFile.name(metadata.name, request.suggestedName, mime)
                             BrowserDownloadNames.validate(filename, mime)
                             withContext(Dispatchers.IO) { sink.start(size) }
                             headers(BrowserTransferResult(filename, size, null, mime)); progress(0, size)
@@ -89,6 +106,7 @@ internal object BrowserBlobTransfer {
                         }
                         "E" -> {
                             val result = withContext(Dispatchers.IO) { sink.finish(packet.getOrNull(2)?.toIntOrNull() ?: -1) }
+                            filename = withContext(Dispatchers.IO) { BrowserBlobFile.confirm(target, filename) }
                             return@withTimeout BrowserTransferResult(filename, result, null, mime)
                         }
                         else -> throw IOException("A página não conseguiu fornecer o arquivo. Reabra o link de download.")
@@ -98,7 +116,10 @@ internal object BrowserBlobTransfer {
                 @Suppress("UNREACHABLE_CODE") error("Stream ended")
             } finally {
                 withContext(NonCancellable + Dispatchers.IO) { sink.close() }
-                withContext(NonCancellable + Dispatchers.Main.immediate) { ports.forEach { runCatching { it.close() } }; messages.close() }
+                withContext(NonCancellable + Dispatchers.Main.immediate) {
+                    runCatching { ports[0].postMessage(WebMessage("$token|S")) }
+                    ports.forEach { runCatching { it.close() } }; messages.close()
+                }
             }
         } } catch (timeout: TimeoutCancellationException) {
             currentCoroutineContext().ensureActive(); throw IOException("O site demorou para fornecer o arquivo temporário. Abra o download novamente.", timeout)

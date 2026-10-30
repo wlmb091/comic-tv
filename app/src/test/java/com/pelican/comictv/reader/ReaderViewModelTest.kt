@@ -194,6 +194,22 @@ class ReaderViewModelTest {
         assertEquals(2, vm.state.value.page)
     }
 
+    @Test fun bookPageTurnsPreserveZoomAndStartAtTop() = runTest(dispatcher) {
+        val vm=ReaderViewModel(FakeRepository().apply { count=6 }, "zoom-book", SavedStateHandle(mapOf("layout" to "Book", "page" to 0)),
+            ioDispatcher=dispatcher, pageDimensions={100 to 200})
+        try {
+            advanceUntilIdle()
+            repeat(4) { vm.action(ReaderAction.Up) }
+            vm.action(ReaderAction.TogglePan)
+            repeat(10) { vm.action(ReaderAction.Down) }
+            vm.action(ReaderAction.TogglePan)
+            vm.action(ReaderAction.Right);advanceUntilIdle()
+            assertEquals(2,vm.state.value.page);assertEquals(2f,vm.state.value.zoom);assertEquals(-1f,vm.state.value.panY)
+            vm.action(ReaderAction.Left);advanceUntilIdle()
+            assertEquals(0,vm.state.value.page);assertEquals(2f,vm.state.value.zoom);assertEquals(-1f,vm.state.value.panY)
+        } finally { vm.close {};advanceUntilIdle() }
+    }
+
     @Test fun bookHonorsRTLAndPanDoesNotTurnTheSpread() = runTest(dispatcher) {
         val vm = ReaderViewModel(FakeRepository().apply { count = 6; rtl = true }, "book",
             SavedStateHandle(mapOf("layout" to "Book", "page" to 0)), ioDispatcher = dispatcher, pageDimensions = { 100 to 200 })

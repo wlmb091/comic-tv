@@ -63,33 +63,38 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
     }
 }
 
-@Composable internal fun BrowserSiteIcon(site: BrowserSite) {
+@Composable internal fun BrowserSiteIcon(site: BrowserSite, compact: Boolean = false) {
     var failed by remember(site.id) { mutableStateOf(false) }
-    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(if (compact) 28.dp else 36.dp), contentAlignment = Alignment.Center) {
         if (failed) Text(site.name.take(2).uppercase(), color = Color.White, fontSize = 17.sp)
         else AsyncImage(site.icon, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit, onError = { failed = true })
     }
 }
 
 @Composable internal fun BrowserHome(onOpen: (String) -> Unit, onSheet: (String) -> Unit) {
-    LazyVerticalGrid(GridCells.Adaptive(190.dp), Modifier.fillMaxSize().background(TvColors.Background),
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val sites = if (expanded) BrowserSites.all else BrowserSites.all.take(12)
+    LazyVerticalGrid(GridCells.Adaptive(165.dp), Modifier.fillMaxSize().background(TvColors.Background),
         contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 145.dp, bottom = 110.dp),
-        horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item(span = { GridItemSpan(maxLineSpan) }) { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("Navegador", color = Color.White, fontSize = 28.sp)
             Text("Sites de quadrinhos", color = TvColors.Muted, fontSize = 18.sp)
         } }
-        items(BrowserSites.all, key = { it.id }) { site ->
+        items(sites, key = { it.id }) { site ->
             Card(onClick = { onOpen(site.home) }, modifier = Modifier.fillMaxWidth().focusRaised(),
                 border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.FocusAccent))),
                 scale = CardDefaults.scale(focusedScale = 1.04f),
                 colors = CardDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Panel)) {
-                Row(Modifier.padding(16.dp).heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically,
+                Row(Modifier.padding(12.dp).heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    BrowserSiteIcon(site)
-                    Text(site.name, color = Color.White, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    BrowserSiteIcon(site, compact = true)
+                    Text(site.name, color = Color.White, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
+        }
+        item(key = "sites-more", span = { GridItemSpan(maxLineSpan) }) {
+            TvButton(if (expanded) "Ver menos" else "Ver mais · ${BrowserSites.all.size - sites.size} sites", { expanded = !expanded })
         }
         item(span = { GridItemSpan(maxLineSpan) }) { FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             TvButton("Google", { onOpen("https://www.google.com/") })
@@ -116,12 +121,12 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
             items(BrowserSites.all, key = { it.id }) { site ->
                 val result = model.results[site.id]
                 Card(onClick = { if (query.isBlank()) onOpen(site.home) else selected = site.id },
-                    modifier = Modifier.width(180.dp).focusRaised().then(restore("site:${site.id}")),
+                    modifier = Modifier.width(160.dp).focusRaised().then(restore("site:${site.id}")),
                     scale = CardDefaults.scale(focusedScale = 1.03f),
                     border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.FocusAccent))),
                     colors = CardDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Panel)) {
                     Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        BrowserSiteIcon(site)
+                        BrowserSiteIcon(site, compact = true)
                         Column {
                             Text((if (query.isNotBlank() && selected == site.id) "● " else "") + site.name, color = Color.White, fontSize = 14.sp, maxLines = 2)
                             if (query.isNotBlank()) Text(when { result == null || result.loading -> "Buscando…"; result.error != null -> "Abrir no navegador"; else -> "${result.hits.size} resultados" }, color = TvColors.Muted, fontSize = 12.sp)

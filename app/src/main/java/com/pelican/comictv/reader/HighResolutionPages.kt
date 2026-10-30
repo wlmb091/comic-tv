@@ -37,7 +37,7 @@ internal fun overviewRegion(page: PageImage): TileRegion {
     val placements = zoomPlacements(extents, size.width, size.height, state.zoom, state.fit, state.panX, state.panY, gap)
     val stamps = remember(pages.map { it?.file }) { pages.map { it?.let(::tileIdentity) } }
     val visible = placements.flatMapIndexed { index, placement -> pages[index]?.let { page ->
-        visibleTiles(placement, size.width, size.height).map { TileKey(page.file, stamps[index].orEmpty(), it, options) }
+        readerRenderRegions(placement, size.width, size.height, cache.framePixelLimit(options)).map { TileKey(page.file, stamps[index].orEmpty(), it, options) }
     }.orEmpty() }
     val overview = pages.mapIndexedNotNull { index, page -> page?.let { TileKey(it.file, stamps[index].orEmpty(), overviewRegion(it), options) } }
     val requested = if (size.width == 0) emptyList() else (overview + visible).distinct()
@@ -46,21 +46,31 @@ internal fun overviewRegion(page: PageImage): TileRegion {
     LaunchedEffect(requested) {
         if (requested.isEmpty()) return@LaunchedEffect
         val previous = tiles
-        tiles = requested.mapNotNull { key -> (previous[key] ?: cache.peek(key))?.let { key to it } }.toMap()
+        val prepared = requested.mapNotNull { key -> (previous[key] ?: cache.peek(key))?.let { key to it } }.toMap().toMutableMap()
+        // Keep a complete overview while details are prepared, then publish the visible set together.
+        for (key in overview) {
+            if (key !in prepared) {
+                try { prepared[key] = cache.load(key) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { failed = true; onFailed(key.file); return@LaunchedEffect }
+            }
+        }
+        tiles = prepared.toMap()
         for (key in requested) {
             ensureActive()
-            if (key in tiles) continue
-            try { val tile = cache.load(key); ensureActive(); tiles = tiles + (key to tile) }
+            if (key in prepared) continue
+            try { val tile = cache.load(key); ensureActive(); prepared[key] = tile }
             catch (e: CancellationException) { throw e }
             catch (_: Exception) { failed = true; onFailed(key.file); return@LaunchedEffect }
         }
+        tiles = prepared.toMap()
         pages.filterNotNull().forEach { onDisplayed(it.file) }
         // Two neighboring image blocks are optional, never block readiness or reading progress.
         val nearby = placements.flatMapIndexed { index, placement -> pages[index]?.let { page ->
-            visibleTiles(placement, size.width, size.height, 1).map { TileKey(page.file, stamps[index].orEmpty(), it, options) }
-        }.orEmpty() }.filter { it !in visible }.take(2)
+            readerNeighborRegions(placement, size.width, size.height).map { TileKey(page.file, stamps[index].orEmpty(), it, options) }
+        }.orEmpty() }.take(2)
         for (key in nearby) {
-            try { cache.load(key) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+            try { cache.prefetch(key) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
         }
     }
     Box(modifier.clipToBounds().onSizeChanged { size = it }, contentAlignment = Alignment.Center) {

@@ -15,7 +15,7 @@ internal data class BrowserDownloadItem(
     val id: String, val url: String, val filename: String, val userAgent: String,
     val referer: String? = null, val validator: String? = null,
     val bytes: Long = 0, val total: Long = -1, val status: BrowserDownloadStatus = BrowserDownloadStatus.Queued,
-    val error: String? = null, val importedId: String? = null, val mime: String? = null,
+    val error: String? = null, val importedId: String? = null, val mime: String? = null, val blobKey: String? = null,
 )
 internal typealias BrowserTransfer = suspend (BrowserDownloadRequest, File, (Long, Long) -> Unit, (BrowserTransferResult) -> Unit) -> BrowserTransferResult
 
@@ -46,7 +46,7 @@ internal class BrowserDownloads(private val scope: CoroutineScope, private val d
         if (request.url.startsWith("blob:")) require(browserBlobOrigin(request.url) != null) else BrowserPolicy.url(request.url)
         if (state.value.size >= 100 || state.value.count { it.status in setOf(BrowserDownloadStatus.Queued, BrowserDownloadStatus.Running) } >= 12) return null
         val id = UUID.randomUUID().toString()
-        state.update { it + BrowserDownloadItem(id, request.url, BrowserDownloadNames.safe(request.suggestedName), request.userAgent.take(512), request.referer?.take(4096)) }
+        state.update { it + BrowserDownloadItem(id, request.url, BrowserDownloadNames.safe(request.suggestedName), request.userAgent.take(512), request.referer?.take(4096), blobKey = request.blobKey) }
         save(); pump(); return id
     }
     private fun pump() {
@@ -61,7 +61,7 @@ internal class BrowserDownloads(private val scope: CoroutineScope, private val d
                 val limit = (2L * 1024 * 1024 * 1024 - used).coerceAtMost(BrowserPolicy.MAX_BYTES)
                 check(limit > 0) { "Limite de 2 GiB dos downloads atingido. Exclua arquivos concluídos para liberar espaço." }
                 var notifiedAt = 0L
-                val result = transfer(BrowserDownloadRequest(item.url, item.filename, item.userAgent, item.referer, item.validator, limit), target,
+                val result = transfer(BrowserDownloadRequest(item.url, item.filename, item.userAgent, item.referer, item.validator, limit, item.blobKey), target,
                     { bytes, total ->
                         val now = System.nanoTime()
                         if (token == serial && (bytes == total || now - notifiedAt > 200_000_000)) {

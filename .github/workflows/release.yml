@@ -36,6 +36,7 @@ jobs:
         run: |
           chmod +x gradlew
           node --test tools/update-release.test.mjs
+          node --test tools/browser-blob.test.mjs
           ./gradlew :core:test :mihon:testDebugUnitTest :app:testDebugUnitTest :app:assembleRelease :app:assembleDebugAndroidTest :app:lintRelease --build-cache --no-daemon --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process
           node tools/check-history-migration.mjs
           node tools/check-library-organization.mjs

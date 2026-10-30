@@ -105,19 +105,13 @@ import kotlinx.coroutines.launch
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer); cancelCenter() }
     }
     var size by remember { mutableStateOf(IntSize.Zero) }
-    LaunchedEffect(anticipated, size, effectiveImageOptions, layout) {
-        if (size.width == 0 || anticipated.isEmpty()) return@LaunchedEffect
+    LaunchedEffect(anticipated, effectiveImageOptions) {
+        if (anticipated.isEmpty()) return@LaunchedEffect
         delay(100)
-        val width = if (layout == ReaderLayout.Gallery) ((size.width - 80) * .48f).toInt().coerceAtLeast(1) else size.width
-        val height = (size.height - if (layout == ReaderLayout.Gallery) 32 else if (layout == ReaderLayout.Book) 24 else 0).coerceAtLeast(1)
-        val forecasts = if (layout == ReaderLayout.Book) zoomPlacements(anticipated.map { ImageExtent(it.width, it.height) }, width - 24, height, 1f, FitMode.Page, 0f, 0f, 4f)
-            else anticipated.flatMap { zoomPlacements(listOf(ImageExtent(it.width, it.height)), width, height, 1f, FitMode.Page, 0f, 0f) }
-        anticipated.forEachIndexed { index, page ->
-            val regions = listOf(overviewRegion(page)) + forecasts.getOrNull(index)?.let { visibleTiles(it, width, height) }.orEmpty()
-            for (region in regions.distinct()) {
-                try { tileCache.load(TileKey(page.file, tileIdentity(page), region, effectiveImageOptions)) }
-                catch (e: CancellationException) { throw e } catch (_: Exception) { }
-            }
+        // The next two original pages are prefetched by the VM; prepare only their cheap overview.
+        for (page in anticipated) {
+            try { tileCache.prefetch(TileKey(page.file, tileIdentity(page), overviewRegion(page), effectiveImageOptions)) }
+            catch (e: CancellationException) { throw e } catch (_: Exception) { }
         }
     }
     val timelineHeight = if (state.mode == ReaderMode.Timeline) 320.dp + pagePickerTextExtra() * 2 else 0.dp

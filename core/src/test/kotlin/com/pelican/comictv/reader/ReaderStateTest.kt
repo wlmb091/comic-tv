@@ -39,13 +39,31 @@ class ReaderStateTest {
         assertEquals(2, ReaderState(page = 2, pageCount = 3).reduce(ReaderAction.Right).page)
         assertEquals(0, ReaderState(page = 1, pageCount = 3, rtl = true).reduce(ReaderAction.Right).page)
     }
-    @Test fun `zoom is clamped and page change resets it`() {
+    @Test fun `zoom is clamped and page change preserves it at top`() {
         var state = ReaderState(pageCount = 3)
         repeat(20) { state = state.reduce(ReaderAction.Up) }
         assertEquals(3f, state.zoom)
-        assertEquals(1f, state.reduce(ReaderAction.Right).zoom)
+        assertEquals(3f, state.reduce(ReaderAction.Right).zoom)
+        assertEquals(-1f, state.reduce(ReaderAction.Right).panY)
         repeat(20) { state = state.reduce(ReaderAction.Down) }
         assertEquals(1f, state.zoom)
+    }
+    @Test fun `page turns keep zoom and open at source top in either reading direction`() {
+        for (rtl in listOf(false,true)) {
+            val state=ReaderState(page=3,pageCount=8,zoom=2f,panX=.5f,panY=1f,rtl=rtl)
+            val next=state.reduce(if (rtl) ReaderAction.Left else ReaderAction.Right)
+            assertEquals(4,next.page);assertEquals(2f,next.zoom);assertEquals(0f,next.panX);assertEquals(-1f,next.panY)
+            for ((width,height) in listOf(1280 to 720,720 to 1280)) {
+                val placement=zoomPlacements(listOf(ImageExtent(2000,3000)),width,height,next.zoom,next.fit,next.panX,next.panY).single()
+                assertEquals(0f,placement.top,.01f)
+            }
+        }
+    }
+    @Test fun `page limits keep current viewport and normal scale stays centered`() {
+        val first=ReaderState(pageCount=3,zoom=2f,panY=.5f)
+        assertEquals(first,first.reduce(ReaderAction.Left))
+        val next=ReaderState(pageCount=3).reduce(ReaderAction.Right)
+        assertEquals(1f,next.zoom);assertEquals(0f,next.panY)
     }
     @Test fun `pan uses arrows until back and stays in bounds`() {
         var state = ReaderState(pageCount = 5, zoom = 2f).reduce(ReaderAction.StartPan)

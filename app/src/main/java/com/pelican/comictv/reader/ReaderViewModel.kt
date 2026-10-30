@@ -171,7 +171,7 @@ class ReaderViewModel(
             val forward = (action == ReaderAction.Right) != old.rtl
             val target = if (forward) old.page + if (hasBookPartner(old.page)) 2 else 1
                 else (old.page - if (old.page >= 2 && pages[old.page - 1].key.startsWith("epub:text:").not() && pages[old.page - 2].key.startsWith("epub:text:").not()) 2 else 1).coerceAtLeast(0)
-            if (target in pages.indices && target != old.page) old.copy(page = target, zoom = 1f, panX = 0f, panY = 0f) else old
+            if (target in pages.indices && target != old.page) old.turnPage(target) else old
         } else old.reduce(action)
         _state.value = next
         if (next.page != old.page) {

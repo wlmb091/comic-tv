@@ -76,7 +76,7 @@ import kotlinx.coroutines.*
     }
     val host = remember(context, session) {
         BrowserWebViews(context, session, changed = { revision++ }, toolbar = { chrome = true },
-            download = { offer = it }, contextLink = { link = it; sheet = if (it == null) "more" else "link" },
+            download = { BrowserBlobPage.release(offer); offer = it }, contextLink = { link = it; sheet = if (it == null) "more" else "link" },
             fullscreen = { view, _ -> fullscreen = view },
             fileChooser = { callback, types ->
                 pendingFiles?.onReceiveValue(null); pendingFiles = callback
@@ -135,11 +135,12 @@ import kotlinx.coroutines.*
     }
     LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
         withFrameNanos { }; ready = true; withFrameNanos { }
-        if (sheet == null && offer == null) { if (chrome) addressFocus.requestFocus() else host.current()?.requestFocus() }
+        if (sheet == null && offer == null && removeId == null) { if (chrome) addressFocus.requestFocus() else host.current()?.requestFocus() }
         awaitCancellation()
     } }
-    LaunchedEffect(chrome, tab.id, sheet, offer, ready, pageFocus, fullscreen) {
-        if (ready && sheet == null && offer == null && fullscreen == null) {
+    SideEffect { host.inputEnabled(ready && !chrome && sheet == null && offer == null && removeId == null && fullscreen == null) }
+    LaunchedEffect(chrome, tab.id, sheet, offer, ready, pageFocus, fullscreen, removeId) {
+        if (ready && sheet == null && offer == null && fullscreen == null && removeId == null) {
             withFrameNanos { }
             if (chrome) addressFocus.requestFocus() else host.current()?.requestFocus()
         }
@@ -150,7 +151,7 @@ import kotlinx.coroutines.*
         when {
             ime -> (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(view?.windowToken, 0)
             fullscreen != null -> host.hideFullscreen()
-            offer != null -> offer = null
+            offer != null -> { BrowserBlobPage.release(offer); offer = null }
             removeId != null -> removeId = null
             sheet != null -> sheet = null
             chrome -> if (tab.url.isBlank()) onBack() else { chrome = false; pageFocus++ }
@@ -200,12 +201,13 @@ import kotlinx.coroutines.*
                 if (tab.url.isBlank()) BrowserHome(::navigate) { sheet = it }
 
             })
-        if (sheet == "downloads") BrowserDownloadsPanel(rows, exportBusy, { sheet = null }, message = status, action = { command, id ->
+        if (sheet == "downloads") BrowserDownloadsPanel(rows, exportBusy, { sheet = null }, message = status,
+            interactive = removeId == null && offer == null, action = { command, id ->
             when (command) {
                 "pause" -> downloads.manager.pause(id)
                 "resume" -> downloads.manager.resume(id)
                 "restart" -> downloads.manager.restart(id)
-                "cancel" -> downloads.manager.cancel(id)
+                "cancel" -> downloads.cancel(id)
                 "remove" -> removeId = id
                 "import" -> downloads.import(id)
                 "read" -> rows.firstOrNull { it.id == id }?.importedId?.let(onRead)
@@ -218,22 +220,22 @@ import kotlinx.coroutines.*
                 if (custom.parent !== frame) { (custom.parent as? android.view.ViewGroup)?.removeView(custom); frame.removeAllViews(); frame.addView(custom, FrameLayout.LayoutParams(-1, -1)); custom.requestFocus() }
             }) }
     }
-    offer?.let { selected -> LibraryDialog("Baixar arquivo", { offer = null }) {
+    offer?.let { selected -> LibraryDialog("Baixar arquivo", { BrowserBlobPage.release(offer); offer = null }) {
         Text(selected.request.suggestedName, fontSize = 20.sp)
         Text("O nome final será confirmado pela resposta do site. Acompanhe a transferência em Downloads.", fontSize = 16.sp)
         TvButton("Baixar", {
             try {
                 if (selected.request.url.startsWith("blob:")) downloads.registerBlob(selected)
                 val id = downloads.manager.enqueue(selected.request)
-                if (id == null) status = "Fila cheia. Conclua ou remova downloads antes de adicionar outro." else sheet = "downloads"
-            } catch (error: Exception) { status = error.message ?: "Não foi possível iniciar o download."; chrome = true }
+                if (id == null) { BrowserBlobPage.release(selected); status = "Fila cheia. Conclua ou remova downloads antes de adicionar outro." } else sheet = "downloads"
+            } catch (error: Exception) { BrowserBlobPage.release(selected); status = error.message ?: "Não foi possível iniciar o download."; chrome = true }
             offer = null
         })
-        TvButton("Cancelar", { offer = null })
+        TvButton("Cancelar", { BrowserBlobPage.release(offer); offer = null })
     } }
     removeId?.let { id -> LibraryDialog("Excluir download?", { removeId = null }) {
         Text("Remove somente este arquivo do navegador. Itens já importados na biblioteca são preservados.")
-        TvButton("Cancelar", { removeId = null }); TvButton("Excluir download", { downloads.manager.remove(id); removeId = null })
+        TvButton("Cancelar", { removeId = null }); TvButton("Excluir download", { downloads.remove(id); removeId = null })
     } }
     if (sheet == "more") LibraryDialog("Opções do navegador", { sheet = null }) {
         TvButton("Favoritos", { sheet = "bookmarks" }); TvButton("Histórico", { sheet = "history" }); TvButton("Downloads", { sheet = "downloads" })
@@ -266,7 +268,12 @@ import kotlinx.coroutines.*
         TvButton("Abrir em nova aba", { link?.let { newTab(it) } })
         TvButton("Baixar link", {
             link?.let { url -> host.current()?.let { page ->
-                offer = BrowserDownloadOffer(BrowserDownloadRequest(url, android.webkit.URLUtil.guessFileName(url, null, null), page.settings.userAgentString, page.url), null, page)
+                val request = BrowserDownloadRequest(url, android.webkit.URLUtil.guessFileName(url, null, null), page.settings.userAgentString, page.url)
+                if (url.startsWith("blob:")) BrowserBlobPage.prepare(page, request) { prepared ->
+                    if (prepared == null) status = "Não foi possível preparar o arquivo temporário. Reabra o download no site."
+                    else if (host.current() !== page) BrowserBlobPage.release(page, prepared.blobKey)
+                    else { BrowserBlobPage.release(offer); offer = BrowserDownloadOffer(prepared, null, page) }
+                } else { BrowserBlobPage.release(offer); offer = BrowserDownloadOffer(request, null, page) }
                 sheet = null
             } }
         })

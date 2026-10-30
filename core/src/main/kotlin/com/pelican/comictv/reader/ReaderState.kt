@@ -15,6 +15,10 @@ data class ReaderState(
     val rtl: Boolean = false,
     val timelinePage: Int? = null,
 ) {
+    /** Keep the reading scale between pages, but never carry the previous page's bottom offset. */
+    fun turnPage(target: Int): ReaderState = if (target == page || target !in 0 until pageCount) this
+        else copy(page = target, panX = 0f, panY = if (zoom > 1f) -1f else 0f)
+
     fun reduce(action: ReaderAction): ReaderState {
         if (action == ReaderAction.OpenTools) return copy(mode = ReaderMode.Tools, timelinePage = null)
         if (mode == ReaderMode.Timeline) {
@@ -58,7 +62,7 @@ data class ReaderState(
             ReaderAction.Left, ReaderAction.Right -> {
                 val delta = (if (action == ReaderAction.Right) 1 else -1) * (if (rtl) -1 else 1)
                 val next = (page + delta).coerceIn(0, (pageCount - 1).coerceAtLeast(0))
-                if (next == page) this else copy(page = next, zoom = 1f, panX = 0f, panY = 0f)
+                turnPage(next)
             }
             ReaderAction.Up -> copy(zoom = (zoom + .25f).coerceAtMost(3f))
             ReaderAction.Down -> copy(zoom = (zoom - .25f).coerceAtLeast(1f), panX = 0f, panY = 0f)

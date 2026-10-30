@@ -19,8 +19,9 @@ internal class BrowserDownloadsViewModel(context: Context, private val library: 
     private val blobPages = LinkedHashMap<String, java.lang.ref.WeakReference<android.webkit.WebView>>()
     fun registerBlob(offer: BrowserDownloadOffer) {
         if (browserBlobOrigin(offer.request.url) == browserPageOrigin(offer.webView.url)) {
-            blobPages[offer.request.url] = java.lang.ref.WeakReference(offer.webView)
-            while (blobPages.size > 4) blobPages.remove(blobPages.keys.first())
+            val key = offer.request.blobKey ?: offer.request.url
+            blobPages[key] = java.lang.ref.WeakReference(offer.webView)
+            while (blobPages.size > 12) blobPages.remove(blobPages.keys.first())
         }
     }
     private fun restore(): List<BrowserDownloadItem> = runCatching {
@@ -33,8 +34,16 @@ internal class BrowserDownloadsViewModel(context: Context, private val library: 
             row.copy(status = BrowserDownloadStatus.Failed, error = "Link temporário encerrado. Reabra o download na página de origem.") else row
     },
         transfer = { request, target, progress, headers -> if (request.url.startsWith("blob:")) {
-            val page = blobPages[request.url]?.get() ?: throw java.io.IOException("Reabra o arquivo temporário na página de origem.")
-            BrowserBlobTransfer.transfer(page, request, target, progress, headers)
+            val key = request.blobKey ?: request.url
+            val page = blobPages[key]?.get() ?: throw java.io.IOException("Reabra o arquivo temporário na página de origem.")
+            try {
+                val result = BrowserBlobTransfer.transfer(page, request, target, progress, headers)
+                withContext(NonCancellable + Dispatchers.Main.immediate) { BrowserBlobPage.release(page, request.blobKey); blobPages.remove(key) }
+                result
+            } catch (error: Exception) {
+                withContext(NonCancellable + Dispatchers.Main.immediate) { BrowserBlobPage.park(page, request.blobKey) }
+                throw error
+            }
         } else withContext(Dispatchers.IO) {
             val engine = BrowserDownloader(); downloader = engine; val job = currentCoroutineContext()
             try { engine.transfer(request, target, { CookieManager.getInstance().getCookie(it) }, { job.ensureActive() }, progress, headers) }
@@ -47,6 +56,13 @@ internal class BrowserDownloadsViewModel(context: Context, private val library: 
             catch (_: Exception) { stream?.let(records::failWrite) }
         } })
     val items = manager.items
+    private fun releaseBlob(id: String) {
+        val row = items.value.firstOrNull { it.id == id } ?: return
+        val key = row.blobKey ?: row.url
+        blobPages.remove(key)?.get()?.let { BrowserBlobPage.release(it, row.blobKey) }
+    }
+    fun cancel(id: String) { manager.cancel(id); releaseBlob(id) }
+    fun remove(id: String) { releaseBlob(id); manager.remove(id) }
     fun setForeground(value: Boolean) { manager.setForeground(value); if (!value) importJob?.cancel() }
     fun import(id: String) {
         if (importJob?.isActive == true) return

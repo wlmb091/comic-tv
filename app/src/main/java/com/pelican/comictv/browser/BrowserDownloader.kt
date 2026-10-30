@@ -43,7 +43,8 @@ internal object BrowserPolicy {
 }
 
 internal data class BrowserDownloadRequest(val url: String, val suggestedName: String, val userAgent: String,
-    val referer: String? = null, val validator: String? = null, val maximumBytes: Long = BrowserPolicy.MAX_BYTES)
+    val referer: String? = null, val validator: String? = null, val maximumBytes: Long = BrowserPolicy.MAX_BYTES,
+    val blobKey: String? = null)
 internal data class BrowserTransferResult(val filename: String, val totalBytes: Long, val validator: String?, val mime: String?)
 
 internal object BrowserDownloadNames {

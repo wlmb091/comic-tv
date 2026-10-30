@@ -26,6 +26,7 @@ internal class BrowserWebViews(private val context: Context, private val session
     private val agents = mutableMapOf<String, String>()
     val progress = mutableMapOf<String, Int>()
     private var foreground = true
+    private var inputEnabled = false
     private var fullCallback: WebChromeClient.CustomViewCallback? = null
     fun current(): RemoteBrowserWebView? = views[session.state.value.selectedId]
     fun obtain(tab: BrowserTab, load: Boolean = true): RemoteBrowserWebView {
@@ -42,6 +43,7 @@ internal class BrowserWebViews(private val context: Context, private val session
             if (Build.VERSION.SDK_INT >= 26) safeBrowsingEnabled = true
         }
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false)
+        applyInput(web)
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
@@ -95,7 +97,12 @@ internal class BrowserWebViews(private val context: Context, private val session
             if (foreground) try {
                 if (url.startsWith("blob:")) require(browserBlobOrigin(url) == browserPageOrigin(web.url)) else BrowserPolicy.url(url)
                 val name = BrowserDownloadNames.safe(URLUtil.guessFileName(url, disposition, mime))
-                download(BrowserDownloadOffer(BrowserDownloadRequest(url, name, agent ?: web.settings.userAgentString, web.url), mime, web))
+                val request = BrowserDownloadRequest(url, name, agent ?: web.settings.userAgentString, web.url)
+                if (url.startsWith("blob:")) BrowserBlobPage.prepare(web, request) { prepared ->
+                    if (prepared == null) message("Não foi possível preparar o arquivo temporário. Reabra o download no site.")
+                    else if (!foreground || web !in views.values) BrowserBlobPage.release(web, prepared.blobKey)
+                    else download(BrowserDownloadOffer(prepared, mime, web))
+                } else download(BrowserDownloadOffer(request, mime, web))
             } catch (_: Exception) { message("Não foi possível iniciar este download. Abra o link direto do arquivo na página.") }
         }
         applyOptions(tab.id, web)
@@ -137,6 +144,18 @@ internal class BrowserWebViews(private val context: Context, private val session
         }
     }
     private fun destroyTab(id: String) { views.remove(id)?.apply { releasePointer(); stopLoading(); (parent as? ViewGroup)?.removeView(this); destroy() }; agents.remove(id); progress.remove(id) }
+    private fun applyInput(web: RemoteBrowserWebView) {
+        if (!inputEnabled) { web.releasePointer(); if (web.hasFocus()) web.clearFocus() }
+        web.descendantFocusability = if (inputEnabled) ViewGroup.FOCUS_AFTER_DESCENDANTS else ViewGroup.FOCUS_BLOCK_DESCENDANTS
+        web.isFocusableInTouchMode = inputEnabled
+        web.isFocusable = inputEnabled
+    }
+    /** Overlays keep the site alive for transfers, but native WebView must not take their D-pad focus. */
+    fun inputEnabled(value: Boolean) {
+        if (inputEnabled == value) return
+        inputEnabled = value
+        views.values.forEach(::applyInput)
+    }
     fun hideFullscreen() { val callback = fullCallback; fullCallback = null; fullscreen(null, null); callback?.onCustomViewHidden() }
     fun foreground(value: Boolean) {
         foreground = value
