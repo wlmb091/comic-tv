@@ -119,7 +119,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     var editionPreview by remember { mutableStateOf<File?>(null) }
     val sourcesOwner = checkNotNull(LocalViewModelStoreOwner.current)
     val sourcesFactory = remember(container) { viewModelFactory {
-        initializer {SourcesViewModel(container.sourcePreferences,container.mihon,container.extensionInstaller,container.online)}
+        initializer {SourcesViewModel(container.sourcePreferences,container.mihon,container.extensionInstaller,container.online, File(updateContext.cacheDir, "search-covers"))}
     } }
     val sourcesProvider = remember(sourcesOwner,sourcesFactory) {androidx.lifecycle.ViewModelProvider(sourcesOwner,sourcesFactory)}
     // One activity-scoped launcher survives section changes; source VM is still created lazily.
@@ -157,6 +157,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 onOnline = { hit -> globalSearchHit = hit; sources.showGlobalSearchDetails(hit.source, hit.title); nav.navigate("global-search-details") },
                 onExtensions = { nav.navigate("extensions") }, onBack = { nav.popBackStack() },
                 onBrowserOpen = { nav.navigate("browser") },
+                onBrowserUrl = { url -> nav.navigate("browser?url=" + android.net.Uri.encode(url)) },
                 extraResults = { query -> com.pelican.comictv.metadata.MetadataEntry(query) { title -> nav.navigate("work-metadata?title=" + android.net.Uri.encode(title)) } })
         }
         composable("work-metadata?title={title}", arguments = listOf(navArgument("title") { type = NavType.StringType; defaultValue = "" })) { entry ->
@@ -233,8 +234,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     onCancelImport = library::cancelImport, onBrowser = { nav.navigate("browser") })
             }
         }
-        composable("browser") {
-            com.pelican.comictv.browser.BrowserScreen(container.library, onBack = { nav.popBackStack() },
+        composable("browser?url={url}", arguments = listOf(navArgument("url") { type = NavType.StringType; defaultValue = "" })) { entry ->
+            com.pelican.comictv.browser.BrowserScreen(container.library, initialUrl = entry.arguments?.getString("url").orEmpty(), onBack = { nav.popBackStack() },
                 onRead = { nav.navigate("reader/$it") }, onDetails = { nav.navigate("details/$it") })
         }
         composable("local-transfer") {

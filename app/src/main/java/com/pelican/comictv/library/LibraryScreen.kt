@@ -138,6 +138,7 @@ import kotlinx.coroutines.launch
         catch (_: Exception) { sagaError = "Não foi possível carregar as sagas. As edições continuam disponíveis."; sagasLoaded = true }
     }
     var activeSagaKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val sagaEditionsGrid = rememberLazyGridState()
     var sagaEditionFocus by rememberSaveable { mutableStateOf<String?>(null) }
     var sagaOriginId by rememberSaveable { mutableStateOf<String?>(null) }
     val sagaByRepresentative = remember(sagaGroups) { sagaGroups.associateBy { it.representative.id } }
@@ -351,7 +352,7 @@ import kotlinx.coroutines.launch
             } })
     }
     val activeSaga = sagaGroups.firstOrNull { it.key == activeSagaKey }
-    if (activeSaga != null && optionsFor == null) SagaEditionsDialog(activeSaga, repository, sagaEditionFocus,
+    if (activeSaga != null && optionsFor == null) SagaEditionsDialog(activeSaga, repository, sagaEditionFocus, grid = sagaEditionsGrid,
         onFocus = { sagaEditionFocus = it }, onOpen = onOpen,
         onOptions = { optionsRecent = false; optionsCollection = false; optionsFor = it },
         onDismiss = {

@@ -8,6 +8,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.pelican.comictv.ui.*
 import androidx.tv.material3.Text
 import kotlinx.coroutines.CancellationException
@@ -45,8 +55,7 @@ import kotlinx.coroutines.launch
 
 @Composable internal fun SagaEditionsDialog(group: SagaGroup, repository: LibraryRepository,
     focusedId: String?, onFocus: (String) -> Unit, onOpen: (String) -> Unit,
-    onOptions: (ComicEntity) -> Unit, onDismiss: () -> Unit) {
-    val first = remember(group.key) { FocusRequester() }
+    onOptions: (ComicEntity) -> Unit, onDismiss: () -> Unit, grid: LazyGridState) {
     var covers by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -68,45 +77,48 @@ import kotlinx.coroutines.launch
         }
     }
     LaunchedEffect(pickerReturn) {
-        if (pickerReturn > 0) { withFrameNanos { }; chooseFocus.requestFocus() }
+        if (pickerReturn > 0) { grid.scrollToItem(0); withFrameNanos { }; chooseFocus.requestFocus() }
     }
-    LibraryDialog(if (covers) "Capa principal · ${group.title}" else group.title, { if (!busy) onDismiss() }) {
-        Text("Capa própria da saga: JPEG, PNG ou WebP estático, até 20 MiB. O arquivo é copiado sem alterar as edições.", color = TvColors.Muted)
-        TvButton("Escolher imagem da saga", {
-            try { pendingGroup = group.key; picker.launch(arrayOf("image/jpeg", "image/png", "image/webp")) }
-            catch (_: ActivityNotFoundException) { pendingGroup = null; error = "Esta TV não oferece seletor de imagens." }
-        }, Modifier.focusRequester(chooseFocus), enabled = !busy)
-
-        Text(if (covers) "A capa escolhida permanece fixa ao continuar outras edições." else "${group.editions.size} edições na sua biblioteca", color = TvColors.Muted)
-        group.editions.forEach { edition ->
-            val focus = if (edition.id == (focusedId?.takeIf { id -> group.editions.any { it.id == id } }
-                    ?: group.editions.first().id)) Modifier.focusRequester(first) else Modifier
-            TvButton((if (covers) "Usar capa · " else "") + edition.title +
-                (if (!covers && edition.lastRead > 0) " · ${readingStatus(edition)}" else ""), {
-                if (covers) {
-                    if (!busy) scope.launch {
-                        busy = true
-                        try { repository.chooseSagaCover(group, edition.id); covers = false }
-                        catch (e: CancellationException) { throw e }
-                        catch (_: Exception) { error = "Não foi possível salvar a capa." }
-                        finally { busy = false }
-                    }
-                } else { onFocus(edition.id); onOpen(edition.id) }
-            }, focus.then(if (covers) Modifier else libraryCardKeys({ onFocus(edition.id); onOpen(edition.id) },
-                { onFocus(edition.id); onOptions(edition) })), enabled = !busy)
+    fun back() { if (!busy) { if (covers) covers = false else onDismiss() } }
+    fun selectCover(id: String?) {
+        if (busy) return
+        scope.launch {
+            busy = true; error = null
+            try { repository.chooseSagaCover(group, id); covers = false }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { error = "Não foi possível salvar a capa." }
+            finally { busy = false }
         }
-        error?.let { Text(it, color = TvColors.Amber) }
-        if (!covers) TvButton("Usar capa de uma edição", { covers = true }, enabled = !busy)
-        else TvButton("Usar capa original da saga", {
-            if (!busy) scope.launch {
-                busy = true
-                try { repository.chooseSagaCover(group, null); covers = false }
-                catch (e: CancellationException) { throw e }
-                catch (_: Exception) { error = "Não foi possível salvar a capa." }
-                finally { busy = false }
-            }
-        }, enabled = !busy)
-        TvButton(if (covers) "Voltar às edições" else "Voltar à coleção", { if (covers) covers = false else onDismiss() }, enabled = !busy)
     }
-    LaunchedEffect(group.key, covers) { first.requestFocus() }
+    Dialog(onDismissRequest = ::back, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
+        Box(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 24.dp, vertical = 18.dp)) {
+            SagaEditionsPage(group.key, group.editions, grid, focusedId, chooseFocus, covers,
+                coverModel = { repository.cover(it) }, onFocus = onFocus,
+                onOpen = { edition -> if (!busy) { onFocus(edition.id); if (covers) selectCover(edition.id) else onOpen(edition.id) } },
+                onOptions = { edition -> if (!busy) { onFocus(edition.id); onOptions(edition) } }) { focusEditions ->
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(if (covers) "Escolher capa · ${group.title}" else group.title, color = androidx.compose.ui.graphics.Color.White, fontSize = 24.sp)
+                    Text(if (covers) "Escolha uma miniatura para usar como capa da saga. As edições permanecem intactas."
+                        else "${group.editions.size} edições · OK abre a edição · Segure OK para opções", color = TvColors.Muted, fontSize = 15.sp)
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(8.dp)
+                        .onPreviewKeyEvent { event ->
+                            if (event.key == Key.DirectionDown) {
+                                if (event.type == KeyEventType.KeyDown) focusEditions()
+                                true
+                            } else false
+                        }, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        TvButton("Escolher imagem", {
+                            if (!busy) try { pendingGroup = group.key; picker.launch(arrayOf("image/jpeg", "image/png", "image/webp")) }
+                            catch (_: ActivityNotFoundException) { pendingGroup = null; error = "Esta TV não oferece seletor de imagens." }
+                        }, Modifier.focusRequester(chooseFocus))
+                        if (!covers) TvButton("Usar capa de edição", { if (!busy) covers = true })
+                        else TvButton("Capa original da saga", { selectCover(null) })
+                        TvButton(if (covers) "Voltar às edições" else "Voltar à coleção", ::back)
+                    }
+                    if (busy) Text("Salvando capa…", color = TvColors.Muted, fontSize = 14.sp)
+                    error?.let { Text(it, color = TvColors.Amber, fontSize = 15.sp) }
+                }
+            }
+        }
+    }
 }

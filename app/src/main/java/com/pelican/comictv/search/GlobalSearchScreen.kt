@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -39,8 +40,6 @@ import com.pelican.comictv.library.libraryCardKeys
 import com.pelican.comictv.sources.*
 import com.pelican.comictv.ui.*
 import kotlinx.coroutines.*
-import java.io.File
-import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
@@ -50,10 +49,12 @@ internal class GlobalSearchSession : ViewModel() {
     val batch = mutableStateOf(SearchBatch())
     var requestKey: String? = null
     private var request: Job? = null
+    val coverAttempt = mutableLongStateOf(0)
     fun search(key: String, sources: List<SourceHandle>, query: String, latest: Boolean, runner: GlobalSearch) {
         if (requestKey == key) return
         request?.cancel()
         requestKey = key
+        coverAttempt.longValue++
         batch.value = SearchBatch(total = sources.size, running = sources.isNotEmpty())
         request = viewModelScope.launch {
             delay(400)
@@ -68,8 +69,9 @@ internal class GlobalSearchSession : ViewModel() {
 @Composable fun GlobalSearchScreen(comics: List<ComicEntity>, offlineIds: Set<String>, sources: SourcesViewModel,
     onLocal: (String) -> Unit, onOnline: (SearchHit) -> Unit, onExtensions: () -> Unit,
     onBack: () -> Unit, onBrowserOpen: (() -> Unit)? = null, localCover: (String) -> Any? = { null },
-    extraResults: @Composable (String) -> Unit = {}) {
+    extraResults: @Composable (String) -> Unit = {}, onBrowserUrl: ((String) -> Unit)? = null) {
     val sourceState by sources.state.collectAsStateWithLifecycle()
+    val searchLifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     var query by rememberSaveable { mutableStateOf("") }
     var categoryName by rememberSaveable { mutableStateOf(SearchCategory.ALL.name) }
     val category = SearchCategory.valueOf(categoryName)
@@ -81,6 +83,7 @@ internal class GlobalSearchSession : ViewModel() {
     var restoredFocus by remember { mutableStateOf(false) }
     val queryFocus = remember { FocusRequester() }
     val list = rememberLazyGridState()
+    val visibleCoverKeys by remember(list) { derivedStateOf { list.layoutInfo.visibleItemsInfo.map { it.key }.toSet() } }
     var optionsKey by remember { mutableStateOf<String?>(null) }
     var optionsTitle by remember { mutableStateOf("") }
     var pendingClassification by remember { mutableStateOf<Pair<String, SearchCategory>?>(null) }
@@ -146,7 +149,7 @@ internal class GlobalSearchSession : ViewModel() {
             scale = CardDefaults.scale(focusedScale = 1.03f)) {
             Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Background), contentAlignment = Alignment.Center) {
                 if (!TvColors.options.highContrast) {
-                    if (hit != null) SearchSourceCover(hit, sources)
+                    if (hit != null) SearchSourceCover(hit, sources, hit.identity in visibleCoverKeys && searchLifecycleState.isAtLeast(Lifecycle.State.STARTED), session.coverAttempt.longValue)
                     else AsyncImage(cover, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                 }
                 else Text("HQ", fontSize = 30.sp)
@@ -189,6 +192,11 @@ internal class GlobalSearchSession : ViewModel() {
                 FocusButton("latest", "Novidades", { query = ""; latest = true; browseRequested = true })
                 FocusButton("retry", "Buscar novamente", { retry++ })
             } }
+            onBrowserUrl?.let { open ->
+                item("website-search", span = { GridItemSpan(maxLineSpan) }) {
+                    com.pelican.comictv.browser.BrowserSiteSearch(query, retry, open) { lastFocus = "web" }
+                }
+            }
             item("local-heading", span = { GridItemSpan(maxLineSpan) }) { Text("Na biblioteca · ${local.size}", fontSize = 22.sp) }
             items(local.filter { visible("local:${it.id}") }, key = { "local:${it.id}" }) { comic ->
                 SearchCard("local:${comic.id}", comic.title, "Na biblioteca",
@@ -258,17 +266,23 @@ internal class GlobalSearchSession : ViewModel() {
     }
 }
 
-/** Fetch visible covers through the extension client (headers/cookies), never the generic image client. */
-@Composable private fun SearchSourceCover(hit: SearchHit, sources: SourcesViewModel) {
-    val directory = File(LocalContext.current.cacheDir, "search-covers")
-    var failed by remember(hit.identity, hit.title.coverUrl) { mutableStateOf(false) }
-    val file by produceState<File?>(null, hit.identity, hit.title.coverUrl) {
-        failed = false
-        try { value = sources.globalSearchCover(hit, directory); failed = value == null }
+/** Only items actually inside the viewport start network work; lazy prefetch does not. */
+@Composable private fun SearchSourceCover(hit: SearchHit, sources: SourcesViewModel, active: Boolean, attempt: Long) {
+    var decodeFailed by remember(hit.identity, attempt) { mutableStateOf(false) }
+    val result by produceState<SearchCoverResult?>(null, hit.identity, hit.title.coverUrl, active, attempt) {
+        if (!active) return@produceState
+        value = null; decodeFailed = false
+        try { value = sources.globalSearchCover(hit, attempt) }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { failed = true }
+        catch (_: Exception) { value = SearchCoverResult.Failed(SearchCoverFailure.Network) }
     }
-    if (file != null) AsyncImage(file, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
-        onError = { failed = true })
-    if (file == null || failed) Text(if (failed) "Capa indisponível" else "Carregando capa…", fontSize = 13.sp)
+    val loaded = result as? SearchCoverResult.Ready
+    if (loaded != null && !decodeFailed) AsyncImage(loaded.file, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
+        onError = { decodeFailed = true })
+    if (loaded == null || decodeFailed) Text(when {
+        decodeFailed -> "Não foi possível exibir a capa"
+        result is SearchCoverResult.Failed -> (result as SearchCoverResult.Failed).reason.label
+        !active -> "Preparando capa…"
+        else -> "Carregando capa…"
+    }, fontSize = 13.sp)
 }

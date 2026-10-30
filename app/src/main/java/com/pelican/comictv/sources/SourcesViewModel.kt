@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.pelican.comictv.mihon.MihonEngine
+import com.pelican.comictv.search.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.io.File
@@ -12,6 +13,7 @@ import com.pelican.comictv.performance.LoadStage
 
 class SourcesViewModel(private val preferences: SourcePreferences, private val engine: MihonEngine,
     private val installer: ExtensionInstaller, private val online: OnlineReaderRepository,
+    private val searchCoverDirectory: File,
     private val client: MihonRepoClient = MihonRepoClient()) : ViewModel() {
     private val _state = MutableStateFlow(SourcesState(repositories = preferences.repositories()))
     val state = _state.asStateFlow()
@@ -35,46 +37,59 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         currentCoroutineContext().ensureActive(); requireSearchSource(source)
         return result.titles.take(12)
     }
-    private val searchCoverPermits = kotlinx.coroutines.sync.Semaphore(3)
-    suspend fun globalSearchCover(hit: com.pelican.comictv.search.SearchHit, directory: File): File? =
-        withContext(Dispatchers.IO) {
-            requireSearchSource(hit.source)
-            val identity = "${hit.source.packageName}:${hit.source.id}:${hit.title.key}:${hit.title.coverUrl.orEmpty()}"
-            val key = java.security.MessageDigest.getInstance("SHA-256").digest(identity.toByteArray())
-                .joinToString("") { "%02x".format(it) }
-            directory.mkdirs()
-            val target = File(directory, "$key.img")
-            if (target.isFile && target.length() > 0) { target.setLastModified(System.currentTimeMillis()); return@withContext target }
-            searchCoverPermits.acquire()
+    private val searchCovers = SearchCoverLoader(
+        resolve = { source, title ->
+            requireSearchSource(source)
+            engine.titlePreview(source, title).coverUrl.also { currentCoroutineContext().ensureActive(); requireSearchSource(source) }
+        },
+        cached = { key ->
+            withContext(Dispatchers.IO) {
+                File(searchCoverDirectory, "$key.img").takeIf { it.isFile && it.length() > 0 }
+                    ?.also { it.setLastModified(System.currentTimeMillis()) }
+            }
+        },
+        fetch = { source, key, url -> withContext(Dispatchers.IO) {
+            requireSearchSource(source)
+            searchCoverDirectory.mkdirs()
+            check(searchCoverDirectory.usableSpace > 64L * 1024 * 1024) { "Espaço insuficiente para capas." }
+            val target = File(searchCoverDirectory, "$key.img")
+            val temporary = File.createTempFile("cover-", ".part", searchCoverDirectory)
             try {
-                withTimeout(15_000) {
-                    requireSearchSource(hit.source)
-                    if (target.isFile && target.length() > 0) return@withTimeout target
-                    check(directory.usableSpace > 64L * 1024 * 1024) { "Espaço insuficiente para capas." }
-                    val temporary = File.createTempFile("cover-", ".part", directory)
-                    try {
-                        val url = normalizeTitleCoverUrl(hit.title.coverUrl)
-                            ?: normalizeTitleCoverUrl(withTimeout(8_000) { engine.titlePreview(hit.source, hit.title) }.coverUrl)
-                            ?: return@withTimeout null
-                        requireSearchSource(hit.source)
-                        engine.downloadCover(hit.source, url, temporary, 4L * 1024 * 1024)
-                        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        android.graphics.BitmapFactory.decodeFile(temporary.path, bounds)
-                        check(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth.toLong() * bounds.outHeight <= 48_000_000)
-                        currentCoroutineContext().ensureActive(); requireSearchSource(hit.source)
-                        check(temporary.renameTo(target))
-                        synchronized(searchCoverPermits) {
-                            var total = directory.listFiles()?.sumOf { it.length() } ?: 0L
-                            directory.listFiles()?.filter { it.extension == "img" && it != target }
-                                ?.sortedBy { it.lastModified() }?.forEach {
-                                    if (total > 48L * 1024 * 1024) { val bytes = it.length(); if (it.delete()) total -= bytes }
-                                }
+                engine.downloadCover(source, url, temporary, 4L * 1024 * 1024)
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(temporary.path, bounds)
+                check(bounds.outWidth > 0 && bounds.outHeight > 0 && bounds.outWidth.toLong() * bounds.outHeight <= 48_000_000)
+                currentCoroutineContext().ensureActive(); requireSearchSource(source)
+                check(temporary.renameTo(target))
+                synchronized(searchCoverDirectory) {
+                    var total = searchCoverDirectory.listFiles()?.sumOf { it.length() } ?: 0L
+                    searchCoverDirectory.listFiles()?.filter { it.extension == "img" && it != target }
+                        ?.sortedBy { it.lastModified() }?.forEach {
+                            if (total > 48L * 1024 * 1024) { val bytes = it.length(); if (it.delete()) total -= bytes }
                         }
-                        target
-                    } finally { temporary.delete() }
                 }
-            } finally { searchCoverPermits.release() }
+                target
+            } finally { temporary.delete() }
+        } },
+    )
+    internal suspend fun globalSearchCover(hit: SearchHit, attempt: Long): SearchCoverResult {
+        requireSearchSource(hit.source)
+        // Reuse already validated 1.4.1 cache entries; do not download them again after updating.
+        withContext(Dispatchers.IO) {
+            val target = File(searchCoverDirectory, "${searchCoverKey(hit.source, hit.title.key)}.img")
+            if (!target.exists()) {
+                val oldIdentity = "${hit.source.packageName}:${hit.source.id}:${hit.title.key}:${hit.title.coverUrl.orEmpty()}"
+                val oldKey = java.security.MessageDigest.getInstance("SHA-256").digest(oldIdentity.toByteArray()).joinToString("") { "%02x".format(it) }
+                val old = File(searchCoverDirectory, "$oldKey.img")
+                if (old.isFile && old.length() > 0) old.renameTo(target)
+            }
         }
+        val started = System.nanoTime()
+        val result = searchCovers.load(hit.source, hit.title, attempt)
+        currentCoroutineContext().ensureActive(); requireSearchSource(hit.source)
+        if (result is SearchCoverResult.Failed) Log.d("ComicTV-Covers", "${hit.source.packageName}: ${result.reason}, ${(System.nanoTime() - started) / 1_000_000}ms")
+        return result
+    }
 
     suspend fun globalSearchLibraryLinks(ids: List<String>) = online.globalSearchLibraryLinks(ids)
 
@@ -86,6 +101,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         _state.update { it.copy(activeSource = source, managerPage = null, selectedRepository = null,
             details = null, titles = emptyList(), catalogLoaded = false) }
         val details = sourceRequest(SourceRequest.Details) { engine.details(source, title) }
+        searchCovers.remember(source, listOf(details.title))
         currentCoroutineContext().ensureActive(); requireSearchSource(source)
         _state.update { it.copy(details = details) }
     }
@@ -135,7 +151,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     private var sourceGeneration = 0L
     private val snapshots = CatalogSnapshots()
     private suspend fun fetchCatalog(query: CatalogSearchQuery, page: Int = 1) =
-        AppTimings.measure(LoadStage.Catalog) { sourceRequest(SourceRequest.Catalog) { engine.catalog(query.source, query.text, query.latest, page) } }
+        AppTimings.measure(LoadStage.Catalog) { sourceRequest(SourceRequest.Catalog) { engine.catalog(query.source, query.text, query.latest, page) } }.also { searchCovers.remember(query.source, it.titles) }
     private val previews = TitlePreviewResolver { source, title ->
         AppTimings.measure(LoadStage.CoverMetadata) { sourceRequest(SourceRequest.Preview) { engine.titlePreview(source, title) } }
     }
@@ -239,6 +255,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         try {
             snapshots.clear() // A package/version/trust refresh invalidates every retained catalog.
             previews.clear()
+            searchCovers.clear()
             val records = preferences.repositories()
             val installed = withContext(Dispatchers.IO) { engine.installed() }
             val sources = ArrayList<SourceHandle>()
@@ -347,6 +364,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         val generation = sourceGeneration
         try {
             val preview = previews.resolve(source, title)
+            searchCovers.remember(source, listOf(preview))
             currentCoroutineContext().ensureActive()
             _state.update { old ->
                 if (generation != sourceGeneration || old.activeSource != source || old.titles.none { it.key == title.key && it.coverUrl.isNullOrBlank() }) old else {
@@ -448,6 +466,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
     fun showDetails(title: OnlineTitle) = task {
         val source = _state.value.activeSource ?: error("Escolha uma fonte.")
         val details = sourceRequest(SourceRequest.Details) { engine.details(source, title) }
+        searchCovers.remember(source, listOf(details.title))
         currentCoroutineContext().ensureActive()
         _state.update { it.copy(details = details) }
     }
