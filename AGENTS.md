@@ -1,5 +1,7 @@
 # Comic TV — decisões persistentes do usuário
 
+- 1.4.3 PUBLICADA30/10/2026 às02:13:13BRT/code77;fonteada785457c664a28e1e0f3ba30dc988a9f64b520,CI41005856332/41007162436aprovados,Gradle12m37.48sites(Home12/Vermais),MEGA/Blob,Downloads foco,Readerdecodificação+zoom/topo. Manifestoversionado/asset/logassinadorcoincidem23.952.301bytes/SHA25651cdb9abe5e377bb6946e2fee8e311836a4ec3af49a32751ad00366368b261fe;latest1.4.3,assinaturahistórica/ABI/alinhamentoCIpúblico.80testeslocais+8Node,semBoxnemganhomedido. Registrodocs/validation/1.4.3.md. PacoteENCERRADO;aguardar novasobservações.
+
 - 30/10/2026: usuário encerrou lote e AUTORIZOU gerar/publicar1.4.3/code77 reunindo MEGA/Downloads/leitorzoom+carregamento e sites da planilha pública +6links extras. Substitui holds anteriores. Atalhos compactos/Ver mais, preservar IDs e consultas limitadas/dados/USB/assinatura. Não inferir execuçãoBox nem disponibilidade de todos os sites.
 
 - 30/10/2026 / tarefaZoom concluída APÓS otimizaçãocarregamento: virarpáginanaleituramantémzoom e,se>100%,abrenotopo(panY=-1),xcentral;LTR/RTL,0°/90°,Normal/Galeria/Livro(pares). Limitesnãomudamviewport;100%enquadramentonormal. Pan/D-pad/timelineescolha/narração/aberturanovaediçãopreservados.24testescore+41Readerapp/0falhas,Androidcompilado;lintcarregamento0erros70avisos;guardaframe2048px/2MP/RAMsemreduziramostragem. Documentos2026-10-30-reader-keep-zoom.md e-reader-image-loading.md. SemvalidaçãofísicaouganhomedidoBox. PacoteMEGA+Downloads+reader permaneceABERTO,SEMgerarAPK/push/CIatéaviso.

@@ -8,6 +8,8 @@ Architecture: existing BrowserSites catalog, preserve original IDs and search pr
 - [x] Extract/deduplicate spreadsheet URLs; normalize Blogger country domains, retain actual href rather than potentially mistyped label; prefer HTTPS, report failures without replacing domains. Store provenance.
 - [x] BrowserSites.kt + BrowserSiteUi.kt: add links, initial12/Ver mais, compact adaptive cards and icons; preserve existing search functionality and bounded network. Test catalog, URL encoding and provider limits.
 - [x] Run focused JVM/Android compile/lint and JS tests; independent final review; fix blocking findings.
-- [ ] Bump1.4.3/code77, release notes including MEGA, Downloads focus, reader loading/zoom. Commit/push authorized source once. Full checks once in existing CI and verify public APK digest/signature/version before reporting publication.
+- [x] Bump1.4.3/code77, release notes including MEGA, Downloads focus, reader loading/zoom. Commit/push authorized source once. Full checks once in existing CI and verify public APK digest/signature/version before reporting publication.
 
 Review focus: D-pad on expanding grid; no hidden-site selection; HTTP-only legacy links; duplicate/country-domain links; network fanout; preserve previous pending reader/browser work. Physical Box acceptance remains manual.
+
+Completed: sourceada7854, local80JVM+8Nodepass, independentreview noP1/P2, private/public CIpassed;published1.4.3 andmanifest/digestverified.
