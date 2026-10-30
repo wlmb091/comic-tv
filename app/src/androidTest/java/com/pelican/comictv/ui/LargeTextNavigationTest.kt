@@ -51,7 +51,7 @@ class LargeTextNavigationTest {
             }
         }
         compose.onNodeWithTag("nav-settings").assertIsFocused().assertIsDisplayed()
-        val routes = listOf("settings", "import", "extensions", "sources", "recent", "library")
+        val routes = listOf("settings", "companion", "browser", "import", "extensions", "sources", "recent", "library")
         routes.zipWithNext().forEach { (current, previous) ->
             compose.onNodeWithTag("nav-$current").performKeyInput { pressKey(Key.DirectionUp) }
             compose.onNodeWithTag("nav-$previous").assertIsFocused().assertIsDisplayed()

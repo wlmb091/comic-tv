@@ -28,6 +28,24 @@ import kotlin.math.abs
 class ThemeNavigationTest {
     @get:Rule val compose = createComposeRule()
 
+    private fun assertBrowserAndPhoneDestinations(preset:ColorPreset,horizontal:Boolean=false) {
+        var destination=""
+        compose.setContent { ComicTvTheme(AppearanceOptions(preset=preset,textPercent=130,highContrast=true)) {
+            TvShell("companion",{destination=it},focusSectionOnEntry=true,onSearch={}) {
+                TvButton("Conteúdo",{},preferredContentEntryModifier())
+            }
+        } }
+        compose.onNodeWithTag("nav-companion").assertIsFocused().assertIsDisplayed()
+            .performKeyInput { pressKey(if(horizontal)Key.DirectionLeft else Key.DirectionUp) }
+        compose.onNodeWithTag("nav-browser").assertIsFocused().assertIsDisplayed().performClick()
+        compose.runOnIdle { org.junit.Assert.assertEquals("browser",destination) }
+    }
+    @Test fun comicHasSeparateBrowserAndPhoneAt130Percent()=assertBrowserAndPhoneDestinations(ColorPreset.Amber)
+    @Test fun flixHasSeparateBrowserAndPhoneAt130Percent()=assertBrowserAndPhoneDestinations(ColorPreset.Flix)
+    @Test fun primeHasSeparateBrowserAndPhoneAt130Percent()=assertBrowserAndPhoneDestinations(ColorPreset.Prime,true)
+    @Test fun maxHasSeparateBrowserAndPhoneAt130Percent()=assertBrowserAndPhoneDestinations(ColorPreset.Max,true)
+    @Test fun cinemaHasSeparateBrowserAndPhoneAt130Percent()=assertBrowserAndPhoneDestinations(ColorPreset.Cinema)
+
     private fun setShell(preset: ColorPreset, selected: String = "library", highContrast: Boolean = true) {
         compose.setContent { ComicTvTheme(AppearanceOptions(preset = preset, textPercent = 130, highContrast = highContrast)) {
             var pending by remember { mutableStateOf(true) }

@@ -29,7 +29,6 @@ class EpubComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Co
             if (entry.size < 0 || entry.size > limits.maxPageBytes || entry.size > limits.maxTotalBytes - total) fail("O conteúdo do EPUB excede os limites de tamanho.")
             total += entry.size
         }
-        if (zip.getEntry("META-INF/encryption.xml") != null) fail("EPUB com recursos criptografados ou DRM não é suportado.")
         fun markup(path: String): org.jsoup.nodes.Document {
             val bytes = read(zip, path, 2L * 1024 * 1024)
             // Jsoup's XML parser does not fetch DTDs or expand external entities.
@@ -41,6 +40,22 @@ class EpubComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Co
         val opf = resolve("", packagePath)
         val packageDoc = markup(opf)
         val manifest = packageDoc.select("manifest > item").associateBy { it.attr("id") }
+        // Font obfuscation is not DRM. Native reflow uses the reader's fonts, so these
+        // unused font resources need no decoding. Encrypted content remains refused.
+        if (zip.getEntry("META-INF/encryption.xml") != null) {
+            val encrypted = markup("META-INF/encryption.xml").getAllElements().filter { it.normalName().substringAfter(':').equals("EncryptedData", true) }
+            if (encrypted.isEmpty()) fail("O EPUB contém informações de criptografia inválidas.")
+            val fonts = manifest.values.filter {
+                it.attr("media-type") in setOf("application/vnd.ms-opentype", "application/font-sfnt", "application/font-woff", "application/vnd.ms-fontobject", "font/ttf", "font/otf", "font/woff", "font/woff2")
+            }.map { resolve(opf, it.attr("href")) }.toSet()
+            for (resource in encrypted) {
+                val methods = resource.getAllElements().filter { it.normalName().substringAfter(':').equals("EncryptionMethod", true) }
+                val refs = resource.getAllElements().filter { it.normalName().substringAfter(':').equals("CipherReference", true) }
+                if (methods.size != 1 || refs.size != 1 || methods.single().attr("Algorithm") !in setOf("http://www.idpf.org/2008/embedding", "http://ns.adobe.com/pdf/enc#RC") || resolve("", refs.single().attr("URI")) !in fonts) {
+                    fail("Este EPUB usa DRM ou criptografia não suportada. Abra-o no aplicativo autorizado pelo fornecedor.")
+                }
+            }
+        }
         val spine = packageDoc.select("spine > itemref").filter { it.attr("linear") != "no" }
         if (spine.isEmpty()) fail("O EPUB não contém uma sequência de leitura.")
         val parts = ArrayList<Part>()
@@ -52,7 +67,7 @@ class EpubComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Co
             parts.add(part)
         }
         fun image(path: String) {
-            if (path.substringAfterLast('.', "").lowercase() !in setOf("jpg", "jpeg", "png", "webp")) fail("O EPUB usa uma imagem não suportada. Use JPEG, PNG ou WebP.")
+            if (path.substringAfterLast('.', "").lowercase() !in setOf("jpg", "jpeg", "png", "webp", "gif")) fail("O EPUB usa uma imagem não suportada. Use JPEG, PNG, GIF ou WebP.")
             if (zip.getEntry(path) == null) fail("Uma imagem do EPUB não foi encontrada.")
             add(Part(image = path))
         }
@@ -83,7 +98,7 @@ class EpubComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Co
                 if (node is TextNode) { text.append(node.wholeText); return }
                 if (node !is Element) return
                 val tag = node.normalName().substringAfter(':')
-                if (tag in setOf("script", "style", "head", "iframe", "object", "audio", "video") || node.hasAttr("hidden")) return
+                if (tag in setOf("script", "style", "head", "iframe", "object", "audio", "video", "form") || node.hasAttr("hidden")) return
                 if (tag == "img" || tag == "image") {
                     flush()
                     val href = if (tag == "img") node.attr("src") else node.attr("href").ifBlank { node.attr("xlink:href") }
@@ -94,6 +109,7 @@ class EpubComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Co
                 if (block) text.append('\n')
                 node.childNodes().forEach(::visit)
                 if (block) text.append('\n')
+                if (tag == "td" || tag == "th") text.append(" | ")
             }
             visit(body)
             flush()

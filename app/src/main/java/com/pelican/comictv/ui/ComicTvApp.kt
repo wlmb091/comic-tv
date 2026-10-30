@@ -236,13 +236,15 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             }
         }
         composable("import") {
+            val importContext=LocalContext.current.applicationContext
             TvShell("import", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
                 focusContentOnEntry = navigationContentTarget == "import", onSectionFocused = { navigationContentTarget = null }) {
                 ImportScreen(busy, message, onMessage = library::message,
                     onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") { popUpTo("library") } } },
                     onLocalTransfer = { nav.navigate("local-transfer") }, onFtpTransfer = { nav.navigate("ftp-transfer") },
                     onCancelImport = library::cancelImport, onBrowser = { nav.navigate("browser") },
-                    onExplore = { nav.navigate("file-explorer") },onCompanion={nav.navigate("companion")})
+                    onExplore = { nav.navigate("file-explorer") },onCompanion={nav.navigate("companion")},
+                    onImportProtected={uris,password->library.importProtected(importContext,uris,password){id->nav.navigate("details/$id")}})
             }
         }
         composable("companion"){com.pelican.comictv.companion.CompanionScreen(companion){nav.popBackStack()}}
@@ -255,7 +257,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 onImport = { uri -> library.importComic(uri) { id -> nav.navigate("details/$id") } },
                 onRead = { nav.navigate("reader/$it") }, onCancelImport = library::cancelImport,
                 onBack = { nav.popBackStack() },
-                onTools = { uri,name -> nav.navigate("archive-tools?uri=${android.net.Uri.encode(uri.toString())}&name=${android.net.Uri.encode(name)}") })
+                onTools = { uri,name -> nav.navigate("archive-tools?uri=${android.net.Uri.encode(uri.toString())}&name=${android.net.Uri.encode(name)}") },
+                onImportProtected={uris,password->library.importProtected(context,uris,password){id->nav.navigate("details/$id")}})
         }
         composable("archive-tools?uri={uri}&name={name}", arguments=listOf(navArgument("uri"){type=NavType.StringType},navArgument("name"){type=NavType.StringType})) {entry->
             val context=LocalContext.current.applicationContext
@@ -358,6 +361,12 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             val reader: ReaderViewModel = viewModel(factory = viewModelFactory {
                 initializer { ReaderViewModel(if (id.startsWith("online-")) container.onlineReader else container.library, id, createSavedStateHandle(), thumbnailWarm = container::warmReaderThumbnail, imagePreferences = container.readerImages) }
             })
+            DisposableEffect(companion,reader,entry) {
+                fun sync(){if(entry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))companion.attachReader(reader) else companion.detachReader(reader)}
+                val observer=androidx.lifecycle.LifecycleEventObserver{_,_->sync()}
+                entry.lifecycle.addObserver(observer);sync()
+                onDispose{entry.lifecycle.removeObserver(observer);companion.detachReader(reader)}
+            }
             ReaderScreen(reader, onExit = { if (id.startsWith("online-") || nav.previousBackStackEntry?.destination?.route == "details/{id}") nav.popBackStack() else nav.popBackStack("library", false) },
                 onEditions = if (id.startsWith("online-")) ({
                     editionPreview = reader.image.value?.file
@@ -496,10 +505,11 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     val showLibrarySearch = searchAction != null && theme.navigation.searchInNavigation &&
         (policy != ThemeNavigationPolicy.ImmersiveMenu || selected == "library")
     val routes = (if (showLibrarySearch) listOf("search" to "Buscar") else emptyList()) +
-        listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "settings" to "Configurações")
+        listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "browser" to "Navegador", "companion" to "Celular", "settings" to "Configurações")
     val icons = mapOf("library" to R.drawable.nav_library, "recent" to R.drawable.nav_recent,
         "sources" to R.drawable.nav_sources, "extensions" to R.drawable.nav_extensions,
-        "import" to R.drawable.nav_import, "settings" to R.drawable.nav_settings)
+        "import" to R.drawable.nav_import, "browser" to R.drawable.nav_browser,
+        "companion" to R.drawable.nav_companion, "settings" to R.drawable.nav_settings)
     val density = LocalDensity.current
     val fontScale = density.fontScale.coerceAtLeast(1f)
     val immersiveLibrary = policy == ThemeNavigationPolicy.ImmersiveMenu && selected == "library"
@@ -568,16 +578,16 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 focusedContainerColor = if (textOnlyTop) Color.Transparent else if (route == "search" && TvColors.options.preset == ColorPreset.Flix && !TvColors.options.highContrast) TvColors.ButtonSurface else TvColors.Action,
                 focusedContentColor = if (textOnlyTop) Color(0xFF9DE8FF) else if (route == "search" && TvColors.options.preset == ColorPreset.Flix && !TvColors.options.highContrast) Color.White else TvColors.OnAction)) {
             if (policy == ThemeNavigationPolicy.TopBar) {
-                Row(Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                Row(Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (route == "search") NavigationIcon(route, title, Modifier.size(18.dp))
+                    if (route in setOf("search","browser","companion")) NavigationIcon(route, title, Modifier.size(18.dp))
                     Text(title, fontSize = 14.sp, maxLines = 1, softWrap = false)
                 }
             } else if (policy == ThemeNavigationPolicy.BottomDock) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     NavigationIcon(route, title,
-                        Modifier.size(24.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
+                        Modifier.size(22.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
                     Text(title, fontSize = theme.navigation.dockLabelSp.sp, maxLines = 2, softWrap = true,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
@@ -585,7 +595,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.width(if (horizontal) 32.dp else 48.dp).height(36.dp), contentAlignment = Alignment.Center) {
                         NavigationIcon(route, title,
-                            Modifier.size(if (horizontal) 22.dp else 26.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
+                            Modifier.size(if (horizontal) 22.dp else 24.dp).graphicsLayer { scaleX = iconScale; scaleY = iconScale })
                     }
                     if (panelExpanded || horizontal) Text(title, Modifier.weight(1f).padding(start = if (horizontal) 0.dp else 8.dp),
                         fontSize = if (horizontal) 14.sp else 17.sp)
@@ -719,7 +729,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         Column(Modifier.fillMaxSize()
                             .testTag(if (expanded) "sidebar-expanded" else "sidebar-collapsed")
                             .then(navigationModifier).verticalScroll(rememberScrollState()).padding(8.dp),
-                            horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Box((if (expanded) Modifier.fillMaxWidth() else Modifier.width(railWidth - 16.dp))
                                 .heightIn(min = 44.dp), contentAlignment = Alignment.CenterStart) {
                                 if (expanded) ComicWordmark(Modifier.fillMaxWidth().heightIn(min = 44.dp), centered = true)

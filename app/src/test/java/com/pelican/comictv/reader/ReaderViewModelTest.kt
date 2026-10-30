@@ -14,6 +14,25 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReaderViewModelTest {
+    @Test fun companionPanAndZoomNeverTurnPageOrRequirePanMode() = runTest(dispatcher) {
+        val vm=ReaderViewModel(FakeRepository(),"remote-pan",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})
+        advanceUntilIdle();val start=vm.state.value
+        vm.companionZoom(2f);vm.companionPan(.4f,-.3f)
+        assertEquals(start.page,vm.state.value.page);assertEquals(start.mode,vm.state.value.mode)
+        assertEquals(.4f,vm.state.value.panX);assertEquals(-.3f,vm.state.value.panY)
+        vm.companionZoom(1f);assertEquals(0f,vm.state.value.panX);assertEquals(0f,vm.state.value.panY)
+        vm.close{};advanceUntilIdle()
+    }
+    @Test fun companionPagesKeepZoomAndStartAtTopInRtlAndBookLayouts() = runTest(dispatcher) {
+        val repo=FakeRepository().apply{count=8;rtl=true}
+        val vm=ReaderViewModel(repo,"remote-pages",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})
+        advanceUntilIdle();vm.cycleLayout();vm.cycleLayout();vm.companionZoom(2.5f)
+        vm.companionTurn(1);advanceUntilIdle()
+        assertEquals(3,vm.state.value.page);assertEquals(2.5f,vm.state.value.zoom);assertEquals(-1f,vm.state.value.panY);assertTrue(vm.state.value.rtl)
+        vm.companionPage(6);advanceUntilIdle();assertEquals(6,vm.state.value.page);assertTrue(6 in repo.saved)
+        vm.companionPan(50f,-50f);assertEquals(1f,vm.state.value.panX);assertEquals(-1f,vm.state.value.panY)
+        vm.close{};advanceUntilIdle()
+    }
     @Test fun currentThumbnailWarmsBeforeSlowNextPagePrefetch() = runTest(dispatcher) {
         val repo=FakeRepository().apply{count=5}
         val vm=ReaderViewModel(repo,"thumb-priority",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})

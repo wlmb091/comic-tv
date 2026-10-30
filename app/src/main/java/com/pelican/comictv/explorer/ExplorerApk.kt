@@ -12,8 +12,9 @@ import kotlinx.coroutines.runInterruptible
 
 /** A local user-selected APK never enters extension/update trust or the comic importer. */
 internal object ExplorerApk {
-    suspend fun prepare(context: Context, uri: Uri): File = runInterruptible(Dispatchers.IO) {
+    suspend fun prepare(context: Context, uri: Uri, name: String = "selected.apk"): File = runInterruptible(Dispatchers.IO) {
         val directory = File(context.cacheDir, "explorer-installs").apply { mkdirs() }
+        val bundle = name.substringAfterLast('.', "").lowercase() in setOf("xapk", "apkm")
         val target = File(directory, "selected.apk")
         val temporary = File(directory, "selected.part")
         val reserve = 64L * 1024 * 1024
@@ -33,6 +34,11 @@ internal object ExplorerApk {
                     }
                 }
             } ?: error("Não foi possível abrir o APK.")
+            if (bundle) {
+                val splitDirectory = File(directory,"bundle-${java.util.UUID.randomUUID()}").apply { mkdirs() }
+                try { ExplorerSplitApk.prepare(context,temporary,splitDirectory); return@runInterruptible splitDirectory }
+                catch (failure: Exception) { splitDirectory.deleteRecursively(); throw failure }
+            }
             @Suppress("DEPRECATION")
             val info = context.packageManager.getPackageArchiveInfo(temporary.path, 0)
             check(info != null) { "Este arquivo não é um APK Android válido. Pacotes divididos não são suportados." }
@@ -45,7 +51,9 @@ internal object ExplorerApk {
         Uri.parse("package:${context.packageName}"))
     fun install(context: Context, file: File): Intent {
         val root = File(context.cacheDir, "explorer-installs")
-        require(ExplorerFiles.inside(root, file) && file.name == "selected.apk" && file.isFile)
+        require(ExplorerFiles.inside(root, file))
+        if (file.isDirectory && file.name.startsWith("bundle-")) return Intent(context,ExplorerSplitInstallActivity::class.java).putExtra("directory",file.path)
+        require(file.name == "selected.apk" && file.isFile)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.explorer", file)
         @Suppress("DEPRECATION")
         return Intent(Intent.ACTION_INSTALL_PACKAGE).setDataAndType(uri, "application/vnd.android.package-archive")

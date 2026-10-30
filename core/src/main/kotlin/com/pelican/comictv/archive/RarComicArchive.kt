@@ -12,7 +12,7 @@ import java.io.File
 import java.io.IOException
 import java.io.OutputStream
 
-class RarComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : ComicArchiveReader {
+class RarComicArchive(private val limits: ArchiveLimits = ArchiveLimits(), private val password: CharArray? = null) : ComicArchiveReader {
     internal fun collectionEntries(file: File): List<CollectionEntry> = guarded {
         open(file).use { archive -> headers(archive).filterNot { it.isDirectory }
             .map { CollectionEntry(it.fileName, it.fullUnpackSize) } }
@@ -22,11 +22,11 @@ class RarComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Com
         preflightRar(file, limits)
         // File-backed random access, without whole-input caching or neighbour discovery.
         val volumes = VolumeManager { archive, previous -> if (previous == null) FileVolume(archive, file) else null }
-        return Archive(volumes, ArchiveOptions.builder().maxDictionarySize(32L * 1024 * 1024).build())
+        return Archive(volumes, ArchiveOptions.builder().password(password).maxDictionarySize(32L * 1024 * 1024).build())
     }
 
     private fun headers(archive: Archive): List<FileHeader> {
-        if (archive.isPasswordProtected) throw ComicArchiveException("RAR protegido por senha não é suportado.")
+        if (archive.isPasswordProtected && (password == null || password.isEmpty())) throw ComicArchiveException("Informe a senha deste RAR na importação com senha.")
         if (archive.hasBrokenHeaders()) throw ComicArchiveException("O arquivo RAR está corrompido ou incompleto.")
         if (archive.mainHeader?.isMultiVolume == true || archive.headers.filterIsInstance<Rar5MainHeader>().any { it.isVolume || it.isNextVolume })
             throw ComicArchiveException("RAR dividido em partes não é suportado. Envie um arquivo único.")

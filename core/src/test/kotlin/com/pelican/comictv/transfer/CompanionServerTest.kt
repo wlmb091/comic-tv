@@ -8,6 +8,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CompanionServerTest {
+    @Test fun contextualReaderAndPointerCommandsAreBoundedAndMirrorIsAbsent() {
+        val root=Files.createTempDirectory("companion-reader").toFile();val commands=mutableListOf<CompanionCommand>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{\"active\":false}".toByteArray())},command={commands+=it})
+        try {
+            server.open()
+            assertEquals(200,request(server.url+"/reader-state").first)
+            assertEquals(404,request(server.url+"/screen").first)
+            for(body in listOf("""{"action":"reader-pan","x":-0.12,"y":1}""","""{"action":"pointer","dx":-1,"dy":0.5}""","""{"action":"reader-page","page":4999}""","""{"action":"reader-turn","delta":-1}""","""{"action":"reader-zoom","zoom":2.25}"""))assertEquals(body,200,request(server.url+"/command",body).first)
+            assertEquals(5,commands.size)
+            for(body in listOf("""{"action":"reader-pan","x":-1.1}""","""{"action":"pointer","dx":2}""","""{"action":"reader-page","page":-1}""","""{"action":"reader-page","page":5000}""","""{"action":"reader-turn","delta":2}""","""{"action":"reader-zoom","zoom":0.9}""","""{"action":"reader-zoom","zoom":3.1}"""))assertEquals(body,400,request(server.url+"/command",body).first)
+        }finally{server.close();root.deleteRecursively()}
+    }
     private fun request(url:String,body:String?=null,type:String="application/json"):Pair<Int,String> {
         val c=URL(url).openConnection() as HttpURLConnection
         c.connectTimeout=2000;c.readTimeout=5000

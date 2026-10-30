@@ -27,7 +27,8 @@ internal object BrowserBlobFile {
                     val bytes = ByteArray(32); val n = input.read(bytes)
                     n > 0 && String(bytes, 0, n, Charsets.US_ASCII).trim() == "application/epub+zip"
                 } } == true
-                if (epub) "epub" else if (extension == "cbz") "cbz" else "zip"
+                if (zip.getEntry("word/document.xml")!=null && zip.getEntry("[Content_Types].xml")!=null) "docx"
+                else if (epub) "epub" else if (extension == "cbz") "cbz" else "zip"
               }
             }
             ComicContainer.SevenZip -> {
@@ -36,6 +37,7 @@ internal object BrowserBlobFile {
                 if (extension == "cb7") "cb7" else "7z"
             }
             ComicContainer.Pdf -> "pdf"
+            ComicContainer.Mobi -> if(extension=="azw")"azw" else "mobi"
             ComicContainer.Empty, ComicContainer.Incomplete, ComicContainer.Html, ComicContainer.Executable -> throw IOException(ComicContainers.failure(format))
             else -> null
         }

@@ -34,7 +34,8 @@ import kotlinx.coroutines.*
 
 @Composable internal fun ExplorerScreen(model: ExplorerViewModel, busy: Boolean, importMessage: String?,
     titles: Map<String, String>, onImport: (Uri) -> Unit, onRead: (String) -> Unit,
-    onCancelImport: () -> Unit, onBack: () -> Unit, onTools: (Uri,String)->Unit = {_,_->}) {
+    onCancelImport: () -> Unit, onBack: () -> Unit, onTools: (Uri,String)->Unit = {_,_->},
+    onImportProtected: (List<Uri>,CharArray)->Unit = {_,secret->secret.fill('\u0000')}) {
     val state by model.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -47,9 +48,9 @@ import kotlinx.coroutines.*
     var preparing by remember { mutableStateOf(false) }
     var preparation by remember { mutableStateOf<Job?>(null) }
     var pendingApk by remember { mutableStateOf<File?>(null) }
-    val installer = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+    val installer = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         pendingApk = null
-        model.message("Instalador encerrado. O Android informa o resultado da instalação.")
+        model.message(result.data?.getStringExtra("message") ?: "Instalador encerrado. O Android informa o resultado da instalação.")
         model.restoreFocus()
     }
     fun launchInstaller(file: File) {
@@ -72,7 +73,7 @@ import kotlinx.coroutines.*
         val name = titles[entry.comicId] ?: entry.name
         (entry.directory || when (filter) {
             "Quadrinhos" -> entry.name.substringAfterLast('.').lowercase() in setOf("cbz", "zip", "cbr", "rar", "7z", "cb7")
-            "Livros" -> entry.name.substringAfterLast('.').lowercase() in setOf("pdf", "epub")
+            "Livros" -> entry.name.substringAfterLast('.').lowercase() in setOf("pdf", "epub", "docx", "mobi", "azw")
             "APK" -> ExplorerFiles.kind(entry.name) == ExplorerFileKind.Install
             else -> true
         }) && name.contains(query, ignoreCase = true)
@@ -116,6 +117,7 @@ import kotlinx.coroutines.*
                         try { folderPicker.launch(null) }
                         catch (_: ActivityNotFoundException) { model.message("Esta TV não tem seletor de pastas. Use Escolher arquivo ou o envio pela rede em Importar.") }
                     })
+                    ProtectedArchiveAction(busy || preparing, model::message, onImportProtected)
                     if (busy) TvButton("Interromper importação", onCancelImport)
                     if (preparing) TvButton("Cancelar preparação do APK", { preparation?.cancel() })
                 }
@@ -141,7 +143,7 @@ import kotlinx.coroutines.*
                 .then(if (row.key == focusKey) Modifier.focusRequester(entryFocus) else Modifier)
             val name = titles[row.comicId] ?: row.name
             val detail = if (row.directory) "Pasta" else when (ExplorerFiles.kind(row.name)) {
-                ExplorerFileKind.Install -> "APK · instalar com confirmação do Android"
+                ExplorerFileKind.Install -> "APK / XAPK / APKM · instalar com confirmação do Android"
                 ExplorerFileKind.Import -> "Leitura · importar ou abrir"
                 ExplorerFileKind.Other -> "Arquivo"
             }
@@ -164,13 +166,13 @@ import kotlinx.coroutines.*
                 val existing = entry.comicId?.takeIf { it in titles }
                 if (existing != null) TvButton("Ler agora", { savePosition(); selected = null; onRead(existing) }, Modifier.focusRequester(actionFocus))
                 else if (ExplorerFiles.kind(entry.name) == ExplorerFileKind.Install) {
-                    Text("O Android pedirá sua confirmação. Instalar este APK não o torna uma fonte confiável do Comic TV.", fontSize = 17.sp)
-                    TvButton("Instalar APK", {
+                    Text("O Android pedirá sua confirmação. XAPK/APKM exigem base e splits com mesma assinatura, pacote e versão; somente ABI compatível. Pacotes com OBB não são suportados. A instalação não torna o aplicativo uma fonte confiável do Comic TV.", fontSize = 17.sp)
+                    TvButton("Instalar pacote Android", {
                         selected = null
                         preparation = scope.launch {
                             preparing = true
                             try {
-                                val file = ExplorerApk.prepare(context, model.storage.uri(entry))
+                                val file = ExplorerApk.prepare(context, model.storage.uri(entry), entry.name)
                                 pendingApk = file
                                 if (context.packageManager.canRequestPackageInstalls()) launchInstaller(file)
                                 else permission.launch(ExplorerApk.permission(context))

@@ -10,7 +10,7 @@ enum class ExplorerFileKind { Import, Install, Other }
 object ExplorerFiles {
     const val MAX_ENTRIES = 2000
     fun kind(name: String): ExplorerFileKind = when (name.substringAfterLast('.', "").lowercase(Locale.ROOT)) {
-        "apk" -> ExplorerFileKind.Install
+        "apk", "xapk", "apkm" -> ExplorerFileKind.Install
         in ComicContainers.extensions -> ExplorerFileKind.Import
         else -> ExplorerFileKind.Other
     }

@@ -1,0 +1,57 @@
+{
+  "environment": "Microsoft Edge headless; fixtures; mobile viewport/touch. No physical Safari or TV test.",
+  "checks": [
+    {
+      "name": "portrait-control",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 844,
+      "navBottom": 844,
+      "controlBottom": 771,
+      "navTop": 781
+    },
+    {
+      "name": "landscape-control",
+      "width": 844,
+      "scrollWidth": 844,
+      "height": 390,
+      "navBottom": 390,
+      "controlBottom": 335,
+      "navTop": 345
+    },
+    {
+      "name": "short-portrait-control",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 600,
+      "navBottom": 390,
+      "controlBottom": 317,
+      "navTop": 327
+    }
+  ],
+  "commands": [
+    {
+      "action": "reader-pan",
+      "x": 0.12,
+      "y": 0
+    },
+    {
+      "action": "reader-pan",
+      "x": 0.12,
+      "y": 0
+    },
+    {
+      "action": "reader-turn",
+      "delta": 1
+    },
+    {
+      "action": "reader-pan",
+      "x": 0.20689655172413793,
+      "y": 0.06437768240343347
+    },
+    {
+      "action": "down"
+    }
+  ],
+  "errors": []
+}

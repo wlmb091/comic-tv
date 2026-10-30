@@ -3,9 +3,9 @@ package com.pelican.comictv.archive
 import java.io.File
 
 /** Shared signature detection: filenames and HTTP MIME types never select a decoder. */
-enum class ComicContainer { Zip, Rar, SevenZip, Pdf, Html, Executable, Empty, Incomplete, Unknown }
+enum class ComicContainer { Zip, Rar, SevenZip, Pdf, Mobi, Html, Executable, Empty, Incomplete, Unknown }
 object ComicContainers {
-    val extensions = setOf("cbz", "zip", "cbr", "rar", "cb7", "7z", "pdf", "epub")
+    val extensions = setOf("cbz", "zip", "cbr", "rar", "cb7", "7z", "pdf", "epub", "docx", "mobi", "azw")
     private val signatures = listOf(
         byteArrayOf(80,75,3,4), byteArrayOf(80,75,5,6), byteArrayOf(80,75,7,8),
         byteArrayOf(82,97,114,33,26,7,0), byteArrayOf(82,97,114,33,26,7,1,0),
@@ -17,6 +17,7 @@ object ComicContainers {
             buffer.copyOf(count)
         }
         if(bytes.isEmpty()) return ComicContainer.Empty
+        if(bytes.size >= 68 && bytes.copyOfRange(60, 68).toString(Charsets.US_ASCII) == "BOOKMOBI") return ComicContainer.Mobi
         fun starts(sig: ByteArray)=bytes.size>=sig.size && sig.indices.all { bytes[it]==sig[it] }
         val at=signatures.indexOfFirst(::starts)
         if(at>=0)return when(at) { 0,1,2->ComicContainer.Zip;3,4->ComicContainer.Rar;5->ComicContainer.SevenZip;else->ComicContainer.Pdf }
@@ -31,6 +32,6 @@ object ComicContainers {
         ComicContainer.Incomplete -> "O arquivo está incompleto. Conclua ou refaça o download."
         ComicContainer.Html -> "O site forneceu uma página de erro ou login em vez do quadrinho. Abra o site e baixe o arquivo novamente."
         ComicContainer.Executable -> "O arquivo recebido é um aplicativo ou executável, não um quadrinho."
-        else -> "Formato não reconhecido. Envie ZIP/CBZ, RAR/CBR, 7z/CB7, PDF ou EPUB."
+        else -> "Formato não reconhecido. Envie ZIP/CBZ, RAR/CBR, 7z/CB7, PDF, EPUB, DOCX ou MOBI/AZW sem DRM."
     }
 }

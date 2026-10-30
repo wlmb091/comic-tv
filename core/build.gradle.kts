@@ -1,6 +1,7 @@
 plugins { kotlin("jvm") }
 kotlin { jvmToolchain(17) }
 dependencies {
+    implementation("net.lingala.zip4j:zip4j:2.11.5")
     implementation("com.google.code.gson:gson:2.13.2")
     implementation("com.github.junrar:junrar:8.1.2")
     implementation("org.apache.commons:commons-compress:1.28.0")

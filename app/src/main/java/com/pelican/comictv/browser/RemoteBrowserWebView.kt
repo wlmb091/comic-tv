@@ -81,6 +81,14 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
         val event = MotionEvent.obtain(clickDownTime, SystemClock.uptimeMillis(), action, cursorX, cursorY, 0)
         try { dispatchTouchEvent(event) } finally { event.recycle() }
     }
+    /** Relative phone input shares the existing cursor, drag, edge scroll and focus ownership. */
+    fun moveCompanionPointer(dx:Float,dy:Float):Boolean {
+        if(!cursorEnabled||!hasFocus()||!isAttachedToWindow||width<=0||height<=0)return false
+        require(dx.isFinite()&&dy.isFinite())
+        onPageInteraction()
+        move(dx.coerceIn(-1f,1f)*width,dy.coerceIn(-1f,1f)*height)
+        return true
+    }
     private fun move(dx: Float, dy: Float) {
         val next = moveBrowserCursor(cursorX, cursorY, dx, dy, width, height, 12f * density)
         cursorX = next.x; cursorY = next.y; showPointer()

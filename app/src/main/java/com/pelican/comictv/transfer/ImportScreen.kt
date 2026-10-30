@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
 
-@Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit, onLocalTransfer: () -> Unit, onFtpTransfer: () -> Unit, onCancelImport: () -> Unit = {}, onBrowser: () -> Unit = {}, onExplore: () -> Unit = {}, onCompanion: () -> Unit = {}) {
+@Composable fun ImportScreen(busy: Boolean, message: String?, onMessage: (String?) -> Unit, onImport: (Uri) -> Unit, onLocalTransfer: () -> Unit, onFtpTransfer: () -> Unit, onCancelImport: () -> Unit = {}, onBrowser: () -> Unit = {}, onExplore: () -> Unit = {}, onCompanion: () -> Unit = {}, onImportProtected: (List<Uri>,CharArray)->Unit = {_,secret->secret.fill('\u0000')}) {
     val scroll = rememberScrollState()
     val first = preferredContentEntryModifier(prepare = { scroll.scrollTo(0) })
     val initial = remember { FocusRequester() }
@@ -34,6 +34,7 @@ import com.pelican.comictv.ui.*
                 catch (_: ActivityNotFoundException) { onMessage("Esta TV não oferece um seletor de arquivos. Use a opção Enviar pela rede local para transferir pelo celular.") }
             }, first.focusRequester(initial), primary = true)
         }
+        com.pelican.comictv.explorer.ProtectedArchiveAction(busy, onMessage, onImportProtected)
         TvButton("Explorar arquivos · TV / USB", { if (!busy) onExplore() })
         TvButton("Conectar celular · iPhone / Android", {if(!busy)onCompanion()})
         if (busy) TvButton("Interromper importação", onCancelImport)

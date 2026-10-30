@@ -28,7 +28,7 @@ internal object BrowserPolicy {
     fun filename(name: String): String {
         val clean = name.substringAfterLast('/').substringAfterLast('\\').filter { it.code >= 32 && it != ':' }.take(180)
         if (clean.substringAfterLast('.', "").lowercase() !in ComicContainers.extensions)
-            throw IOException("Formato não aceito. Use CBZ, ZIP, CBR, RAR, 7z, CB7, PDF ou EPUB; APK não é permitido.")
+            throw IOException("Formato não aceito. Use CBZ, ZIP, CBR, RAR, 7z, CB7, PDF, EPUB, DOCX, MOBI ou AZW; APK não é permitido.")
         return clean
     }
     fun redirect(from: HttpUrl, location: String, count: Int): HttpUrl {
@@ -65,6 +65,9 @@ internal object BrowserDownloadNames {
         var name = safe(decoded ?: plain ?: suggested.ifBlank { url.substringBefore('?').substringAfterLast('/') })
         val extension = when (mime?.substringBefore(';')?.lowercase()) {
             "application/pdf" -> "pdf"; "application/epub+zip" -> "epub"
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" -> "docx"
+            "application/x-mobipocket-ebook" -> "mobi"
+            "application/vnd.amazon.ebook" -> "azw"
             "application/zip", "application/x-zip-compressed" -> "zip"
             "application/vnd.rar", "application/x-rar-compressed" -> "rar"
             "application/x-7z-compressed" -> "7z"

@@ -173,6 +173,39 @@ class ReaderViewModel(
                 else (old.page - if (old.page >= 2 && pages[old.page - 1].key.startsWith("epub:text:").not() && pages[old.page - 2].key.startsWith("epub:text:").not()) 2 else 1).coerceAtLeast(0)
             if (target in pages.indices && target != old.page) old.turnPage(target) else old
         } else old.reduce(action)
+        applyState(old, next)
+    }
+
+    /** Explicit phone controls never reinterpret arrows through the physical remote's mode. */
+    internal fun companionAvailable() = initialized && !closing && !exited && !narrationActive && pages.isNotEmpty()
+    internal fun companionPan(x:Float,y:Float) {
+        check(companionAvailable()){ "Leitor indisponível para controle." }
+        require(x.isFinite()&&y.isFinite())
+        pauseAutomaticReading()
+        val old=_state.value
+        _state.value=if(old.zoom<=1f)old.copy(panX=0f,panY=0f) else old.copy(
+            panX=(old.panX+x).coerceIn(-1f,1f),panY=(old.panY+y).coerceIn(-1f,1f))
+    }
+    internal fun companionZoom(zoom:Float) {
+        check(companionAvailable()){ "Leitor indisponível para controle." };require(zoom.isFinite())
+        pauseAutomaticReading()
+        val old=_state.value;val value=zoom.coerceIn(1f,3f)
+        _state.value=old.copy(zoom=value,panX=if(value==1f)0f else old.panX,panY=if(value==1f)0f else old.panY)
+    }
+    internal fun companionPage(page:Int) {
+        check(companionAvailable()){ "Leitor indisponível para controle." };require(page in pages.indices){ "Página não encontrada." }
+        pauseAutomaticReading();val old=_state.value
+        applyState(old,old.turnPage(page))
+    }
+    internal fun companionTurn(delta:Int) {
+        check(companionAvailable()){ "Leitor indisponível para controle." };require(delta==-1||delta==1)
+        val old=_state.value
+        val book=_layout.value==ReaderLayout.Book
+        val step=if(delta>0){if(book&&hasBookPartner(old.page))2 else 1}
+            else if(book&&old.page>=2&&pages[old.page-1].key.startsWith("epub:text:").not()&&pages[old.page-2].key.startsWith("epub:text:").not())2 else 1
+        companionPage((old.page+delta*step).coerceIn(0,pages.lastIndex))
+    }
+    private fun applyState(old:ReaderState,next:ReaderState) {
         _state.value = next
         if (next.page != old.page) {
             saved["page"] = next.page

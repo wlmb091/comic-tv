@@ -23,6 +23,20 @@ class LibraryViewModel(private val repository: LibraryRepository, private val sa
     fun message(text: String?) { _message.value = text }
     private var importJob: Job? = null
     fun cancelImport() { importJob?.cancel() }
+    fun importProtected(context: android.content.Context, uris: List<Uri>, password: CharArray, onImported: (String)->Unit) {
+        if (_busy.value) { password.fill('\u0000');return }
+        importJob=viewModelScope.launch {
+            _busy.value=true;_message.value="Preparando arquivo protegido ou partes…"
+            var output:java.io.File?=null
+            try {
+                output=com.pelican.comictv.explorer.ProtectedArchiveImport.prepare(context,uris,password)
+                val result=repository.importReceived(output,"Quadrinho preparado.cbz"){_message.value=it}
+                _message.value=result.summary();result.singleId?.let{focusedId=it;onImported(it)}
+            } catch(c:CancellationException){_message.value="Importação interrompida.";throw c}
+            catch(e:Exception){_message.value=e.message?:"Não foi possível abrir o arquivo."}
+            finally{password.fill('\u0000');output?.parentFile?.deleteRecursively();_busy.value=false}
+        }
+    }
     fun importComic(uri: Uri, onImported: (String) -> Unit) {
         if (_busy.value) return
         importJob = viewModelScope.launch {

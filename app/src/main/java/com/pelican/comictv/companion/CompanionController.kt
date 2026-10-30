@@ -2,12 +2,9 @@ package com.pelican.comictv.companion
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.os.Handler
-import android.os.Looper
 import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
-import android.view.PixelCopy
 import android.view.inputmethod.EditorInfo
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
@@ -21,10 +18,8 @@ import com.pelican.comictv.archive.ComicContainers
 import com.pelican.comictv.archive.openComicZip
 import com.pelican.comictv.transfer.*
 import java.io.File
-import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlin.coroutines.resume
 
 internal data class CompanionState(val url:String?=null,val qr:Bitmap?=null,val busy:Boolean=false,val message:String="Inicie uma sessão para conectar o celular.")
 
@@ -32,7 +27,9 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
     private val mutable=MutableStateFlow(CompanionState());val state=mutable.asStateFlow()
     private var server:CompanionServer?=null;private var sessionJob:Job?=null
-    private var lastCapture=0L;private var capture:ByteArray?=null
+    private var reader:com.pelican.comictv.reader.ReaderViewModel?=null
+    fun attachReader(value:com.pelican.comictv.reader.ReaderViewModel){reader=value}
+    fun detachReader(value:com.pelican.comictv.reader.ReaderViewModel){if(reader===value)reader=null}
     private val pages=LinkedHashMap<String,List<com.pelican.comictv.model.PageRef>>()
     private val files=File(activity.cacheDir,"companion-pages")
     var onOpen:(String)->Unit={}
@@ -64,7 +61,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     }
     fun stop(message:String="Sessão encerrada.") {
         server?.close();server=null;sessionJob?.cancel();sessionJob=null
-        mutable.value=CompanionState(message=message);capture=null;pages.clear()
+        mutable.value=CompanionState(message=message);pages.clear()
     }
     fun close(){stop();scope.cancel()}
     private fun active(){check(server!=null&&activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)){"O Comic TV precisa estar aberto na TV."}}
@@ -77,7 +74,13 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(mapOf("books" to rows,"message" to state.value.message)).toByteArray(Charsets.UTF_8))
         }
-        if(path=="/screen")return CompanionResource("image/jpeg",screenshot())
+        if(path=="/reader-state") {
+            val snapshot=withContext(Dispatchers.Main.immediate){
+                val owner=reader?.takeIf{it.companionAvailable()}
+                if(owner==null)CompanionReaderState() else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom)}
+            }
+            return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
+        }
         val parts=path.trim('/').split('/');val id=parts[1]
         val comic=container.library.getComic(id) // Existence and identity always come from the library.
         if(parts[0]=="cover")return CompanionResource("image/jpeg",file=container.library.cover(id).also{check(it.isFile){"Capa indisponível."}})
@@ -85,8 +88,12 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             check(!id.startsWith("online-")){"Baixar original disponível apenas para arquivos importados."}
             val file=container.library.originalFile(id)
             val ext=when(ComicContainers.detect(file)){
-                ComicContainer.Pdf->"pdf";ComicContainer.Rar->"cbr";ComicContainer.SevenZip->"cb7"
-                ComicContainer.Zip->openComicZip(file).use{if(it.getEntry("META-INF/container.xml")!=null)"epub" else "cbz"}
+                ComicContainer.Pdf->"pdf";ComicContainer.Rar->"cbr";ComicContainer.SevenZip->"cb7";ComicContainer.Mobi->"mobi"
+                ComicContainer.Zip->openComicZip(file).use{when{
+                    it.getEntry("META-INF/container.xml")!=null->"epub"
+                    it.getEntry("word/document.xml")!=null&&it.getEntry("[Content_Types].xml")!=null->"docx"
+                    else->"cbz"
+                }}
                 else->error("Original indisponível.")
             }
             return CompanionResource("application/octet-stream",file=file,filename=comic.title.replace(Regex("[\\r\\n/\\\\]"),"_")+".$ext")
@@ -122,6 +129,33 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private fun control(c:CompanionCommand){
         active();check(activity.hasWindowFocus()){ "Volte ao Comic TV para controlar." }
         if(c.action=="open") {onOpen(c.id);return}
+        // The TV owns context: a delayed phone poll must never turn a page via a stale arrow.
+        if(reader!=null&&c.action in setOf("up","down","left","right","pointer","scroll")) {
+            val (x,y)=when(c.action){
+                "up"->0f to -.12f;"down"->0f to .12f;"left"->-.12f to 0f;"right"->.12f to 0f
+                "pointer"->c.dx.toFloat() to c.dy.toFloat()
+                else->0f to (c.delta/600f).coerceIn(-1f,1f)
+            }
+            reader!!.companionPan(x,y);return
+        }
+        if(c.action.startsWith("reader-")) {
+            val owner=reader?.takeIf{it.companionAvailable()}?:error("Abra primeiro o leitor na TV.")
+            when(c.action){
+                "reader-pan"->owner.companionPan(c.x.toFloat(),c.y.toFloat())
+                "reader-page"->owner.companionPage(c.page)
+                "reader-turn"->owner.companionTurn(c.delta)
+                "reader-zoom"->owner.companionZoom(c.zoom)
+                else->error("Comando de leitor inválido.")
+            };return
+        }
+        if(c.action=="pointer"){
+            val browser=activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView
+            if(browser!=null&&browser.moveCompanionPointer(c.dx.toFloat(),c.dy.toFloat()))return
+            // Outside the focused browser surface, a touchpad drag navigates the current TV UI.
+            if(kotlin.math.abs(c.dx)+kotlin.math.abs(c.dy)<.015)return
+            val direction=if(kotlin.math.abs(c.dx)>kotlin.math.abs(c.dy)){if(c.dx>0)"right" else "left"}else if(c.dy>0)"down" else "up"
+            control(c.copy(action=direction));return
+        }
         if(c.action=="back"){activity.onBackPressedDispatcher.onBackPressed();return}
         if(c.action=="text"){
             val connection=activity.currentFocus?.onCreateInputConnection(EditorInfo())?:error("Selecione primeiro um campo de texto na TV.")
@@ -137,21 +171,5 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         }
         val code=when(c.action){"up"->KeyEvent.KEYCODE_DPAD_UP;"down"->KeyEvent.KEYCODE_DPAD_DOWN;"left"->KeyEvent.KEYCODE_DPAD_LEFT;"right"->KeyEvent.KEYCODE_DPAD_RIGHT;"ok"->KeyEvent.KEYCODE_DPAD_CENTER;"enter"->KeyEvent.KEYCODE_ENTER;"menu"->KeyEvent.KEYCODE_MENU;else->error("Comando inválido.")}
         view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code));view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code))
-    }
-    private suspend fun screenshot():ByteArray=withContext(Dispatchers.Main.immediate){
-        active();check(activity.hasWindowFocus()){ "Volte ao Comic TV para visualizar." }
-        val now=SystemClock.elapsedRealtime();capture?.takeIf{now-lastCapture<1200}?.let{return@withContext it}
-        val view=activity.window.decorView;check(view.width>0&&view.height>0)
-        val bitmap=Bitmap.createBitmap(640,(640L*view.height/view.width).toInt().coerceIn(1,640),Bitmap.Config.ARGB_8888)
-        var finished=false;var requested=false
-        try {
-            val result=withTimeout(2500){suspendCancellableCoroutine<Int>{continuation->
-                PixelCopy.request(activity.window,bitmap,{code->finished=true;if(continuation.isActive)continuation.resume(code) else bitmap.recycle()},Handler(Looper.getMainLooper()))
-                requested=true
-            }}
-            check(result==PixelCopy.SUCCESS){"Prévia indisponível. Conteúdo protegido pode não aparecer."}
-            val bytes=withContext(Dispatchers.Default){ByteArrayOutputStream().use{out->bitmap.compress(Bitmap.CompressFormat.JPEG,65,out);out.toByteArray()}}
-            check(bytes.size<=1024*1024);capture=bytes;lastCapture=now;bytes
-        } finally {if(finished||!requested)bitmap.recycle()}
     }
 }

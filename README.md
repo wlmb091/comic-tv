@@ -276,3 +276,8 @@ Implementação preservada de Relacionados (oculta): compara série ou créditos
 Desde a 0.9.4, a seção e o atalho Relacionados estão ocultos; nenhuma consulta de recomendações é iniciada. Código preservado para futura revisão. COMIC TV centralizado no menu lateral expandido.
 
 0.9.5: catálogo com capas inteiras e títulos abaixo, tipografia e cabeçalho compactos; grades adaptadas ao tamanho do texto. Fontes, extensões e extensões por repositório usam cartões compactos; abas com contadores e estados vazios explicativos. Instalação continua confirmada pelo Android.
+
+
+### Compatibilidade acrescentada na 1.4.6
+
+DOCX em texto/imagens e MOBI/AZW legado sem DRM (até MOBI6/PalmDOC); EPUB com tabelas linearizadas, imagens e fonte nativa substituta para fontes ofuscadas. Importar/Explorador pode preparar ZIP AES/ZipCrypto, RAR com dados protegidos e 7z com senha e juntar partes binárias .001 contíguas selecionadas. É criada uma cópia CBZ sem senha, originais intactos. Sem DRM, KF8/AZW3/KFX, HUFF/CDIC, cabeçalhos RAR criptografados, volumes RAR, ZIP .z01 ou OBB. XAPK/APKM locais sem OBB passam por validação e confirmação Android. Detalhes/limites nas notas1.4.6 e documentos de validação. Zip4j2.11.5 é Apache2, licença incluída em docs/licenses e assets.

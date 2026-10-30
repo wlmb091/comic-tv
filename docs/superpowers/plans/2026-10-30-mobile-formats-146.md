@@ -1,0 +1,10 @@
+# Pacote1.4.6/code80 autorizado
+
+Usuário aprovou documento mobile-control-revision e referência17a3586e: ControlecontextualTV,Touchpad/setaspansóimagemleitor,AnteriorPróximaseparados,zoomslider e páginaslider,teclado;foraLeitor navegaçãonormal. RemoverespelhoTV. Arquivoscardscomcapas/status/progresso/limparsomentehistórico;leitormóvelquasetelainteirasóAnteriorPróxima;rotasNavegador/Companionnas5barras. Acrescentouampliarformatos:senha/multipart/EPUB/DOCX/MOBI/AZW/XAPK/APKM. Publicarquandoverificado,semnovaaprovação.
+
+1. FrontendHTML/JS/CSS e contratosHTTPcontextuais (agente dedicado), rootfazReaderViewModel/controller/nav.
+2. LivrosDOCX/MOBI/AZW e EPUB (agente dedicado core/appsomenteadaptaçãoformatos). DRM: apenasmecanismoautorizado;nãoimplementarbypassnemalegartodosconteúdos.
+3. Senha/multipart e instaladorpacotesdivididos (agente dedicado). Mapearlimitesreais,fixturetests eUIexplorer;nenhumAPKbaixadovianavegadorliberadoimplicitamente.
+4. Rootintegra,testesfocados/lint/revisãoindependente;versão1.4.6/code80,CIcompletoumaexecução,assinatura/manifesto/asset conferidosantespublicado. SemtestefísicoBox/Safari alegado.
+
+ArquivoscompartilhadosComicTvApp/CompanionController/CompanionServer/ReaderViewModel/buildGradle/AGENTSsomenteroot;cadaagentecomunicaintegraçõesnecessáriasantesdeeditarforaescopo. BuildsGlobaissequenciais,somenteporrootapósagentespararemeditar.

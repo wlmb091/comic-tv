@@ -14,8 +14,12 @@ class ComicArchive(private val limits: ArchiveLimits = ArchiveLimits(), private 
         if (file.length() > limits.maxArchiveBytes) throw ComicArchiveException("O arquivo excede o limite de 1 GiB.")
         val format=ComicContainers.detect(file)
         if(format==ComicContainer.Pdf)return pdfReader ?: throw ComicArchiveException("A leitura de PDF requer o leitor Android.")
+        if(format==ComicContainer.Mobi)return MobiComicArchive(limits)
         if(format==ComicContainer.SevenZip)return SevenZComicArchive(limits)
         if(format==ComicContainer.Zip) {
+            val docx = try { openComicZip(file, limits.maxEntries).use { it.getEntry("[Content_Types].xml") != null && it.getEntry("word/document.xml") != null } }
+                catch (e: Exception) { throw ComicArchiveException("Não foi possível ler o ZIP/livro. Ele pode estar corrompido.", e) }
+            if (docx) return DocxComicArchive(limits)
             val epub = try { openComicZip(file, limits.maxEntries).use { it.getEntry("META-INF/container.xml") != null } }
                 catch (e: Exception) { throw ComicArchiveException("Não foi possível ler o ZIP/EPUB. Ele pode estar corrompido.", e) }
             return if (epub) EpubComicArchive(limits) else ZipComicArchive(limits)

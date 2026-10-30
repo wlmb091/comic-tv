@@ -16,7 +16,7 @@ import java.util.zip.CRC32
 import java.util.zip.CheckedInputStream
 
 /** File-backed 7z, including misnamed CBR files; never extracts archive paths to disk. */
-class SevenZComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : ComicArchiveReader {
+class SevenZComicArchive(private val limits: ArchiveLimits = ArchiveLimits(), private val password: CharArray? = null) : ComicArchiveReader {
     private fun open(file: File): SevenZFile {
         if(file.length()>limits.maxArchiveBytes)throw ComicArchiveException("O arquivo excede o limite de 1 GiB.")
         RandomAccessFile(file,"r").use { input ->
@@ -36,8 +36,10 @@ class SevenZComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : 
             guardEncodedSevenZHeader(nextHeader)
         }
         val channel=InterruptibleChannel(file)
-        return try { SevenZFile.builder().setSeekableByteChannel(channel).setMaxMemoryLimitKiB(32*1024)
-            .setTryToRecoverBrokenArchives(false).get() } catch(e:Exception) { channel.close();throw e }
+        return try { SevenZFile.builder().setPassword(password).setSeekableByteChannel(channel).setMaxMemoryLimitKiB(32*1024)
+            .setTryToRecoverBrokenArchives(false).get().also { archive ->
+                try { guardSevenZParsedAesCost(archive) } catch (failure: Exception) { archive.close(); throw failure }
+            } } catch(e:Exception) { channel.close();throw e }
     }
     private fun entries(archive: SevenZFile):List<SevenZArchiveEntry> {
         val entries=ArrayList<SevenZArchiveEntry>();val seen=HashSet<String>();var total=0L
@@ -80,7 +82,7 @@ class SevenZComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : 
     }
     private inline fun<T> guarded(block:()->T):T=try { block() }
     catch(e:ComicArchiveException) { throw e }
-    catch(e:PasswordRequiredException) { throw ComicArchiveException("7z protegido por senha não é suportado.",e) }
+    catch(e:PasswordRequiredException) { throw ComicArchiveException("Informe a senha deste 7z na importação com senha.",e) }
     catch(e:MemoryLimitException) { throw ComicArchiveException("A compressão 7z exige mais memória que o limite deste aparelho (32 MiB).",e) }
     catch(e:IOException) { throw ComicArchiveException("Não foi possível ler o 7z. Ele pode estar incompleto, corrompido ou usar compressão não suportada.",e) }
     private class InterruptibleChannel(file:File):SeekableByteChannel {

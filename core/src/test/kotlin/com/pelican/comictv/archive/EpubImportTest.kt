@@ -69,4 +69,33 @@ class EpubImportTest {
             assertFalse(first.contains("private script"))
         } finally { root.deleteRecursively() }
     }
+
+    @Test fun `EPUB permits only font obfuscation and uses native reader fonts`() {
+        val root = Files.createTempDirectory("epub-fonts").toFile()
+        try {
+            val opf = "<package><manifest><item id='a' href='a.xhtml' media-type='application/xhtml+xml'/><item id='f' href='font.otf' media-type='font/otf'/></manifest><spine><itemref idref='a'/></spine></package>"
+            for (algorithm in listOf("http://www.idpf.org/2008/embedding", "http://ns.adobe.com/pdf/enc#RC")) {
+                val encryption = "<encryption><enc:EncryptedData xmlns:enc='urn:xmlenc'><enc:EncryptionMethod Algorithm='$algorithm'/><enc:CipherData><enc:CipherReference URI='OPS/font.otf'/></enc:CipherData></enc:EncryptedData></encryption>"
+                val file = book(root, extra = mapOf("OPS/book.opf" to opf.toByteArray(), "OPS/font.otf" to byteArrayOf(1), "META-INF/encryption.xml" to encryption.toByteArray()))
+                val archive = ComicArchive(); val pages = archive.index(file)
+                assertEquals(1, pages.size)
+                assertTrue(archive.extract(file, pages.single(), File(root, "text-${algorithm.length}")).readText().contains("Última seção"))
+            }
+            for ((algorithm, path) in listOf("http://www.w3.org/2001/04/xmlenc#aes256-cbc" to "OPS/font.otf", "http://www.idpf.org/2008/embedding" to "OPS/a.xhtml")) {
+                val encryption = "<encryption><EncryptedData><EncryptionMethod Algorithm='$algorithm'/><CipherData><CipherReference URI='$path'/></CipherData></EncryptedData></encryption>"
+                val file = book(root, extra = mapOf("OPS/book.opf" to opf.toByteArray(), "META-INF/encryption.xml" to encryption.toByteArray()))
+                assertThrows(ComicArchiveException::class.java) { ComicArchive().index(file) }
+            }
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test fun `EPUB text tables preserve cell boundaries without interactive content`() {
+        val root = Files.createTempDirectory("epub-table").toFile()
+        try {
+            val file = book(root, "<table><tr><th>Nome</th><th>Valor</th></tr><tr><td>Um</td><td>Dois</td></tr></table><form>Não executar</form>")
+            val reader = ComicArchive(); val pages = reader.index(file)
+            val text = reader.extract(file, pages.first(), File(root, "table")).readText()
+            assertTrue(text.contains("Nome | Valor |")); assertTrue(text.contains("Um | Dois |")); assertFalse(text.contains("Não executar"))
+        } finally { root.deleteRecursively() }
+    }
 }
