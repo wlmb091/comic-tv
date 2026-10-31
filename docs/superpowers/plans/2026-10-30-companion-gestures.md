@@ -11,6 +11,6 @@
 - [x] Pointerstate machine: onefingerpan/cursor, readerpinchabsolutezoom, browser2fingersscroll/pinchrelativezoom, tapclick/longcontext/tapdrag; abort/captureloss/background reset, bound30cmd/s. Client sensitivities reader/pointer/zoom/scroll .25–3, nativepersist andvalidate. Stalecontext failsclosed; noOSremote.
 - [x] BottomtabsretractableonlyReader/Control, explicitsmallbutton notgestureconflict; shareSafariHomeScreeninstructions, temporarytoken/IPport stilllimitsreopening.
 - [x] Nativehomecallback/browseroperations incltimeoutdragrelease, serverbounds+tests. FocusedJVM/Node/Androidcompile/lint and Edgefixtures withkeyboardviewportoffset. Independentreview. PhysicalSafari/Boxpending.
-- [ ] Release1.4.7 singleCI/sign/verifyassetmanifesthash thenpublishrecord.
+- [x] Release1.4.7 singleCI/sign/verifyassetmanifesthash thenpublishrecord.
 
 Ruling: incluirjanelaModalprópria porqueo novo toqueLongo abririaummenuincontrolável. RegistroCompositionLocalexplícitosemreflexão,externalwindowcontinuaexcluída;revisãoindependenteconferida.
