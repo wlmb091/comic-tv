@@ -73,6 +73,16 @@ class ThemeSpecTest {
         assertEquals(ContinueCardStyle.Compact, max.cards.continueStyle)
     }
 
+    @Test fun onlyComicAndFlixMoveTheirLibraryRailOutsideTheSharedSafeArea() {
+        assertEquals(25, ThemeSpec.forPreset(ColorPreset.Amber).navigation.sidebarLibraryStartDp)
+        assertEquals(5, ThemeSpec.forPreset(ColorPreset.Flix).navigation.sidebarLibraryStartDp)
+        ColorPreset.entries.forEach { preset ->
+            val navigation = ThemeSpec.forPreset(preset).navigation
+            assertEquals(48, navigation.safeHorizontalDp)
+            if (preset !in setOf(ColorPreset.Amber, ColorPreset.Flix)) assertEquals(navigation.safeHorizontalDp, navigation.sidebarLibraryStartDp)
+        }
+    }
+
     @Test fun legacyIdsRetainEditorialPolicyAndOwnColors() {
         listOf(ColorPreset.Green, ColorPreset.Blue, ColorPreset.Violet).forEach { preset ->
             val spec = ThemeSpec.forPreset(preset)

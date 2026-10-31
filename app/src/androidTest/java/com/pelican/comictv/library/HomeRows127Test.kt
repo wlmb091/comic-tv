@@ -102,7 +102,8 @@ class HomeRows127Test {
             val navigation = compose.onNode(hasTestTag("sidebar-collapsed") or hasTestTag("sidebar-expanded"))
                 .fetchSemanticsNode().boundsInRoot
             val shellPixels = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
-            assertEquals("Sidebar has no outer left gap", shellPixels.left, navigation.left, 1f)
+            val start = with(compose.density) { ThemeSpec.forPreset(preset).navigation.sidebarLibraryStartDp.dp.toPx() }
+            assertEquals("Sidebar sits at its approved Library position", shellPixels.left + start, navigation.left, 1f)
         }
         grid.performScrollToIndex(2)
         val recent = compose.onNodeWithTag("recent-row-viewport").getUnclippedBoundsInRoot()

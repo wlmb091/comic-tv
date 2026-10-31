@@ -161,6 +161,7 @@ import kotlinx.coroutines.*
             removeId != null -> removeId = null
             sheet != null -> sheet = null
             chrome -> { chrome = false; pageFocus++ }
+            browserBackLeaves(tab.url, chrome) -> onBack()
             !state.cursor -> { session.options(cursor = true); host.updateOptions() }
             else -> chrome = true
         }
@@ -204,7 +205,7 @@ import kotlinx.coroutines.*
                 else if (ready) AndroidView(modifier = Modifier.fillMaxSize(), factory = { FrameLayout(it) }, update = { frame ->
                     try { host.attach(frame, tab) } catch (_: Exception) { nativeError = true }
                 })
-                if (tab.url.isBlank()) BrowserHome(::navigate, { sheet = it }, homeFocus) { chrome = false }
+                if (tab.url.isBlank()) BrowserHome(::navigate, { sheet = it }, homeFocus, onTopUp = { chrome = true }) { chrome = false }
 
             })
         if (sheet == "downloads") BrowserDownloadsPanel(rows, exportBusy, { sheet = null }, message = status,

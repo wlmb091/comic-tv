@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,12 +73,15 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
     }
 }
 
-@Composable internal fun BrowserHome(onOpen: (String) -> Unit, onSheet: (String) -> Unit, entryFocus: FocusRequester? = null, onFocused: () -> Unit = {}) {
+@Composable internal fun BrowserHome(onOpen: (String) -> Unit, onSheet: (String) -> Unit, entryFocus: FocusRequester? = null, onTopUp: () -> Unit = {}, onFocused: () -> Unit = {}) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val sites = if (expanded) BrowserSites.all else BrowserSites.all.take(12)
+    val grid = rememberLazyGridState()
+    // Row 0 is the heading, so the first sites are the top of what focus can reach.
+    fun onFirstSiteRow(id: String) = grid.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id }?.row == 1
     LazyVerticalGrid(GridCells.Adaptive(165.dp), Modifier.fillMaxSize().background(TvColors.Background)
         .then(if (entryFocus != null) Modifier.focusRequester(entryFocus) else Modifier)
-        .focusRestorer().onFocusChanged { if (it.hasFocus) onFocused() },
+        .focusRestorer().onFocusChanged { if (it.hasFocus) onFocused() }, state = grid,
         contentPadding = PaddingValues(start = 48.dp, end = 48.dp, top = 145.dp, bottom = 110.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item(span = { GridItemSpan(maxLineSpan) }) { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -85,7 +89,13 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
             Text("Sites de quadrinhos", color = TvColors.Muted, fontSize = 18.sp)
         } }
         items(sites, key = { it.id }) { site ->
-            Card(onClick = { onOpen(site.home) }, modifier = Modifier.fillMaxWidth().focusRaised(),
+            Card(onClick = { onOpen(site.home) }, modifier = Modifier.fillMaxWidth().focusRaised()
+                .onPreviewKeyEvent { event ->
+                    if (event.key == Key.DirectionUp && onFirstSiteRow(site.id)) {
+                        if (event.type == KeyEventType.KeyDown) onTopUp()
+                        true
+                    } else false
+                },
                 border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.FocusAccent))),
                 scale = CardDefaults.scale(focusedScale = 1.04f),
                 colors = CardDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Panel)) {
