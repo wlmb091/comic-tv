@@ -8,11 +8,15 @@ import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pelican.comictv.ui.ComicTvApp
 import com.pelican.comictv.ui.ComicTvTheme
 import com.pelican.comictv.ui.AppExitGuard
+import com.pelican.comictv.companion.CompanionDialogs
+import com.pelican.comictv.companion.LocalCompanionDialogs
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.memory.MemoryCache
@@ -46,7 +50,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             val container = (application as ComicTvApplication).container
             val appearance by container.appearance.state.collectAsStateWithLifecycle()
-            ComicTvTheme(appearance) { AppExitGuard(onExit = { finish() }) { ComicTvApp(container) } }
+            // Above the exit guard: its confirmation window must reach the same phone control as the app's dialogs.
+            val companionDialogs = remember { CompanionDialogs() }
+            CompositionLocalProvider(LocalCompanionDialogs provides companionDialogs) {
+                ComicTvTheme(appearance) { AppExitGuard(onExit = { finish() }) { ComicTvApp(container) } }
+            }
         }
     }
 }

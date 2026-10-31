@@ -91,6 +91,7 @@ import kotlinx.coroutines.launch
         }
     }
     Dialog(onDismissRequest = ::back, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
+        com.pelican.comictv.companion.CompanionDialogWindow(::back)
         Box(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 24.dp, vertical = 18.dp)) {
             SagaEditionsPage(group.key, group.editions, grid, focusedId, chooseFocus, covers,
                 coverModel = { repository.cover(it) }, onFocus = onFocus,

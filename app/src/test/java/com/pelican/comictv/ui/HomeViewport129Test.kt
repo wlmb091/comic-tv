@@ -33,13 +33,6 @@ class HomeViewport129Test {
         assertEquals(0f, homeHeroViewportBudget(240f, 200f, 50f, 300f, 20f, 8f), 0f)
     }
 
-    @Test fun dockIdleClockRunsOnlyWhileVisibleAndNoKeyIsHeld() {
-        assertEquals(4_000L, MAX_DOCK_IDLE_MS)
-        assertFalse(maxDockIdleCanHide(false, false))
-        assertFalse(maxDockIdleCanHide(true, true))
-        assertTrue(maxDockIdleCanHide(true, false))
-    }
-
     @Test fun maxTwoLineTitleRespectsActualAvailableHeightEvenAboveLegacyMinimum() {
         val otherContent = 8f + 22f * 1.3f + (32f * 1.3f + 24f) + 4f + 12f
         val title = homeHeroTitleSizeSp(40f, 44f, 2, 1.3f, 194f, otherContent)

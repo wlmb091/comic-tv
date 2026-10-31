@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
@@ -29,6 +30,8 @@ object TvColors {
     val Amber get() = Color(colors.accent)
     val FocusAccent get() = Color(colors.focusAccent)
     val Ink = Color(0xFF101010)
+    /** Label over a filled focus surface; every theme accent stays readable. */
+    val OnFocusAccent get() = if (FocusAccent.luminance() > .4f) Ink else Color.White
     val Action get() = if (useNeutralButtons) Color(0xFF303030) else Color(colors.action)
     val OnAction get() = if (useNeutralButtons) Color.White else Color(colors.onAction)
     val Track get() = if (options.highContrast) Color(0xFF606060) else Color(colors.track)
@@ -86,8 +89,8 @@ internal fun transparentButtonSurface(options: AppearanceOptions): Color? {
         colors = ButtonDefaults.colors(
             containerColor = if (textOnly) Color.Transparent else artworkSurface ?: if (primePrimary) Color.White else if (primary) TvColors.Action else TvColors.ButtonSurface,
             contentColor = if (artworkSurface != null) Color.White else if (primePrimary) TvColors.Ink else if (primary) TvColors.OnAction else Color.White,
-            focusedContainerColor = if (filledHero && primary) theme.colors.heroPrimarySurface?.let { Color(it) } ?: TvColors.Action else TvColors.Action,
-            focusedContentColor = if (filledHero && primary) Color.White else TvColors.OnAction,
+            focusedContainerColor = if (filledHero && primary) theme.colors.heroPrimarySurface?.let { Color(it) } ?: TvColors.FocusAccent else TvColors.FocusAccent,
+            focusedContentColor = if (filledHero && primary) Color.White else TvColors.OnFocusAccent,
         ),
         border = ButtonDefaults.border(
             border = if (textOnly) Border.None else if (styledHero) {

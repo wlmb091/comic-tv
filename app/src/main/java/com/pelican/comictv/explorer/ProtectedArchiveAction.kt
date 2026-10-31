@@ -36,6 +36,7 @@ import com.pelican.comictv.ui.TvColors
         catch (_: ActivityNotFoundException) { onMessage("O Android desta TV não oferece seleção de arquivos. Escolha um arquivo único sem senha ou use outra TV compatível.") }
     })
     if (selection.isNotEmpty()) Dialog(onDismissRequest = { selection = emptyList(); password = "" }) {
+        com.pelican.comictv.companion.CompanionDialogWindow { selection = emptyList(); password = "" }
         val first = remember { FocusRequester() }
         LaunchedEffect(Unit) { withFrameNanos { }; first.requestFocus() }
         Column(Modifier.fillMaxWidth().background(TvColors.Panel).padding(28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {

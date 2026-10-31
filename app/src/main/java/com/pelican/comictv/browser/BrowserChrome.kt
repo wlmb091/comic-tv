@@ -2,6 +2,7 @@ package com.pelican.comictv.browser
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -27,11 +28,14 @@ import com.pelican.comictv.ui.*
     message: String, action: (String) -> Unit, homeFocus: FocusRequester? = null) {
     var caption by remember { mutableStateOf("MENU abre ou fecha os controles · Segure OK sobre um link para opções") }
     val surface = if (TvColors.options.highContrast) Color.Black else Color(0xF20D1118)
+    var addressFocused by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
         Column(Modifier.fillMaxWidth().background(surface).padding(horizontal = 24.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("COMIC TV", fontSize = 15.sp, color = TvColors.FocusAccent)
                 TvTextInput(address, onAddress, Modifier.weight(1f).focusRequester(addressFocus)
+                    .onFocusChanged { addressFocused = it.isFocused; if (it.isFocused) caption = "Endereço · OK abre o teclado" }
+                    .border(3.dp, if (addressFocused) TvColors.FocusAccent else Color.Transparent)
                     .background(Color(0xFF242B36)).padding(10.dp), textStyle = TextStyle(color = Color.White, fontSize = 19.sp),
                     maxLength = 4096, onSubmit = { action("go") })
                 BrowserIcon("⌕", "Acessar endereço ou pesquisar", { action("go") }, onFocus = { caption = it })
@@ -77,9 +81,10 @@ import com.pelican.comictv.ui.*
 }
 
 @Composable internal fun BrowserIcon(symbol: String, label: String, click: () -> Unit, enabled: Boolean = true, onFocus: (String) -> Unit = {}) {
-    Button(onClick = click, enabled = enabled, modifier = Modifier.size(48.dp).semantics { contentDescription = label }
+    // Unavailable actions stay reachable and visibly focused; a press there does nothing.
+    Button(onClick = { if (enabled) click() }, modifier = Modifier.size(48.dp).semantics { contentDescription = label }
         .onFocusChanged { if (it.isFocused) onFocus(label) }, contentPadding = PaddingValues(4.dp),
-        colors = ButtonDefaults.colors(containerColor = Color(0xFF222C39), contentColor = Color.White,
+        colors = ButtonDefaults.colors(containerColor = Color(0xFF222C39), contentColor = if (enabled) Color.White else Color.White.copy(alpha = .4f),
             focusedContainerColor = TvColors.FocusAccent, focusedContentColor = Color.Black),
         border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.FocusAccent))),
         scale = ButtonDefaults.scale(focusedScale = 1.04f)) {

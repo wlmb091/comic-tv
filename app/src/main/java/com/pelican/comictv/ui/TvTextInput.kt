@@ -10,11 +10,13 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
@@ -44,11 +46,23 @@ import kotlinx.coroutines.flow.collect
     LaunchedEffect(state) {
         snapshotFlow { state.text.toString() }.collect { text -> if (text != currentValue) change(text) }
     }
+    val focusManager = LocalFocusManager.current
     val inputModifier = modifier.onFocusChanged { if (!it.hasFocus) activated = false }.onPreviewKeyEvent { event ->
         if (event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter) {
             if (event.type == KeyEventType.KeyUp) { activated = true; activation++ }
             true // Consume both halves of OK; opening the keyboard must not submit the field.
-        } else false
+        } else {
+            // A single-line field must not spend D-pad presses on its cursor until OK activates it.
+            val exit = when (event.key) {
+                Key.DirectionUp -> FocusDirection.Up
+                Key.DirectionDown -> FocusDirection.Down
+                Key.DirectionLeft -> FocusDirection.Left.takeUnless { activated }
+                Key.DirectionRight -> FocusDirection.Right.takeUnless { activated }
+                else -> null
+            }
+            if (exit == null) false
+            else { if (event.type == KeyEventType.KeyDown) focusManager.moveFocus(exit); true }
+        }
     }
     // Enabling this only after OK also starts the platform input session. show() alone cannot
     // open an IME for a state-based field whose input session has not been started yet.

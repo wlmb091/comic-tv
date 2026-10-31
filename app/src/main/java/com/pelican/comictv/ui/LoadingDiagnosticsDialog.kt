@@ -32,6 +32,7 @@ import com.pelican.comictv.performance.*
     val refreshFocus = remember { FocusRequester() }
     var reportFocused by remember { mutableStateOf(false) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
         Column(Modifier.widthIn(max = 760.dp).fillMaxWidth(.92f).heightIn(max = 520.dp)
             .background(TvColors.Background, RoundedCornerShape(12.dp)).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {

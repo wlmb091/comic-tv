@@ -25,6 +25,7 @@ import androidx.tv.material3.Text
     if (confirming) {
         val continueFocus = remember { FocusRequester() }
         Dialog(onDismissRequest = { confirming = false }) {
+            com.pelican.comictv.companion.CompanionDialogWindow { confirming = false }
             Column(Modifier.fillMaxWidth().widthIn(max = 600.dp).heightIn(max = 520.dp)
                 .background(TvColors.Background, RoundedCornerShape(8.dp))
                 .padding(24.dp).verticalScroll(rememberScrollState()).testTag("exit-confirmation"),

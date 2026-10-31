@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { cancelFocus.requestFocus() }
     Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
+        com.pelican.comictv.companion.CompanionDialogWindow { if (!busy) onDismiss() }
         Column(Modifier.widthIn(max = 520.dp).heightIn(max = 460.dp).background(TvColors.Background)
             .verticalScroll(rememberScrollState()).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)) {

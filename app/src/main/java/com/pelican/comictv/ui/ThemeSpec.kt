@@ -48,8 +48,8 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val cropRecentCover: Boolean = false, val cropCollectionCover: Boolean = false,
 )
 @Immutable internal data class ThemeFocusSpec(
-    val buttonBorderDp: Int = 2, val highContrastBorderDp: Int = 3,
-    val cardBorderDp: Int = 3, val buttonScale: Float = 1.03f,
+    val buttonBorderDp: Int = 3, val highContrastBorderDp: Int = 3,
+    val cardBorderDp: Int = 4, val buttonScale: Float = 1.03f,
     val recentScale: Float = 1.025f, val collectionScale: Float = 1.03f,
 )
 @Immutable internal data class ThemeTypographySpec(
@@ -104,8 +104,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                         recentPaddingDp = 8, recentGapDp = 8, cropRecentCover = true, cropCollectionCover = true),
                     typography = ThemeTypographySpec(33, 37, cardTitleSp = 14,
                         cardStatusSp = 14, cardLineHeightSp = 18, badgeSp = 14),
-                    focus = ThemeFocusSpec(buttonBorderDp = 2, cardBorderDp = 2),
-                    colors = colors.copy(outlinedHeroAction = true, heroPrimarySurface = 0x99000000))
+                    colors = colors.copy(focusAccent = 0xFFFFE14D, outlinedHeroAction = true, heroPrimarySurface = 0x99000000))
                 ColorPreset.Flix -> editorial.copy(
                     navigation = ThemeNavigationSpec(ThemeNavigationPolicy.Sidebar, framelessSidebar = true, shellBackdrop = true,
                         sidebarInitiallyExpanded = true, searchInNavigation = true),
@@ -118,7 +117,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     typography = ThemeTypographySpec(50, 51, ThemeTitleFamily.Bebas,
                         titleExtraBold = false, cardTitleSp = 16, cardStatusSp = 14,
                         cardLineHeightSp = 18, badgeSp = 14),
-                    colors = colors.copy(focusAccent = 0xFFE50914, filledHeroAction = true,
+                    colors = colors.copy(focusAccent = 0xFFFF2E3A, filledHeroAction = true,
                         heroPrimarySurface = 0xFFB20710),
                     footerControls = true, topSearch = false, artwork = true)
                 ColorPreset.Prime -> editorial.copy(
@@ -129,7 +128,8 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                         scaleGridWithText = true, recentWidthDp = 203, recentHeightDp = 114,
                         cropRecentCover = true, cropCollectionCover = true),
                     typography = ThemeTypographySpec(48, 51, ThemeTitleFamily.Barlow,
-                        cardTitleSp = 16, cardStatusSp = 14, badgeSp = 14), footerControls = true, artwork = true)
+                        cardTitleSp = 16, cardStatusSp = 14, badgeSp = 14),
+                    colors = colors.copy(focusAccent = 0xFF9DE8FF), footerControls = true, artwork = true)
                 ColorPreset.Max -> editorial.copy(
                     navigation = ThemeNavigationSpec(ThemeNavigationPolicy.BottomDock, shellBackdrop = true,
                         libraryBrand = true, searchInNavigation = true,
@@ -148,7 +148,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                         recentSurface = 0xB81E1440, recentBorder = 0x669B6DFF),
                     typography = ThemeTypographySpec(40, 44, ThemeTitleFamily.Bebas, titleExtraBold = false,
                         cardTitleSp = 14, cardStatusSp = 14, cardLineHeightSp = 18, badgeSp = 14),
-                    colors = colors.copy(background = 0xFF0B0818, focusAccent = 0xFF9B6DFF,
+                    colors = colors.copy(background = 0xFF0B0818, focusAccent = 0xFFD9C2FF,
                         action = 0xFF281850, onAction = 0xFFFFFFFF, outlinedHeroAction = true,
                         heroPrimarySurface = 0xE6281850),
                     focus = ThemeFocusSpec(buttonScale = 1.05f, recentScale = 1.05f, collectionScale = 1.05f),
@@ -169,6 +169,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     typography = ThemeTypographySpec(40, 45, ThemeTitleFamily.Serif,
                         titleExtraBold = false, cardTitleSp = 14, cardStatusSp = 14,
                         cardLineHeightSp = 19, badgeSp = 14),
+                    colors = colors.copy(focusAccent = 0xFFFFFFFF),
                     footerControls = true, artwork = true)
                 else -> editorial // Legacy colors retain their shipped editorial composition.
             }
@@ -186,11 +187,6 @@ internal fun homeHeroViewportBudget(viewportDp: Float, requestedHeroDp: Float,
     minOf(requestedHeroDp, (viewportDp - brandDp - (if (brandDp > 0f) brandGapDp else 0f) -
         followingRowDp - gridTopDp - gridBottomDp - (if (followingRowDp > 0f) rowGapsDp else 0f))
         .coerceAtLeast(0f))
-
-internal const val MAX_DOCK_IDLE_MS = 4_000L
-
-/** A held D-pad key is interaction, even when Android has not emitted another repeat yet. */
-internal fun maxDockIdleCanHide(visible: Boolean, keyHeld: Boolean): Boolean = visible && !keyHeld
 
 /** Budget the complete two-line title after the other hero content, preserving readable sp. */
 internal fun homeHeroTitleSizeSp(titleSp: Float, lineHeightSp: Float, maxLines: Int,

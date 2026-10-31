@@ -69,7 +69,7 @@ internal class GlobalSearchSession : ViewModel() {
 @Composable fun GlobalSearchScreen(comics: List<ComicEntity>, offlineIds: Set<String>, sources: SourcesViewModel,
     onLocal: (String) -> Unit, onOnline: (SearchHit) -> Unit, onExtensions: () -> Unit,
     onBack: () -> Unit, onBrowserOpen: (() -> Unit)? = null, localCover: (String) -> Any? = { null },
-    extraResults: @Composable (String) -> Unit = {}, onBrowserUrl: ((String) -> Unit)? = null) {
+    extraResults: @Composable (String, FocusRequester) -> Unit = { _, _ -> }, onBrowserUrl: ((String) -> Unit)? = null) {
     val sourceState by sources.state.collectAsStateWithLifecycle()
     val searchLifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     var query by rememberSaveable { mutableStateOf("") }
@@ -82,6 +82,8 @@ internal class GlobalSearchSession : ViewModel() {
     var lastFocus by rememberSaveable { mutableStateOf("query") }
     var restoredFocus by remember { mutableStateOf(false) }
     val queryFocus = remember { FocusRequester() }
+    val extensionsFocus = remember { FocusRequester() }
+    var queryFocused by remember { mutableStateOf(false) }
     val list = rememberLazyGridState()
     val visibleCoverKeys by remember(list) { derivedStateOf { list.layoutInfo.visibleItemsInfo.map { it.key }.toSet() } }
     var optionsKey by remember { mutableStateOf<String?>(null) }
@@ -145,7 +147,7 @@ internal class GlobalSearchSession : ViewModel() {
             .onFocusChanged { if (it.isFocused) lastFocus = key }
             .then(libraryCardKeys(onClick, { optionsKey = key; optionsTitle = title })),
             colors = CardDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Panel),
-            border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.FocusAccent))),
+            border = CardDefaults.border(focusedBorder = Border(BorderStroke(4.dp, TvColors.FocusAccent))),
             scale = CardDefaults.scale(focusedScale = 1.03f)) {
             Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Background), contentAlignment = Alignment.Center) {
                 if (!TvColors.options.highContrast) {
@@ -172,10 +174,11 @@ internal class GlobalSearchSession : ViewModel() {
             SearchCategory.entries.forEach { tab -> FocusButton("tab:${tab.name}", if (category == tab) "● ${tab.label}" else tab.label, { categoryName = tab.name }) }
         }
         LaunchedEffect(Unit) { if (!restoredFocus && lastFocus == "query") { queryFocus.requestFocus(); restoredFocus = true } }
-        Column(Modifier.fillMaxWidth().border(2.dp, TvColors.FocusAccent).padding(16.dp)) {
+        // Only the focused field carries the theme's focus color.
+        Column(Modifier.fillMaxWidth().border(if (queryFocused) 3.dp else 1.dp, if (queryFocused) TvColors.FocusAccent else Color.White.copy(alpha = .4f)).padding(16.dp)) {
             Text("Título, editora, personagem ou gênero · OK abre o teclado", fontSize = 14.sp)
             TvTextInput(query, { query = it.take(300); browseRequested = false }, Modifier.fillMaxWidth().heightIn(min = 45.dp)
-                .focusRequester(queryFocus).onFocusChanged { if (it.isFocused) lastFocus = "query" },
+                .focusRequester(queryFocus).onFocusChanged { queryFocused = it.isFocused; if (it.isFocused) lastFocus = "query" },
                 textStyle = TextStyle(color = Color.White, fontSize = 25.sp), maxLength = 300)
         }
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -184,7 +187,8 @@ internal class GlobalSearchSession : ViewModel() {
             }
             FocusButton("clear", "Limpar", { query = ""; browseRequested = false })
         }
-        Text("Tags consultam as fontes. Segure OK numa capa para classificar o tipo nesta sessão; sem classificação aparece em Todos.", fontSize = 13.sp)
+        if (batch.running) Text("Buscando nas fontes · ${batch.finished}/${batch.total}", color = TvColors.Amber, fontSize = 18.sp)
+        Text("Segure OK numa capa para classificar o tipo.", color = TvColors.Muted, fontSize = 15.sp)
       }
     }) {
             item("modes", span = { GridItemSpan(maxLineSpan) }) { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -194,7 +198,7 @@ internal class GlobalSearchSession : ViewModel() {
             } }
             onBrowserUrl?.let { open ->
                 item("website-search", span = { GridItemSpan(maxLineSpan) }) {
-                    com.pelican.comictv.browser.BrowserSiteSearch(query, retry, open) { lastFocus = "web" }
+                    com.pelican.comictv.browser.BrowserSiteSearch(query, retry, open, !restoredFocus && lastFocus == "web") { lastFocus = "web"; restoredFocus = true }
                 }
             }
             item("local-heading", span = { GridItemSpan(maxLineSpan) }) { Text("Na biblioteca · ${local.size}", fontSize = 22.sp) }
@@ -204,10 +208,10 @@ internal class GlobalSearchSession : ViewModel() {
                     localCover(comic.id), null, { onLocal(comic.id) })
             }
             if (local.isEmpty()) item("no-local", span = { GridItemSpan(maxLineSpan) }) { Text("Nenhum título correspondente na biblioteca.") }
-            item("source-heading", span = { GridItemSpan(maxLineSpan) }) { Text("${if (query.isBlank()) if (latest) "Novidades" else "Catálogo" else "Nas fontes instaladas"} · ${batch.finished}/${batch.total} fontes${if (batch.running) " · Buscando…" else ""}", fontSize = 22.sp) }
+            item("source-heading", span = { GridItemSpan(maxLineSpan) }) { Text("${if (query.isBlank()) if (latest) "Novidades" else "Catálogo" else "Nas fontes instaladas"}${if (onlineRequested) " · ${batch.finished}/${batch.total} fontes" else ""}${if (batch.running) " · Buscando…" else ""}", fontSize = 22.sp) }
             if (trustedSources.size > 20) item("source-groups", span = { GridItemSpan(maxLineSpan) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Fontes ${group * 20 + 1}–${(group * 20 + 20).coerceAtMost(trustedSources.size)} de ${trustedSources.size}. Cada grupo consulta até 20 fontes instaladas, incluindo as não selecionadas.", fontSize = 14.sp)
+                    Text("Grupo de fontes ${group * 20 + 1}–${(group * 20 + 20).coerceAtMost(trustedSources.size)} de ${trustedSources.size}", color = TvColors.Muted, fontSize = 15.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         if (group > 0) FocusButton("previous-group", "Grupo anterior", { sourceGroup = group - 1 })
                         if (group + 1 < groupCount) FocusButton("next-group", "Próximas fontes", { sourceGroup = group + 1 })
@@ -222,14 +226,14 @@ internal class GlobalSearchSession : ViewModel() {
                     hit.title.coverUrl, hit, { if (linkedId != null) onLocal(linkedId) else onOnline(hit) })
             }
             if (!onlineRequested || (!batch.running && batch.hits.isEmpty())) item("empty", span = { GridItemSpan(maxLineSpan) }) { Text(if (!onlineRequested) "Digite uma consulta ou escolha Catálogo / Novidades para consultar as fontes instaladas." else if (trustedSources.isEmpty()) "Nenhuma fonte instalada e confiável disponível. Abra Extensões para configurar." else "Nenhum resultado nas primeiras páginas consultadas. Tente outra consulta ou fonte.") }
-            if (batch.errors.isNotEmpty()) item("errors", span = { GridItemSpan(maxLineSpan) }) { Text("Resultados parciais.\n" + batch.errors.joinToString("\n"), fontSize = 14.sp) }
+            if (batch.errors.isNotEmpty()) item("errors", span = { GridItemSpan(maxLineSpan) }) { Text("${batch.errors.size} ${if (batch.errors.size == 1) "fonte não respondeu" else "fontes não responderam"}: ${batch.errors.joinToString { it.substringBefore(":") }}. Use Buscar novamente.", color = TvColors.Muted, fontSize = 16.sp) }
             if (batch.timedOut || batch.limited) item("limits", span = { GridItemSpan(maxLineSpan) }) { Text("${if (batch.timedOut) "Tempo total de busca esgotado. " else ""}Limite: 20 fontes, 12 títulos por fonte, primeira página. Refine a consulta ou busque na fonte desejada.", fontSize = 14.sp) }
-            item("extra", span = { GridItemSpan(maxLineSpan) }) { extraResults(query) }
+            item("extra", span = { GridItemSpan(maxLineSpan) }) { extraResults(query, extensionsFocus) }
             item("extensions", span = { GridItemSpan(maxLineSpan) }) { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Descobrir extensões", fontSize = 22.sp)
-                Text("Índices de extensões não confirmam a existência de títulos. Uma fonte não instalada não pode ser consultada. Instalação e confiança são escolhas explícitas em Extensões.", fontSize = 14.sp)
+                Text("Fontes não instaladas não entram na busca.", color = TvColors.Muted, fontSize = 15.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    FocusButton("extensions", "Abrir Extensões", onExtensions)
+                    FocusButton("extensions", "Abrir Extensões", onExtensions, Modifier.focusRequester(extensionsFocus))
                     FocusButton("refresh-index", "Atualizar índices", sources::refreshExtensionCatalogs)
                 }
                 if (!sourceState.extensionCatalogLoaded) Text("Atualize os índices dos repositórios configurados para ver fontes disponíveis.")

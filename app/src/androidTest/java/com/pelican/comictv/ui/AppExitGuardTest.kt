@@ -3,6 +3,7 @@ package com.pelican.comictv.ui
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.*
@@ -69,5 +70,18 @@ class AppExitGuardTest {
         pressBack()
         compose.onNodeWithTag("exit-confirm").performClick()
         compose.runOnIdle { assertEquals(1, exits) }
+    }
+
+    @Test fun exitConfirmationAcceptsPhoneControlAndPhoneBackOnlyClosesIt() {
+        val dialogs = com.pelican.comictv.companion.CompanionDialogs()
+        var exits = 0
+        compose.setContent { CompositionLocalProvider(com.pelican.comictv.companion.LocalCompanionDialogs provides dialogs) {
+            ComicTvTheme(AppearanceOptions()) { AppExitGuard(onExit = { exits++ }) { Text("Início") } }
+        } }
+        pressBack()
+        compose.onNodeWithTag("exit-continue").assertIsFocused()
+        compose.runOnIdle { checkNotNull(dialogs.focused()).dismiss() }
+        compose.onNodeWithTag("exit-confirmation").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(0, exits) }
     }
 }

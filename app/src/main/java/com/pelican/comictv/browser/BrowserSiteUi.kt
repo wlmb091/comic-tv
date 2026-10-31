@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -107,14 +108,15 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
     }
 }
 
-@Composable internal fun BrowserSiteSearch(query: String, retry: Int, onOpen: (String) -> Unit, onFocused: () -> Unit) {
+@Composable internal fun BrowserSiteSearch(query: String, retry: Int, onOpen: (String) -> Unit, restoreFocus: Boolean = false, onFocused: () -> Unit) {
     val model: BrowserSiteSearchModel = viewModel()
     var selected by rememberSaveable { mutableStateOf(BrowserSites.all.first().id) }
     var lastFocus by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(query, retry) { model.search(query, retry) }
     @Composable fun restore(key: String): Modifier {
         val requester = remember { FocusRequester() }
-        LaunchedEffect(Unit) { if (lastFocus == key) { withFrameNanos { }; requester.requestFocus() } }
+        // Only the screen knows whether focus last left from here; a site visited earlier must not take it.
+        LaunchedEffect(Unit) { if (restoreFocus && lastFocus == key) { withFrameNanos { }; requester.requestFocus() } }
         return Modifier.focusRequester(requester).onFocusChanged { if (it.isFocused) { lastFocus = key; onFocused() } }
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -127,11 +129,12 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
                     scale = CardDefaults.scale(focusedScale = 1.03f),
                     border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.FocusAccent))),
                     colors = CardDefaults.colors(containerColor = TvColors.Panel, focusedContainerColor = TvColors.Panel)) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Same height with or without results, so the row never jumps while sites answer.
+                    Row(Modifier.padding(12.dp).heightIn(min = 60.dp * LocalDensity.current.fontScale.coerceAtLeast(1f)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         BrowserSiteIcon(site, compact = true)
                         Column {
-                            Text((if (query.isNotBlank() && selected == site.id) "● " else "") + site.name, color = Color.White, fontSize = 14.sp, maxLines = 2)
-                            if (query.isNotBlank()) Text(when { result == null || result.loading -> "Buscando…"; result.error != null -> "Abrir no navegador"; else -> "${result.hits.size} resultados" }, color = TvColors.Muted, fontSize = 12.sp)
+                            Text((if (query.isNotBlank() && selected == site.id) "● " else "") + site.name, color = Color.White, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            if (query.isNotBlank()) Text(when { result == null || result.loading -> "Buscando…"; result.error != null -> "Abrir site"; else -> "${result.hits.size} resultados" }, color = TvColors.Muted, fontSize = 13.sp, maxLines = 1)
                         }
                     }
                 }

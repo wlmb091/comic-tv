@@ -20,6 +20,7 @@ import com.pelican.comictv.ui.*
     val close = remember { FocusRequester() }
     val scroll = rememberLazyListState()
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
         Column(Modifier.fillMaxWidth(.88f).fillMaxHeight(.88f).background(TvColors.Background).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Resumo completo", fontSize = 26.sp)

@@ -79,10 +79,14 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
     }
     val pages = rememberSaveableStateHolder()
     val nested = state.details != null || state.selectedRepository != null || (state.managerPage != null && state.activeSource != null)
-    BackHandler(enabled = nested) { if (state.details != null && onDetailsBack != null) onDetailsBack() else viewModel.back() }
+    var returnToFolder by remember { mutableIntStateOf(0) }
+    BackHandler(enabled = nested) {
+        if (state.details != null && onDetailsBack != null) onDetailsBack()
+        else { if (state.managerPage != null && state.activeSource != null) returnToFolder++; viewModel.back() }
+    }
     if (state.activeSource != null && state.details == null && state.managerPage == null) {
         val source = state.activeSource!!
-        pages.SaveableStateProvider("catalog:${source.packageName}:${source.id}") { SourceCatalog(state, viewModel) }
+        pages.SaveableStateProvider("catalog:${source.packageName}:${source.id}") { SourceCatalog(state, viewModel, returnToFolder) }
         return
     }
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -113,7 +117,7 @@ fun SourcesScreen(viewModel: SourcesViewModel, onRead: (String) -> Unit, onInsta
             pages.SaveableStateProvider(page) {
             when {
                 state.details != null -> SourceDetails(state.details!!, state.busy) { viewModel.openChapter(it, onRead) }
-                state.activeSource != null && state.managerPage == null -> SourceCatalog(state, viewModel)
+                state.activeSource != null && state.managerPage == null -> SourceCatalog(state, viewModel, returnToFolder)
                 state.selectedRepository != null -> RepositoryExtensions(state, viewModel, onInstall)
                 state.managerPage == SourceManagerPage.EXTENSIONS -> ExtensionsHome(state, viewModel, onInstall)
                 state.managerPage == SourceManagerPage.REPOSITORIES -> SourcesHome(state, viewModel)
@@ -269,7 +273,7 @@ private fun ExtensionsHome(state: SourcesState, vm: SourcesViewModel, install: (
 private fun CompactExtensionCard(packageName: String?, iconUrl: String?, name: String, status: String, selected: Boolean = false, downloadProgress: Float? = null, cardModifier: Modifier = Modifier, click: () -> Unit) {
     val active = selected
     Card(onClick = click, modifier = cardModifier.fillMaxWidth().semantics { this.selected = active; contentDescription = name + ", " + status }, colors = CardDefaults.colors(containerColor = TvColors.Panel),
-        scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {
+        scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(4.dp, TvColors.FocusAccent)))) {
         Column(Modifier.fillMaxWidth().heightIn(min = 124.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
@@ -302,10 +306,10 @@ private fun ExtensionIcon(packageName: String?, iconUrl: String?, name: String) 
 
 @Composable
 private fun CatalogIconButton(label: String, search: Boolean, modifier: Modifier = Modifier, click: () -> Unit) {
-    Button(onClick = click, modifier = modifier.size(44.dp).semantics { contentDescription = label },
-        contentPadding = PaddingValues(10.dp),
-        border = if (TvColors.useNeutralButtons) ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.Amber))) else ButtonDefaults.border(),
-        colors = ButtonDefaults.colors(containerColor = TvColors.ButtonSurface, focusedContainerColor = TvColors.Action, focusedContentColor = TvColors.OnAction)) {
+    Button(onClick = click, modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = label },
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.FocusAccent))),
+        colors = ButtonDefaults.colors(containerColor = TvColors.ButtonSurface, focusedContainerColor = TvColors.FocusAccent, focusedContentColor = TvColors.OnFocusAccent)) {
         val color = LocalContentColor.current
         Canvas(Modifier.size(24.dp)) {
             if (search) {
@@ -316,6 +320,8 @@ private fun CatalogIconButton(label: String, search: Boolean, modifier: Modifier
                 drawRect(color, topLeft = Offset(0f, size.height * .12f), size = Size(size.width * .45f, size.height * .16f), style = Stroke(2.dp.toPx()))
             }
         }
+        Spacer(Modifier.width(8.dp))
+        Text(label, fontSize = 15.sp, maxLines = 1)
     }
 }
 
@@ -450,7 +456,7 @@ internal fun extensionTransferProgress(candidate: AvailableExtension, transfers:
 }
 
 @Composable
-private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
+private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel, returnToFolder: Int = 0) {
     val navigate = LocalContentNavigation.current
     var query by rememberSaveable(state.activeSource?.packageName, state.activeSource?.id) { mutableStateOf(state.query) }
     val searchOwner = remember { Any() }
@@ -481,7 +487,16 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
     var focusedTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var restoreTarget by remember { mutableStateOf<String?>(null) }
     var positioned by remember { mutableStateOf<String?>(null) }
+    val folderFocus = remember { FocusRequester() }
+    // Picker Back returns to the folder that opened it, with the heading fully visible.
+    val folderReturn = remember { returnToFolder > 0 }
     LaunchedEffect(Unit) {
+        if (folderReturn) {
+            grid.scrollToItem(0)
+            withFrameNanos { }
+            folderFocus.requestFocus()
+            return@LaunchedEffect
+        }
         if (sectionEntry) return@LaunchedEffect
         val index = state.titles.indexOfFirst { it.key == focusedTitle }
         if (index >= 0) {
@@ -513,7 +528,7 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
                         Text("${if (state.latest) "Novidades" else "Catálogo"} · ${state.activeSource?.language.orEmpty()} · ${state.titles.size} títulos carregados",
                             fontSize = 14.sp, color = TvColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    CatalogIconButton("Trocar fonte", false, if (state.titles.isEmpty()) firstTitle else Modifier) { navigate { vm.openSourceManager() } }
+                    CatalogIconButton("Trocar fonte", false, Modifier.focusRequester(folderFocus).then(if (state.titles.isEmpty()) firstTitle else Modifier)) { navigate { vm.openSourceManager() } }
                     Spacer(Modifier.width(8.dp))
                     CatalogIconButton(if (searchVisible) "Fechar busca" else "Buscar", true) { searchVisible = !searchVisible }
                 }
@@ -542,10 +557,11 @@ private fun SourceCatalog(state: SourcesState, vm: SourcesViewModel) {
                 .then(if (title.key == state.titles.firstOrNull()?.key) firstTitle else Modifier).fillMaxWidth()
                 .semantics { contentDescription = label }
                 .onFocusChanged { if (it.isFocused) focusedTitle = title.key }, colors = CardDefaults.colors(containerColor = TvColors.Panel),
-                scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(3.dp, TvColors.Amber)))) {
+                scale = CardDefaults.scale(focusedScale = 1.04f), border = CardDefaults.border(focusedBorder = Border(BorderStroke(4.dp, TvColors.FocusAccent)))) {
                 Column {
                     Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(TvColors.Background)) {
-                        if (!loaded) Text(if (title.coverUrl.isNullOrBlank() || failed) "Capa indisponível" else "Carregando capa…",
+                        // A blank address is still being resolved for visible cards; only a real failure is final.
+                        if (!loaded) Text(if (failed) "Capa indisponível" else "Carregando capa…",
                             Modifier.align(Alignment.Center).padding(10.dp), color = TvColors.Muted, fontSize = 13.sp)
                         if (!title.coverUrl.isNullOrBlank()) AsyncImage(title.coverUrl, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
                             onSuccess = { loaded = true }, onError = { failed = true })

@@ -65,8 +65,10 @@ internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: Lazy
                 }
             }
         } else {
-        LazyRow(state = state, modifier = Modifier.homeRowViewport().fillMaxWidth().focusRestorer().testTag("home-source-$label"),
-            contentPadding = LocalHomeFocusSafety.current?.rowPadding ?: PaddingValues(horizontal = 48.dp, vertical = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        // No focusRestorer: entering from another row keeps the D-pad column, not the last visited card.
+        LazyRow(state = state, modifier = Modifier.homeRowViewport().fillMaxWidth().testTag("home-source-$label"),
+            contentPadding = LocalHomeFocusSafety.current?.rowPadding ?: PaddingValues(horizontal = 48.dp, vertical = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             items(sample, key = { it.key }) { title ->
                 Card(onClick = { onFocus(title.key); onOpen(title) }, modifier = Modifier.homeFocusCard(theme.focus.collectionScale, theme.focus.cardBorderDp.toFloat()).width(if (horizontal) 220.dp else 132.dp)
                     .then(if (effectiveRestoreKey == title.key) Modifier.focusRequester(restore).onGloballyPositioned { positioned = title.key } else Modifier)

@@ -72,15 +72,15 @@ import com.pelican.comictv.ui.*
                 if (editorial) Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUE SUA HISTÓRIA" else "SUA PRÓXIMA HISTÓRIA",
                     color = TvColors.Amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(comic?.title ?: "Seu universo de quadrinhos", Modifier.testTag("library-hero-title"),
-                    style = TextStyle(shadow = if (TvColors.options.highContrast) null else Shadow(Color.Black.copy(alpha = .8f), Offset(0f, 2f), 6f)),
+                    style = TextStyle(shadow = if (TvColors.options.highContrast) null else Shadow(Color.Black, Offset(0f, 2f), 10f)),
                     fontSize = titleSize.first.sp,
                     lineHeight = titleSize.second.sp,
                     fontFamily = libraryTitleFont(theme.typography.titleFamily),
-                    fontWeight = if (theme.typography.titleExtraBold) FontWeight.ExtraBold else if (theme.typography.titleFamily == ThemeTitleFamily.Serif) FontWeight.SemiBold else FontWeight.Normal,
+                    fontWeight = if (theme.typography.titleExtraBold) FontWeight.ExtraBold else if (theme.typography.titleFamily == ThemeTitleFamily.Serif) FontWeight.Bold else FontWeight.Normal,
                     maxLines = hero.titleMaxLines, overflow = TextOverflow.Ellipsis)
                 if (comic != null) {
                     Text(if (comic.lastRead > 0) "Página ${comic.currentPage + 1} de ${comic.pageCount}"
-                        else "${comic.pageCount} páginas para explorar", color = TvColors.Muted, fontSize = 15.sp)
+                        else "${comic.pageCount} páginas para explorar", color = if (editorial) TvColors.Muted else Color.White, fontSize = 15.sp)
                     if (comic.lastRead > 0 && comic.pageCount > 0) ProgressTrack((comic.currentPage + 1f) / comic.pageCount,
                         Modifier.widthIn(max = hero.progressWidthDp.dp).fillMaxWidth())
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -91,7 +91,7 @@ import com.pelican.comictv.ui.*
                     Text("Adicione suas edições ou explore as fontes online.", color = TvColors.Muted, fontSize = 16.sp)
                     TvButton("Importar quadrinhos", onImport, readModifier.then(actionFocus), primary = theme.colors.outlinedHeroAction || theme.colors.filledHeroAction, transparentBackground = !editorial, heroAction = true)
                 }
-                if (cinema) Text("↓ Biblioteca    ·    → Menu", color = TvColors.Muted, fontSize = 14.sp)
+                if (cinema) Text("↓ Biblioteca    ·    → Menu", color = Color.White, fontSize = 15.sp)
             }
         }
 

@@ -111,7 +111,7 @@ class ThemeNavigationTest {
 
     @Test fun maxMovesDownToDockAndUpToContent() {
         setShell(ColorPreset.Max)
-        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
+        compose.onNodeWithTag("navigation-bottom").assertExists()
         compose.onNodeWithTag("sidebar-collapsed").assertDoesNotExist()
         compose.onNodeWithText("Primeiro controle").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithTag("nav-library").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
@@ -138,7 +138,7 @@ class ThemeNavigationTest {
         }
     }
 
-    @Test fun primeBackdropCoversViewportAndTransparentNavigationRemainsCentredAt130Percent() {
+    @Test fun primeBackdropCoversViewportAndNavigationKeepsBrandApartAt130Percent() {
         setShell(ColorPreset.Prime, highContrast = false)
         val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
         val backdrop = compose.onNodeWithTag("test-shell-backdrop").fetchSemanticsNode().boundsInRoot
@@ -146,7 +146,6 @@ class ThemeNavigationTest {
         val brand = compose.onNodeWithTag("prime-wordmark").fetchSemanticsNode().boundsInRoot
         assertTrue("Arte Prime alcança as quatro bordas da tela", backdrop == shell)
         compose.onNodeWithTag("prime-navigation-panel").assertDoesNotExist()
-        assertTrue("Categorias centradas na tela mesmo com a marca à direita", abs(viewport.center.x - shell.center.x) <= 1f)
         assertTrue("Categorias não invadem a marca", viewport.right < brand.left)
         assertTrue("Marca permanece dentro da tela", brand.right <= shell.right)
         assertWordmarkFits()
@@ -195,7 +194,7 @@ class ThemeNavigationTest {
         compose.onNodeWithTag("navigation-top").assertExists()
     }
 
-    @Test fun maxCompactDockOverlaysWithoutChangingContentBoundsAt130Percent() {
+    @Test fun maxPermanentDockReservesContentHeightAt130Percent() {
         var density = 0f
         var scale = 0f
         compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Max, textPercent = 130)) {
@@ -203,8 +202,7 @@ class ThemeNavigationTest {
             scale = LocalDensity.current.fontScale.coerceAtLeast(1f)
             TvShell("library", {}, onSearch = {}) { TvButton("Conteúdo", {}, preferredContentEntryModifier()) }
         } }
-        val contentBefore = compose.onNodeWithTag("content-entry").fetchSemanticsNode().boundsInRoot
-        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
+        compose.onNodeWithTag("navigation-bottom").assertExists()
         compose.onNodeWithText("Conteúdo").performSemanticsAction(SemanticsActions.RequestFocus) { it() }
             .performKeyInput { pressKey(Key.DirectionDown) }
         val dock = compose.onNodeWithTag("navigation-bottom").fetchSemanticsNode().boundsInRoot
@@ -212,8 +210,7 @@ class ThemeNavigationTest {
         val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
         assertTrue("Dock respects horizontal safe area", dock.left >= shell.left + 47f * density && dock.right <= shell.right - 47f * density)
         assertTrue("Dock respects bottom safe area", dock.bottom <= shell.bottom - 26f * density)
-        assertTrue("Revelar o dock não muda a altura das fileiras", content == contentBefore)
-        assertTrue("Conteúdo vai até a borda inferior", content.bottom == shell.bottom)
+        assertTrue("Dock não cobre o conteúdo", content.bottom <= dock.top)
         assertTrue("Dock usa altura compacta mesmo a130%", dock.height <= 74f * scale * density + 1f)
         listOf("search", "library", "recent", "sources", "extensions", "import", "settings").forEach { section ->
             val item = compose.onNodeWithTag("nav-$section").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
@@ -305,10 +302,10 @@ class ThemeNavigationTest {
         val shell = compose.onNodeWithTag("theme-shell").fetchSemanticsNode().boundsInRoot
         val backdrop = compose.onNodeWithTag("test-shell-backdrop").fetchSemanticsNode().boundsInRoot
         assertTrue("Arte Max alcança toda a tela atrás do dock", backdrop == shell)
-        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
+        compose.onNodeWithTag("navigation-bottom").assertExists()
     }
 
-    @Test fun maxNormalDownStaysInContentThenBoundaryRevealsDockAndIdleRestoresLastControl() {
+    @Test fun maxDownMovesThroughContentThenReachesDockAndUpRestoresLastControl() {
         compose.setContent { ComicTvTheme(AppearanceOptions(preset = ColorPreset.Max)) {
             var pending by remember { mutableStateOf(true) }
             TvShell("library", {}, focusContentOnEntry = pending, onSectionFocused = { pending = false }) {
@@ -319,15 +316,10 @@ class ThemeNavigationTest {
             }
         } }
         compose.onNodeWithText("Primeira fileira").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Última fileira").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithTag("nav-library").assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
         compose.onNodeWithText("Última fileira").assertIsFocused()
-        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
-        compose.onNodeWithText("Última fileira").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithTag("nav-library").assertIsFocused()
-        compose.mainClock.autoAdvance = false
-        compose.mainClock.advanceTimeBy(MAX_DOCK_IDLE_MS + 300L)
-        compose.waitForIdle()
-        compose.onNodeWithText("Última fileira").assertIsFocused()
-        compose.onNodeWithTag("navigation-bottom").assertDoesNotExist()
+        compose.onNodeWithTag("navigation-bottom").assertExists()
         compose.onAllNodes(isFocused()).assertCountEquals(1)
     }
 

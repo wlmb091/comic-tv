@@ -66,6 +66,7 @@ import kotlinx.coroutines.launch
     var message by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { first.requestFocus() }
     Dialog(onDismissRequest = onDismiss) {
+        com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
         Column(Modifier.widthIn(max = 520.dp).heightIn(max = 460.dp).verticalScroll(rememberScrollState()).background(TvColors.Background).padding(24.dp)
             .onPreviewKeyEvent { event ->
                 val center = event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter

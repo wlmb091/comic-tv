@@ -85,6 +85,13 @@ test('tap then drag keeps browser press move release in order',async()=>{
  const h=harness();h.run("tvReader={active:false,browser:true}");pointer(h,'down',1,30,30);pointer(h,'up',1,30,30);await h.run('(async()=>{for(let i=0;i<20;i++)await Promise.resolve()})()');pointer(h,'down',2,30,30);pointer(h,'move',2,60,30);pointer(h,'up',2,60,30);await h.run('(async()=>{for(let i=0;i<40;i++)await Promise.resolve()})()');
  assert.deepEqual(sent(h).map(c=>c.action),['browser-click','browser-press','browser-pointer','browser-release']);
 });
-test('browser arrows share the cursor sensitivity',()=>{
- const h=harness();h.run("tvReader={active:false,browser:true};sensitivities.pointer=2;directional('right')");assert.deepEqual(sent(h),[{action:'browser-pointer',dx:.08,dy:0}]);
+test('browser arrows and OK drive the page, leaving the cursor to the touchpad',()=>{
+ const h=harness();h.run("tvReader={active:false,browser:true};sensitivities.pointer=2;directional('right');$('padOK').onclick()");assert.deepEqual(sent(h),[{action:'browser-right'},{action:'browser-ok'}]);
+});
+test('opening the keyboard switches to arrows and a sent text leaves them ready',async()=>{
+ const h=harness();const pressed=[];h.elements.set('modeArrows',{...h.run("$('modeArrows')"),setAttribute(name,value){pressed.push(value)}});
+ h.run("$('showKeyboard').onclick()");assert.deepEqual(pressed,['true']);
+ h.run("$('keyboard').value='Batman';$('keyboardForm').onsubmit({preventDefault(){}})");
+ await new Promise(resolve=>setImmediate(resolve));await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(sent(h).filter(c=>c.action==='text'),[{action:'text',text:'Batman'}]);assert.equal(h.run("$('keyboard').value"),'');
 });

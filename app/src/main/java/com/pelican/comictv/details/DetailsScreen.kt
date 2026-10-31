@@ -6,6 +6,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.input.key.*
@@ -176,8 +177,14 @@ import kotlinx.coroutines.CancellationException
             finally { metadataLoading = false }
         }
     }
+    val overviewScroll = rememberScrollState()
     LaunchedEffect(comic != null, error) {
-        if (!interacted && chapterRows.isEmpty() && !expandedSummary && !moreOptions && !confirmRemoval && !confirmDelete && (comic != null || error != null)) first.requestFocus()
+        if (!interacted && chapterReturn.restoreId == null && !expandedSummary && !moreOptions && !confirmRemoval && !confirmDelete && (comic != null || error != null)) {
+            withFrameNanos { }
+            first.requestFocus()
+            pageScroll.scrollToItem(0)
+            overviewScroll.scrollTo(0)
+        }
     }
     BackHandler(enabled = !moreOptions && !confirmRemoval && !confirmDelete && !expandedSummary) { afterDiscoveryStopped(onBack) }
     val summaryFocus = remember(id) { FocusRequester() }
@@ -237,7 +244,8 @@ import kotlinx.coroutines.CancellationException
         item(key = "overview") {
         Row(Modifier.fillMaxWidth().height(panelHeight),
             horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-            Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(8.dp),
+            // Returning from the chapter panel goes back to the last used action, never the nearest by height.
+            Column(Modifier.weight(1f).fillMaxHeight().focusRestorer().focusGroup().verticalScroll(overviewScroll).padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(if (isOnline) "SUA BIBLIOTECA / EDIÇÃO ONLINE" else "SUA BIBLIOTECA / EDIÇÃO LOCAL",
                     fontSize = 13.sp, color = TvColors.Amber)

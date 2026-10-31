@@ -53,10 +53,11 @@ internal class DetailsChapterController {
     val focus = remember(id) { FocusRequester() }
     var initialAttempted by rememberSaveable(id) { mutableStateOf(false) }
     var pending by remember(id) { mutableStateOf<String?>(null) }
+    // Details open on Continue reading; the list only scrolls to the resume row without taking focus.
     LaunchedEffect(rows.map { it.id }, target, state.busy, restoreId) {
-        if (!state.busy && target != null && (restoreId != null || (!initialAttempted && !interacted))) {
+        if (!state.busy && target != null && (restoreId != null || !initialAttempted)) {
             initialAttempted = true
-            pending = target
+            if (restoreId != null) pending = target
             list.scrollToItem(rows.indexOfFirst { it.id == target } + 1)
         }
     }
@@ -65,7 +66,7 @@ internal class DetailsChapterController {
         item(key = "chapter-controls") {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Capítulos / edições", fontSize = 21.sp)
-                Text(if (online && state.context != null) "${rows.size} capítulos na fonte" else "${rows.size} edições na sua saga · somente arquivos conhecidos",
+                Text(if (online && state.context != null) "${rows.size} capítulos na fonte" else "${rows.size} ${if (rows.size == 1) "edição" else "edições"} na sua saga · somente arquivos conhecidos",
                     fontSize = 14.sp, color = TvColors.Muted)
                 if (state.busy) Text("Consultando a fonte…", color = TvColors.Amber, fontSize = 15.sp)
                 state.message?.let { Text(it, color = TvColors.Amber, fontSize = 15.sp) }
@@ -86,14 +87,14 @@ internal class DetailsChapterController {
                     .onGloballyPositioned {
                         if (pending == row.id) {
                             pending = null
-                            if (restoreId != null || !interacted) focus.requestFocus()
+                            focus.requestFocus()
                             onRestored()
                         }
                     }, primary = row.id == id)
             LaunchedEffect(pending, interacted) {
                 if (isTarget && pending == row.id) {
                     pending = null
-                    if (restoreId != null || !interacted) { withFrameNanos { }; focus.requestFocus() }
+                    withFrameNanos { }; focus.requestFocus()
                     onRestored()
                 }
             }

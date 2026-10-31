@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.Lifecycle
 import com.google.gson.Gson
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.*
 
 internal data class CompanionState(val url:String?=null,val qr:Bitmap?=null,val busy:Boolean=false,val message:String="Inicie uma sessão para conectar o celular.")
 
-internal class CompanionController(private val activity:ComponentActivity,private val container:AppContainer) {
+internal class CompanionController(private val activity:ComponentActivity,private val container:AppContainer,private val dialogs:CompanionDialogs) {
     private val scope=CoroutineScope(SupervisorJob()+Dispatchers.Main.immediate)
     private val mutable=MutableStateFlow(CompanionState());val state=mutable.asStateFlow()
     private var server:CompanionServer?=null;private var sessionJob:Job?=null
@@ -34,7 +35,6 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private val files=File(activity.cacheDir,"companion-pages")
     var onOpen:(String)->Unit={}
     var onHome:()->Unit={}
-    val dialogs=CompanionDialogs()
     private val preferences=activity.getSharedPreferences("companion-gestures",android.content.Context.MODE_PRIVATE)
     private fun sensitivity(key:String)=preferences.getFloat(key,1f).takeIf{it.isFinite()&&it in .25f..3f}?:1f
     fun start(){
@@ -139,7 +139,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         }
         if(c.action=="text"){
             val connection=dialog.window.currentFocus?.onCreateInputConnection(EditorInfo())?:error("Selecione um campo de texto no menu da TV.")
-            check(connection.commitText(c.text,1)){"O campo não recebeu o texto."};return
+            check(connection.commitText(c.text,1)){"O campo não recebeu o texto."}
+            dialog.window.currentFocus?.let{focused->activity.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(focused.windowToken,0)};return
         }
         if(c.action=="tap"||c.action=="scroll"){
             val root=dialog.window.decorView;val now=SystemClock.uptimeMillis();val x=(c.x*root.width).toFloat();val y=(c.y*root.height).toFloat()
@@ -199,7 +200,9 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         if(c.action=="back"){activity.onBackPressedDispatcher.onBackPressed();return}
         if(c.action=="text"){
             val connection=activity.currentFocus?.onCreateInputConnection(EditorInfo())?:error("Selecione primeiro um campo de texto na TV.")
-            check(connection.commitText(c.text,1)){"O campo não recebeu o texto."};return
+            check(connection.commitText(c.text,1)){"O campo não recebeu o texto."}
+            // The text is in the field: the TV keyboard would only hide the controls that confirm it.
+            activity.currentFocus?.let{focused->activity.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(focused.windowToken,0)};return
         }
         val view=activity.window.decorView
         if(c.action=="tap"||c.action=="scroll"){

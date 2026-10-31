@@ -1,6 +1,6 @@
 package com.pelican.comictv.library
 
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import android.app.ActivityManager
 import android.content.Context
@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -25,7 +26,7 @@ import kotlinx.coroutines.delay
 
 /** Manual horizontal art wins; the actual edition cover supplies an automatic local fallback. */
 @Composable internal fun CinemaBackdrop(id: String?, repository: LibraryRepository, modifier: Modifier = Modifier,
-    onImageReady: () -> Unit = {}) {
+    onImageReady: () -> Unit = {}, dimmed: Boolean = false) {
     val revision by repository.cinemaRevision.collectAsState()
     val theme = LocalThemeSpec.current
     val enabled = theme.artwork && !TvColors.options.highContrast
@@ -44,10 +45,15 @@ import kotlinx.coroutines.delay
         val density = LocalDensity.current
         val manager = remember(context) { context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager }
         if (enabled) {
+            // The old image stays until the new decode finishes, so a change never shows an empty frame.
             // Only the old and new bounded decode coexist during this short opacity transition.
-            // Compose's animation duration scale also honors Android's reduced/disabled animations.
-            Crossfade(artwork, modifier = Modifier.fillMaxSize(), animationSpec = tween(theme.motion.artworkCrossfadeMs), label = "hero-artwork") { image ->
-                if (image != null) {
+            var settled by remember(repository) { mutableStateOf<LibraryBackdropImage?>(null) }
+            LaunchedEffect(artwork == null) { if (artwork == null) settled = null }
+            listOfNotNull(settled, artwork?.takeIf { it != settled }).forEach { image ->
+                key(image) {
+                    var ready by remember { mutableStateOf(image == settled) }
+                    val layerAlpha by animateFloatAsState(if (ready) 1f else 0f, tween(theme.motion.artworkCrossfadeMs), label = "hero-artwork",
+                        finishedListener = { if (ready && image == artwork) settled = image })
                     val size = CinemaImagePolicy.sourceDecodeSize(with(density) { maxWidth.roundToPx() },
                         with(density) { maxHeight.roundToPx() }, image.width, image.height, manager?.isLowRamDevice == true)
                     val filterOptions = TvColors.options.carouselImageOptions
@@ -64,17 +70,20 @@ import kotlinx.coroutines.delay
                             .apply { if (enhancement) { allowHardware(false); transformations(CarouselCoverEnhancement(filterOptions)) } }
                             .memoryCachePolicy(CachePolicy.DISABLED).diskCachePolicy(CachePolicy.DISABLED).build()
                     }
-                    AsyncImage(request, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+                    AsyncImage(request, null, Modifier.fillMaxSize().graphicsLayer { alpha = layerAlpha }, contentScale = ContentScale.Crop,
                         filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
-                        onSuccess = { onImageReady() })
+                        onSuccess = { ready = true; onImageReady() })
                 }
             }
             // Dim only the cover backdrop; foreground content and card covers remain unchanged.
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .15f)))
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .28f)))
             Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(
-                Color.Black.copy(alpha = .80f), Color.Black.copy(alpha = .32f), Color.Black.copy(alpha = .04f)))))
+                Color.Black.copy(alpha = .86f), Color.Black.copy(alpha = .5f), Color.Black.copy(alpha = .12f)))))
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(
                 Color.Black.copy(alpha = .05f), Color.Transparent, TvColors.Background))))
+            // Rows sit directly over this art once the hero has scrolled away.
+            val rowsShade by animateFloatAsState(if (dimmed) .74f else 0f, tween(theme.motion.artworkCrossfadeMs), label = "backdrop-rows-shade")
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = rowsShade }.background(Color.Black))
         }
     }
 }

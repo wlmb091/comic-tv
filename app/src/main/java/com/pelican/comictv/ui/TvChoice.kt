@@ -32,12 +32,12 @@ import androidx.tv.material3.*
         colors = ButtonDefaults.colors(
             containerColor = artworkSurface ?: TvColors.ButtonSurface,
             contentColor = if (artworkSurface != null) Color.White else if (selected) TvColors.Amber else TvColors.Muted,
-            focusedContainerColor = TvColors.Action,
-            focusedContentColor = TvColors.OnAction,
+            focusedContainerColor = TvColors.FocusAccent,
+            focusedContentColor = TvColors.OnFocusAccent,
         ),
         border = ButtonDefaults.border(
             border = if (selected && !cinemaSelection) Border(BorderStroke(1.dp, TvColors.Amber)) else Border.None,
-            focusedBorder = Border(BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.Amber)),
+            focusedBorder = Border(BorderStroke(3.dp, TvColors.FocusAccent)),
         ),
     ) {
         if (cinemaSelection) Text("✓", Modifier.padding(end = 6.dp), fontSize = if (compact) 14.sp else 17.sp)

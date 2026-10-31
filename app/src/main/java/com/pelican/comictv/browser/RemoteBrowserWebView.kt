@@ -102,6 +102,14 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
     }
     /** Explicit phone gestures require the focused page. A dropped connection never leaves DOWN held. */
     fun companionGesture(action:String,dx:Float,dy:Float,zoom:Float):Boolean {
+        // Phone arrows and OK belong to the page's own input, not to the touchpad's cursor.
+        val pageKey=when(action){"browser-up"->KeyEvent.KEYCODE_DPAD_UP;"browser-down"->KeyEvent.KEYCODE_DPAD_DOWN;"browser-left"->KeyEvent.KEYCODE_DPAD_LEFT;"browser-right"->KeyEvent.KEYCODE_DPAD_RIGHT;"browser-ok"->KeyEvent.KEYCODE_ENTER;else->null}
+        if(pageKey!=null){
+            if(!hasFocus()||!isAttachedToWindow)return false
+            onPageInteraction();endCompanionDrag(true)
+            super.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,pageKey));super.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,pageKey))
+            return true
+        }
         if(!hasFocus()||!isAttachedToWindow||!cursorEnabled)return false
         onPageInteraction()
         when(action){

@@ -21,6 +21,7 @@ import com.pelican.comictv.ui.TvColors
         LibraryDialog(title, onDismiss, content)
     } else {
         Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
             ReaderSurface(true) {
                 Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().heightIn(max = 520.dp)

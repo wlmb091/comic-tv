@@ -159,6 +159,7 @@ import kotlinx.coroutines.*
     }
     selected?.let { entry ->
         androidx.compose.ui.window.Dialog(onDismissRequest = { selected = null; model.restoreFocus() }) {
+            com.pelican.comictv.companion.CompanionDialogWindow { selected = null; model.restoreFocus() }
             val actionFocus = remember { FocusRequester() }
             LaunchedEffect(entry.key) { withFrameNanos { }; actionFocus.requestFocus() }
             Column(Modifier.fillMaxWidth().heightIn(max = 540.dp).background(TvColors.Panel).verticalScroll(rememberScrollState()).padding(28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {

@@ -10,6 +10,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -21,11 +22,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
 
-@Composable fun MetadataEntry(query: String, onOpen: (String) -> Unit) {
+@Composable fun MetadataEntry(query: String, below: FocusRequester? = null, onOpen: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Sobre a obra · metadados e notas", fontSize = 22.sp, color = Color.White)
         Text("Consulta separada, somente por sua escolha. Não adiciona títulos à biblioteca.", color = TvColors.Muted)
-        TvButton("Consultar livros, quadrinhos ou mangás", { onOpen(query) })
+        TvButton("Consultar livros, quadrinhos ou mangás", { onOpen(query) },
+            Modifier.focusProperties { if (below != null) down = below })
     }
 }
 

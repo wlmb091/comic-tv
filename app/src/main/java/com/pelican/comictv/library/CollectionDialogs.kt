@@ -24,14 +24,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable internal fun LibraryDialog(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    val bridge=com.pelican.comictv.companion.LocalCompanionDialogs.current
-    val latestDismiss by rememberUpdatedState(onDismiss)
     Dialog(onDismissRequest = onDismiss) {
-        val window=(androidx.compose.ui.platform.LocalView.current.parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
-        DisposableEffect(bridge,window){
-            val unregister=window?.let{bridge?.register(it){latestDismiss()}}
-            onDispose{unregister?.invoke()}
-        }
+        com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
         Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().heightIn(max = 520.dp)
             .background(TvColors.Background).padding(24.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)) {

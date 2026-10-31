@@ -43,6 +43,7 @@ import kotlinx.coroutines.launch
     homeSources: com.pelican.comictv.sources.HomeSourcePreviews = com.pelican.comictv.sources.HomeSourcePreviews(),
     featuredIdOverride: String? = null,
     onHeroInteractionChanged: (Boolean) -> Unit = {},
+    onHeroVisibleChanged: (Boolean) -> Unit = {},
     onSourceSection: (Boolean) -> Unit = {},
     onSourceTitle: (com.pelican.comictv.sources.OnlineTitle, Boolean) -> Unit = { _, _ -> },
 ) {
@@ -456,6 +457,9 @@ import kotlinx.coroutines.launch
     val heroInteraction = activeSagaKey != null || heroKeyHeld || searching || managing || optionsFor != null || fullLibrary || activeCollectionId != null || !heroVisible
     LaunchedEffect(heroInteraction) { heroInteractionCallback(heroInteraction) }
     DisposableEffect(Unit) { onDispose { heroInteractionCallback(false) } }
+    val heroVisibleCallback by rememberUpdatedState(onHeroVisibleChanged)
+    LaunchedEffect(heroVisible) { heroVisibleCallback(heroVisible) }
+    DisposableEffect(Unit) { onDispose { heroVisibleCallback(true) } }
     LaunchedEffect(headerHasFocus) {
         // A header action is below the non-focusable title/poster; restore the entire header.
         // Only actual focus entry triggers this, never new database/carousel emissions.
@@ -496,7 +500,22 @@ import kotlinx.coroutines.launch
         requestedHeroHeight.value, brandHeight, maxOf(firstRowEstimate, measuredFollowing), gridTop, gridBottom,
         rowGapsDp = if (showExplorer && recent.isEmpty()) 10f else 20f).dp else requestedHeroHeight
     // Flix/Prime/Max share TvShell's full-viewport artwork, including navigation.
-    if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize())
+    if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize(), dimmed = !heroVisible)
+    // Max Home grows upward from its permanent dock; full pages keep normal reading order.
+    val invertedHome = maxLayout && homeRows
+    @Composable fun CollectionHeading() {
+        Column(Modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            sagaError?.let { Text(it, color = TvColors.Amber) }
+            val label = when { filter == "favorites" -> "Favoritos"; filter.startsWith("collection:") -> collections.firstOrNull { "collection:" + it.id == filter }?.name ?: "Coleção"; else -> if (history) "Histórico" else "Sua coleção" }
+            Text(label + " · " + visible.size + (if (query.isNotBlank()) " · Busca: “${query.trim()}”" else ""),
+                fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            if (query.isNotBlank()) TvButton("Limpar busca", { onQuery("") })
+        }
+    }
+    @Composable fun RecentHeading() {
+        Text("Continuar lendo", Modifier.onSizeChanged { followingHeadingPx = it.height },
+            fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+    }
     var consumeHeaderUp by remember { mutableStateOf(false) }
     var headerHeightPx by remember { mutableIntStateOf(0) }
     val homeBringIntoView = remember {
@@ -517,9 +536,10 @@ import kotlinx.coroutines.launch
                 else if (event.type == KeyEventType.KeyUp) heroKeyHeld = false
                 false
             },
-        contentPadding = PaddingValues(start = focusSafety.horizontalDp.dp, end = focusSafety.horizontalDp.dp, top = gridTop.dp, bottom = gridBottom.dp),
+        contentPadding = PaddingValues(start = focusSafety.horizontalDp.dp, end = focusSafety.horizontalDp.dp, top = gridTop.dp, bottom = if (invertedHome) focusSafety.overflowDp.dp else gridBottom.dp),
+        reverseLayout = invertedHome,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = if (invertedHome) Arrangement.spacedBy(10.dp, Alignment.Bottom) else Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-header", span = { GridItemSpan(maxLineSpan) }) {
             Column(Modifier.testTag("library-header").onSizeChanged { headerHeightPx = it.height }
@@ -528,7 +548,7 @@ import kotlinx.coroutines.launch
                     if (!it.hasFocus) heroKeyHeld = false
                 }
                 .onPreviewKeyEvent { event ->
-                    if (event.key != Key.DirectionUp) false
+                    if (event.key != Key.DirectionUp || invertedHome) false
                     else if (event.type == KeyEventType.KeyUp && consumeHeaderUp) {
                         consumeHeaderUp = false
                         true
@@ -540,7 +560,7 @@ import kotlinx.coroutines.launch
                 }.focusGroup(),
                 verticalArrangement = Arrangement.spacedBy(if (footerControls) 10.dp else 18.dp)) {
                 if (footerControls) {
-                    if (theme.navigation.libraryBrand) ComicWordmark(Modifier.width(180.dp * textScale).heightIn(min = 38.dp)
+                    if (theme.navigation.libraryBrand) ComicWordmark(Modifier.padding(start = if (theme.navigation.layout == ThemeNavigationPolicy.Sidebar) 10.dp else 0.dp).width(180.dp * textScale).heightIn(min = 38.dp)
                         .onSizeChanged { brandHeightPx = it.height }.testTag("library-brand"))
                     if (topSearch) FlowRow(Modifier.fillMaxWidth().testTag("library-top-search"),
                         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)) {
@@ -567,11 +587,13 @@ import kotlinx.coroutines.launch
             }
         }
         if (!history && recent.isNotEmpty()) {
+            // Keep both items in the upward layout: indices stay stable and the heading stays above its row.
             item(key = "recent-heading", span = { GridItemSpan(maxLineSpan) }) {
-                Text("Continuar lendo", Modifier.onSizeChanged { followingHeadingPx = it.height },
-                    fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                if (invertedHome) Spacer(Modifier.height(0.dp)) else RecentHeading()
             }
             item(key = "recent-row", span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (invertedHome) RecentHeading()
                 if (comicHome) {
                     ComicHomePreviewGrid(recent, { it.id },
                         onMore = { homeOriginRow = "recent-more"; openFullLibrary(true) },
@@ -596,6 +618,7 @@ import kotlinx.coroutines.launch
                     modifier = Modifier.homeRowViewport().fillMaxWidth().testTag("recent-row-viewport").onSizeChanged { followingRowPx = it.height },
                     contentPadding = focusSafety.rowPadding,
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     items(if (homeRows) homePreviewItems(recent) { it.id } else recent, key = { it.id }) { comic ->
                         val restoreModifier = if (targetRecent && target == comic.id) Modifier.focusRequester(restore)
@@ -613,6 +636,7 @@ import kotlinx.coroutines.launch
                     }
                     if (homeRows) item(key = "recent-more") { TvButton("Ver mais", { homeOriginRow = "recent-more"; openFullLibrary(true) }, Modifier.testTag("home-recent-more")
                         .then(if (target == "recent-more") Modifier.focusRequester(restore).onGloballyPositioned { positioned = "recent-more" } else Modifier)) }
+                }
                 }
             }
         }
@@ -637,13 +661,7 @@ import kotlinx.coroutines.launch
 
         if (collectionVisible) {
         item(key = "collection-heading", span = { GridItemSpan(maxLineSpan) }) {
-            Column(Modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                sagaError?.let { Text(it, color = TvColors.Amber) }
-                val label = when { filter == "favorites" -> "Favoritos"; filter.startsWith("collection:") -> collections.firstOrNull { "collection:" + it.id == filter }?.name ?: "Coleção"; else -> if (history) "Histórico" else "Sua coleção" }
-                Text(label + " · " + visible.size + (if (query.isNotBlank()) " · Busca: “${query.trim()}”" else ""),
-                    fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                if (query.isNotBlank()) TvButton("Limpar busca", { onQuery("") })
-            }
+            if (invertedHome) Spacer(Modifier.height(0.dp)) else CollectionHeading()
         }
         if (visible.isEmpty() && !previewHome) {
             item(key = "empty", span = { GridItemSpan(maxLineSpan) }) {
@@ -685,8 +703,11 @@ import kotlinx.coroutines.launch
         } else
         if (homeRows) {
             item(key = "home-collection-row", span = { GridItemSpan(maxLineSpan) }) {
-                LazyRow(state = collectionList, modifier = Modifier.homeRowViewport().focusRestorer().testTag("home-collection-row"), contentPadding = focusSafety.rowPadding,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (invertedHome) CollectionHeading()
+                // No focusRestorer: entering from another row keeps the D-pad column, not the last visited card.
+                LazyRow(state = collectionList, modifier = Modifier.homeRowViewport().testTag("home-collection-row"), contentPadding = focusSafety.rowPadding,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     items(homePreviewItems(visible) { it.id }, key = { it.id }) { comic ->
                         val restoreModifier = if (!targetRecent && target == comic.id) Modifier.focusRequester(restore)
                             .onGloballyPositioned { positioned = comic.id } else Modifier
@@ -702,6 +723,7 @@ import kotlinx.coroutines.launch
                     }
                     item(key = "collection-more") { TvButton("Ver mais", { homeOriginRow = "collection-more"; openFullLibrary(false) }, Modifier.testTag("home-collection-more")
                         .then(if (target == "collection-more") Modifier.focusRequester(restore).onGloballyPositioned { positioned = "collection-more" } else Modifier)) }
+                }
                 }
             }
         } else items(visible, key = { it.id }) { comic ->
