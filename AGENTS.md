@@ -1,5 +1,7 @@
 # Comic TV — decisões persistentes do usuário
 
+- 1.4.8 PUBLICADA31/10/2026 às13:57:06BRT/code82;fonteb15f953457a5634d174944bad2d72c709db6e139,CI41221075242/41222096813aprovados,Gradle11m34. ProvidersExplorer/Extensioncomclassespróprias,authorities/pastaspreservadas. Manifestoversionado/release/latest/asset/logassinadorcoincidem25.302.015bytes/SHA256f496e289fb032a28bd4f41ce1792bacded86509a646d68d0f3d231f551e6bddf;assinaturahistórica/ABI/alinhamentoverificadosCIpúblico,latestv1.4.8. SemdownloadAPKredundante/bateriacompletalocal/worknoscommits. AvisosActionsNode20/setup-java4semfalhas. docs/validation/1.4.8.md. LoteENCERRADO;instalaçãoDBNewHopenaBoxPENDENTE,causaseguehipóteseatétestefísico.
+
 - 31/10/2026 lote1.4.8/code82 AUTORIZADO corrigir e publicar para teste: providers explorer/extensions com classes próprias, authorities/pastas inalteradas. 21JVM focados 0falhas, release/AndroidTest compile/lint OK; aapt2 confirmou classes distintas. Android/Box pendentes, causa segue hipótese até instalar DB New Hope. docs/validation/1.4.8.md.
 
 - 31/10/2026 divisão de trabalho definida pelo usuário: Claude Code altera somente os arquivos desta pasta, sem vínculo com GitHub (sem commit/push/gh); Codex faz a publicação no GitHub. Push para main pode acionar release; publicar/gerar APK continua exigindo autorização explícita do usuário.
