@@ -28,7 +28,7 @@ private val BrowserControlSurface = Color.White.copy(alpha = .12f)
 
 @Composable internal fun BrowserChrome(state: BrowserSessionState, address: String, onAddress: (String) -> Unit,
     addressFocus: FocusRequester, canBack: Boolean, canForward: Boolean, downloads: Int, progress: Int,
-    message: String, action: (String) -> Unit, homeFocus: FocusRequester? = null) {
+    message: String, action: (String) -> Unit, homeFocus: FocusRequester? = null, footerFocus: FocusRequester? = null) {
     var caption by remember { mutableStateOf("MENU abre ou fecha os controles · Segure OK sobre um link para opções") }
     val surface = if (TvColors.options.highContrast) Color.Black else TvColors.ButtonSurface.copy(alpha = .95f)
     var addressFocused by remember { mutableStateOf(false) }
@@ -69,7 +69,8 @@ private val BrowserControlSurface = Color.White.copy(alpha = .12f)
             Text(caption, color = TvColors.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(6.dp)
                 .focusProperties { if (homeFocus != null) up = homeFocus }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BrowserIcon("×", "Fechar aba atual", { action("close-tab") }, onFocus = { caption = it })
+                BrowserIcon("×", "Fechar aba atual", { action("close-tab") }, onFocus = { caption = it },
+                    modifier = if (footerFocus != null) Modifier.focusRequester(footerFocus) else Modifier)
                 BrowserIcon("←", "Voltar página", { action("back") }, canBack, { caption = it })
                 BrowserIcon("→", "Avançar página", { action("forward") }, canForward, { caption = it })
                 BrowserIcon(if (progress in 1..99) "■" else "↻", "Recarregar ou parar página", { action("reload") }, onFocus = { caption = it })
@@ -83,9 +84,9 @@ private val BrowserControlSurface = Color.White.copy(alpha = .12f)
     }
 }
 
-@Composable internal fun BrowserIcon(symbol: String, label: String, click: () -> Unit, enabled: Boolean = true, onFocus: (String) -> Unit = {}) {
+@Composable internal fun BrowserIcon(symbol: String, label: String, click: () -> Unit, enabled: Boolean = true, onFocus: (String) -> Unit = {}, modifier: Modifier = Modifier) {
     // Unavailable actions stay reachable and visibly focused; a press there does nothing.
-    Button(onClick = { if (enabled) click() }, modifier = Modifier.size(48.dp).semantics { contentDescription = label }
+    Button(onClick = { if (enabled) click() }, modifier = modifier.size(48.dp).semantics { contentDescription = label }
         .onFocusChanged { if (it.isFocused) onFocus(label) }, contentPadding = PaddingValues(4.dp),
         colors = ButtonDefaults.colors(containerColor = BrowserControlSurface, contentColor = if (enabled) Color.White else Color.White.copy(alpha = .4f),
             focusedContainerColor = TvColors.FocusAccent, focusedContentColor = TvColors.OnFocusAccent),

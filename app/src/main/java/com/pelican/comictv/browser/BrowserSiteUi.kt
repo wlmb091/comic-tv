@@ -73,7 +73,7 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
     }
 }
 
-@Composable internal fun BrowserHome(onOpen: (String) -> Unit, onSheet: (String) -> Unit, entryFocus: FocusRequester? = null, onTopUp: () -> Unit = {}, onFocused: () -> Unit = {}) {
+@Composable internal fun BrowserHome(onOpen: (String) -> Unit, onSheet: (String) -> Unit, entryFocus: FocusRequester? = null, onTopUp: () -> Unit = {}, onBottomDown: () -> Unit = {}, onFocused: () -> Unit = {}) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val sites = if (expanded) BrowserSites.all else BrowserSites.all.take(12)
     val grid = rememberLazyGridState()
@@ -109,7 +109,12 @@ internal class BrowserSiteSearchModel(private val fetch: suspend (BrowserSite, S
         item(key = "sites-more", span = { GridItemSpan(maxLineSpan) }) {
             TvButton(if (expanded) "Ver menos" else "Ver mais · ${BrowserSites.all.size - sites.size} sites", { expanded = !expanded })
         }
-        item(span = { GridItemSpan(maxLineSpan) }) { FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item(span = { GridItemSpan(maxLineSpan) }) { FlowRow(Modifier.onPreviewKeyEvent { event ->
+            if (event.key == Key.DirectionDown) {
+                if (event.type == KeyEventType.KeyDown) onBottomDown()
+                true
+            } else false
+        }, horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             TvButton("Google", { onOpen("https://www.google.com/") })
             TvButton("Favoritos", { onSheet("bookmarks") })
             TvButton("Histórico", { onSheet("history") })
