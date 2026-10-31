@@ -97,7 +97,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         companionLifecycle.addObserver(observer)
         onDispose{companionLifecycle.removeObserver(observer);companion.close()}
     }
-    SideEffect{companion.onOpen={id->nav.navigate("reader/$id"){launchSingleTop=true}}}
+    SideEffect{companion.onOpen={id->nav.navigate("reader/$id"){launchSingleTop=true}};companion.onHome={nav.navigate("library"){popUpTo("library"){inclusive=false};launchSingleTop=true}}}
     val updater: com.pelican.comictv.updates.AppUpdateViewModel = viewModel(key = "app-updates", factory = viewModelFactory {
         initializer { com.pelican.comictv.updates.AppUpdateViewModel(container.appUpdates) }
     })
@@ -157,7 +157,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         nav.navigate("global-search") { launchSingleTop = true }
     }
 
-    CompositionLocalProvider(LocalShellLibrarySearch provides openLibrarySearch) {
+    CompositionLocalProvider(LocalShellLibrarySearch provides openLibrarySearch, com.pelican.comictv.companion.LocalCompanionDialogs provides companion.dialogs) {
     NavHost(navController = nav, startDestination = "library") {
         composable("global-search") {
             val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory)

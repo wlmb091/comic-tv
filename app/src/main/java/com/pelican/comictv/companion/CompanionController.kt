@@ -33,6 +33,10 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private val pages=LinkedHashMap<String,List<com.pelican.comictv.model.PageRef>>()
     private val files=File(activity.cacheDir,"companion-pages")
     var onOpen:(String)->Unit={}
+    var onHome:()->Unit={}
+    val dialogs=CompanionDialogs()
+    private val preferences=activity.getSharedPreferences("companion-gestures",android.content.Context.MODE_PRIVATE)
+    private fun sensitivity(key:String)=preferences.getFloat(key,1f).takeIf{it.isFinite()&&it in .25f..3f}?:1f
     fun start(){
         if(server!=null||state.value.busy)return
         mutable.value=CompanionState(busy=true,message="Preparando painel…")
@@ -76,8 +80,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         }
         if(path=="/reader-state") {
             val snapshot=withContext(Dispatchers.Main.immediate){
-                val owner=reader?.takeIf{it.companionAvailable()}
-                if(owner==null)CompanionReaderState() else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom)}
+                val owner=reader?.takeIf{it.companionAvailable()&&dialogs.focused()==null}
+                (if(owner==null)CompanionReaderState(browser=dialogs.focused()==null&&activity.hasWindowFocus()&&activity.currentFocus is com.pelican.comictv.browser.RemoteBrowserWebView) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"))
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
         }
@@ -126,9 +130,45 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             return CompanionResource(options.outMimeType?:"image/jpeg",file=target)
         } finally {pageMutex.unlock()}
     }
+    private fun controlDialog(c:CompanionCommand,dialog:CompanionDialogs.Entry) {
+        if(c.action=="back"){dialog.dismiss();return}
+        if(c.action=="pointer"){
+            if(kotlin.math.abs(c.dx)+kotlin.math.abs(c.dy)<.015)return
+            val direction=if(kotlin.math.abs(c.dx)>kotlin.math.abs(c.dy)){if(c.dx>0)"right" else "left"}else if(c.dy>0)"down" else "up"
+            controlDialog(c.copy(action=direction),dialog);return
+        }
+        if(c.action=="text"){
+            val connection=dialog.window.currentFocus?.onCreateInputConnection(EditorInfo())?:error("Selecione um campo de texto no menu da TV.")
+            check(connection.commitText(c.text,1)){"O campo não recebeu o texto."};return
+        }
+        if(c.action=="tap"||c.action=="scroll"){
+            val root=dialog.window.decorView;val now=SystemClock.uptimeMillis();val x=(c.x*root.width).toFloat();val y=(c.y*root.height).toFloat()
+            fun touch(action:Int,at:Float,time:Long){val event=MotionEvent.obtain(now,time,action,x,at,0);try{dialog.window.callback?.dispatchTouchEvent(event)}finally{event.recycle()}}
+            touch(MotionEvent.ACTION_DOWN,y,now)
+            val end=if(c.action=="scroll")(y-c.delta).coerceIn(1f,(root.height-1).coerceAtLeast(1).toFloat()) else y
+            if(c.action=="scroll")touch(MotionEvent.ACTION_MOVE,end,now+20)
+            touch(MotionEvent.ACTION_UP,end,now+40);return
+        }
+        val code=when(c.action){"up"->KeyEvent.KEYCODE_DPAD_UP;"down"->KeyEvent.KEYCODE_DPAD_DOWN;"left"->KeyEvent.KEYCODE_DPAD_LEFT;"right"->KeyEvent.KEYCODE_DPAD_RIGHT;"ok"->KeyEvent.KEYCODE_DPAD_CENTER;"enter"->KeyEvent.KEYCODE_ENTER;"menu"->KeyEvent.KEYCODE_MENU;else->error("Feche o menu da TV para usar esse gesto.")}
+        dialog.window.callback?.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code))
+        dialog.window.callback?.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code))
+    }
     private fun control(c:CompanionCommand){
-        active();check(activity.hasWindowFocus()){ "Volte ao Comic TV para controlar." }
-        if(c.action=="open") {onOpen(c.id);return}
+        active();val dialog=dialogs.focused();check(dialog!=null||activity.hasWindowFocus()){ "Volte ao Comic TV para controlar." }
+        if(c.action=="open") {dialogs.dismissAll();onOpen(c.id);return}
+        if(c.action=="home") {dialogs.dismissAll();onHome();return}
+        if(c.action=="settings") {
+            val values=listOf(c.readerSensitivity,c.pointerSensitivity,c.zoomSensitivity,c.scrollSensitivity)
+            require(values.all{it.isFinite()&&it in .25f..3f})
+            preferences.edit().putFloat("reader",c.readerSensitivity).putFloat("pointer",c.pointerSensitivity)
+                .putFloat("zoom",c.zoomSensitivity).putFloat("scroll",c.scrollSensitivity).apply();return
+        }
+        if(dialog!=null){controlDialog(c,dialog);return}
+        if(c.action.startsWith("browser-")) {
+            val browser=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)
+                ?:error("Selecione a página do navegador na TV.")
+            check(browser.companionGesture(c.action,c.dx.toFloat(),c.dy.toFloat(),c.zoom)){"A página não está disponível para este gesto."};return
+        }
         // The TV owns context: a delayed phone poll must never turn a page via a stale arrow.
         if(reader!=null&&c.action in setOf("up","down","left","right","pointer","scroll")) {
             val (x,y)=when(c.action){

@@ -13,8 +13,8 @@ import java.util.UUID
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicInteger
 
-data class CompanionCommand(val action:String="",val text:String="",val id:String="",val x:Double=0.0,val y:Double=0.0,val delta:Int=0,val dx:Double=0.0,val dy:Double=0.0,val page:Int=0,val zoom:Float=1f)
-data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f)
+data class CompanionCommand(val action:String="",val text:String="",val id:String="",val x:Double=0.0,val y:Double=0.0,val delta:Int=0,val dx:Double=0.0,val dy:Double=0.0,val page:Int=0,val zoom:Float=1f,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f)
+data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f,val browser:Boolean=false,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f)
 data class CompanionResource(val mime:String,val bytes:ByteArray?=null,val file:File?=null,val filename:String?=null)
 
 /** An explicitly opened, expiring LAN session. No arbitrary URL/path/OS commands. */
@@ -48,11 +48,14 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
     }
     private fun valid(c:CompanionCommand):Boolean {
-        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom"))return false
+        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","home","settings","browser-pointer","browser-scroll","browser-zoom","browser-click","browser-context","browser-press","browser-release","browser-cancel"))return false
         if(c.text.length>1000||c.id.length>100||c.text.any {it=='\u0000'})return false
         if(c.action=="open"&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
         if(!c.x.isFinite()||!c.y.isFinite()||!c.dx.isFinite()||!c.dy.isFinite()||!c.zoom.isFinite())return false
         return when(c.action){
+            "settings"->listOf(c.readerSensitivity,c.pointerSensitivity,c.zoomSensitivity,c.scrollSensitivity).all{it.isFinite()&&it in .25f..3f}
+            "browser-pointer","browser-scroll"->c.dx in -1.0..1.0&&c.dy in -1.0..1.0
+            "browser-zoom"->c.zoom in .5f..2f
             "reader-pan"->c.x in -1.0..1.0&&c.y in -1.0..1.0
             "pointer"->c.dx in -1.0..1.0&&c.dy in -1.0..1.0
             "reader-page"->c.page in 0..4999

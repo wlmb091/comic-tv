@@ -44,11 +44,14 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
     private val hold = Runnable {
         if (pressed && !dragMode) {
             touch(MotionEvent.ACTION_CANCEL); pressed = false
-            val message = android.os.Message.obtain(Handler(Looper.getMainLooper()) { reply ->
-                onContextLink(reply.data.getString("url") ?: hitTestResult?.extra); true
-            })
-            requestFocusNodeHref(message)
+            requestContextLink()
         }
+    }
+    private fun requestContextLink() {
+        val message=android.os.Message.obtain(Handler(Looper.getMainLooper()){reply->
+            onContextLink(reply.data.getString("url")?:hitTestResult?.extra);true
+        })
+        requestFocusNodeHref(message)
     }
     private val frame = object : Runnable {
         override fun run() {
@@ -87,7 +90,36 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
         require(dx.isFinite()&&dy.isFinite())
         onPageInteraction()
         move(dx.coerceIn(-1f,1f)*width,dy.coerceIn(-1f,1f)*height)
+        if(companionDragging){handler.removeCallbacks(companionTimeout);handler.postDelayed(companionTimeout,1200)}
         return true
+    }
+    private var companionDragging=false
+    private val companionTimeout=Runnable { if(companionDragging)endCompanionDrag(true) }
+    private fun endCompanionDrag(cancel:Boolean) {
+        handler.removeCallbacks(companionTimeout);handler.removeCallbacks(hold)
+        if(pressed)touch(if(cancel)MotionEvent.ACTION_CANCEL else MotionEvent.ACTION_UP)
+        companionDragging=false;pressed=false;showPointer()
+    }
+    /** Explicit phone gestures require the focused page. A dropped connection never leaves DOWN held. */
+    fun companionGesture(action:String,dx:Float,dy:Float,zoom:Float):Boolean {
+        if(!hasFocus()||!isAttachedToWindow||!cursorEnabled)return false
+        onPageInteraction()
+        when(action){
+            "browser-pointer"->{if(!moveCompanionPointer(dx,dy))return false}
+            "browser-scroll"->{endCompanionDrag(true);wheel((-dx*width).toInt(),(-dy*height).toInt())}
+            "browser-zoom"->{endCompanionDrag(true);zoomBy(zoom.coerceIn(.5f,2f))}
+            "browser-press"->{
+                if(!companionDragging){endCompanionDrag(true);clickDownTime=SystemClock.uptimeMillis();pressed=true;companionDragging=true;touch(MotionEvent.ACTION_DOWN)}
+                handler.removeCallbacks(companionTimeout);handler.postDelayed(companionTimeout,1200)
+            }
+            "browser-release"->endCompanionDrag(false)
+            "browser-cancel"->endCompanionDrag(true)
+            "browser-click","browser-context"->{
+                endCompanionDrag(true);clickDownTime=SystemClock.uptimeMillis();pressed=true;touch(MotionEvent.ACTION_DOWN)
+                if(action=="browser-context"){touch(MotionEvent.ACTION_CANCEL);pressed=false;requestContextLink()} else {touch(MotionEvent.ACTION_UP);pressed=false}
+            }
+            else->return false
+        };showPointer();return true
     }
     private fun move(dx: Float, dy: Float) {
         val next = moveBrowserCursor(cursorX, cursorY, dx, dy, width, height, 12f * density)
@@ -109,6 +141,7 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
         try { if (!super.dispatchGenericMotionEvent(event)) scrollBy(dx, dy) } finally { event.recycle() }
     }
     fun releasePointer() {
+        handler.removeCallbacks(companionTimeout);companionDragging=false
         held.clear(); removeCallbacks(frame); handler.removeCallbacks(hold); handler.removeCallbacks(hide)
         if (pressed) touch(MotionEvent.ACTION_CANCEL)
         pressed = false; invalidate()
@@ -120,6 +153,7 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) { super.onWindowFocusChanged(hasWindowFocus); if (!hasWindowFocus) releasePointer() }
     override fun onDetachedFromWindow() { releasePointer(); super.onDetachedFromWindow() }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if(event.action==KeyEvent.ACTION_DOWN&&event.repeatCount==0&&companionDragging)endCompanionDrag(true)
         if (event.keyCode in setOf(KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_ESCAPE)) {
             if (event.action == KeyEvent.ACTION_UP) { releasePointer(); onToolbar() }; return true
         }

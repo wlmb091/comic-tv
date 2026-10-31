@@ -16,7 +16,10 @@ class CompanionServerTest {
             assertEquals(200,request(server.url+"/reader-state").first)
             assertEquals(404,request(server.url+"/screen").first)
             for(body in listOf("""{"action":"reader-pan","x":-0.12,"y":1}""","""{"action":"pointer","dx":-1,"dy":0.5}""","""{"action":"reader-page","page":4999}""","""{"action":"reader-turn","delta":-1}""","""{"action":"reader-zoom","zoom":2.25}"""))assertEquals(body,200,request(server.url+"/command",body).first)
-            assertEquals(5,commands.size)
+            for(body in listOf("""{"action":"browser-pointer","dx":0,"dy":0.1}""","""{"action":"home"}""","""{"action":"settings","readerSensitivity":2,"pointerSensitivity":0.25}""","""{"action":"browser-scroll","dx":0,"dy":0.2}""","""{"action":"browser-zoom","zoom":1.5}""","""{"action":"browser-press"}""","""{"action":"browser-release"}""","""{"action":"browser-context"}"""))assertEquals(body,200,request(server.url+"/command",body).first)
+            assertEquals(13,commands.size)
+            for(body in listOf("""{"action":"settings","readerSensitivity":0}""","""{"action":"settings","zoomSensitivity":4}""","""{"action":"browser-scroll","dy":2}""","""{"action":"browser-zoom","zoom":2.1}"""))assertEquals(body,400,request(server.url+"/command",body).first)
+
             for(body in listOf("""{"action":"reader-pan","x":-1.1}""","""{"action":"pointer","dx":2}""","""{"action":"reader-page","page":-1}""","""{"action":"reader-page","page":5000}""","""{"action":"reader-turn","delta":2}""","""{"action":"reader-zoom","zoom":0.9}""","""{"action":"reader-zoom","zoom":3.1}"""))assertEquals(body,400,request(server.url+"/command",body).first)
         }finally{server.close();root.deleteRecursively()}
     }
