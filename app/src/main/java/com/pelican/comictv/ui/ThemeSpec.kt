@@ -19,6 +19,8 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val dockSurface: Long? = null, val dockBorder: Long? = null,
     val sidebarInitiallyExpanded: Boolean = false,
     val sidebarExpandedWidthDp: Int = 220, val sidebarCollapsedWidthDp: Int = 64,
+    /** Rail position on the Library only; content keeps its own safe area. */
+    val sidebarLibraryStartDp: Int = safeHorizontalDp,
     val overlayDurationMs: Int = 220,
     val staticCollapsedRail: Boolean = false,
 )
@@ -92,7 +94,8 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     progressWidthDp = 280), ThemeCardSpec(), ThemeTypographySpec(28, 32), colors)
             when (preset) {
                 ColorPreset.Amber -> editorial.copy(
-                    navigation = editorial.navigation.copy(libraryBrand = true, staticCollapsedRail = true, searchInNavigation = true),
+                    navigation = editorial.navigation.copy(libraryBrand = true, staticCollapsedRail = true, searchInNavigation = true,
+                        sidebarLibraryStartDp = 25),
                     footerControls = true,
                     hero = editorial.hero.copy(minimumHeightDp = 194, titleMaxLines = 2,
                         posterWidthDp = 190, posterHeightDp = 250, cropPoster = true, posterBorderDp = 2,
@@ -107,7 +110,7 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                     colors = colors.copy(focusAccent = 0xFFFFE14D, outlinedHeroAction = true, heroPrimarySurface = 0x99000000))
                 ColorPreset.Flix -> editorial.copy(
                     navigation = ThemeNavigationSpec(ThemeNavigationPolicy.Sidebar, framelessSidebar = true, shellBackdrop = true,
-                        sidebarInitiallyExpanded = true, searchInNavigation = true),
+                        sidebarInitiallyExpanded = true, searchInNavigation = true, sidebarLibraryStartDp = 5),
                     hero = ThemeHeroSpec(HeroVariant.FullbleedText, viewportFraction = .72f,
                         minimumHeightDp = 284, bottomAligned = true, titleMaxLines = 2,
                         playIcon = true, verticalPaddingDp = 18, contentGapDp = 8, textOnlyActions = true),

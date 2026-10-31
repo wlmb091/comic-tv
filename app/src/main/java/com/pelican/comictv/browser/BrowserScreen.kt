@@ -55,6 +55,8 @@ import kotlinx.coroutines.*
     val tab = state.tabs.first { it.id == state.selectedId }
     val addressFocus = remember { FocusRequester() }
     val homeFocus = remember { FocusRequester() }
+    val footerFocus = remember { FocusRequester() }
+    var enterFooter by remember { mutableStateOf(false) }
     var chrome by rememberSaveable { mutableStateOf(tab.url.isBlank()) }
     var address by rememberSaveable { mutableStateOf(tab.url) }
     var dirtyAddress by remember { mutableStateOf(false) }
@@ -145,7 +147,7 @@ import kotlinx.coroutines.*
     LaunchedEffect(focusOwner, tab.id, pageFocus) {
         withFrameNanos { }
         when (focusOwner) {
-            BrowserFocusOwner.Controls -> addressFocus.requestFocus()
+            BrowserFocusOwner.Controls -> { (if (enterFooter) footerFocus else addressFocus).requestFocus(); enterFooter = false }
             BrowserFocusOwner.Home -> homeFocus.requestFocus()
             BrowserFocusOwner.Page -> host.current()?.requestFocus()
             BrowserFocusOwner.None -> Unit
@@ -161,6 +163,7 @@ import kotlinx.coroutines.*
             removeId != null -> removeId = null
             sheet != null -> sheet = null
             chrome -> { chrome = false; pageFocus++ }
+            browserBackLeaves(tab.url, chrome) -> onBack()
             !state.cursor -> { session.options(cursor = true); host.updateOptions() }
             else -> chrome = true
         }
@@ -198,13 +201,14 @@ import kotlinx.coroutines.*
             controls = { BrowserChrome(state, address, { address = it; dirtyAddress = true }, addressFocus,
                 host.current()?.canGoBack() == true, host.current()?.canGoForward() == true,
                 rows.count { it.status in setOf(BrowserDownloadStatus.Running, BrowserDownloadStatus.Queued) },
-                host.progress[tab.id] ?: 100, status, ::action, homeFocus = homeFocus.takeIf { tab.url.isBlank() }) },
+                host.progress[tab.id] ?: 100, status, ::action, homeFocus = homeFocus.takeIf { tab.url.isBlank() }, footerFocus = footerFocus) },
             page = {
                 if (nativeError) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Android System WebView indisponível. Atualize o componente de navegação da TV.") }
                 else if (ready) AndroidView(modifier = Modifier.fillMaxSize(), factory = { FrameLayout(it) }, update = { frame ->
                     try { host.attach(frame, tab) } catch (_: Exception) { nativeError = true }
                 })
-                if (tab.url.isBlank()) BrowserHome(::navigate, { sheet = it }, homeFocus) { chrome = false }
+                if (tab.url.isBlank()) BrowserHome(::navigate, { sheet = it }, homeFocus, onTopUp = { chrome = true },
+                    onBottomDown = { enterFooter = true; chrome = true }) { chrome = false }
 
             })
         if (sheet == "downloads") BrowserDownloadsPanel(rows, exportBusy, { sheet = null }, message = status,

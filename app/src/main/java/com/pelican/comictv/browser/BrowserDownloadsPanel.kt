@@ -83,7 +83,7 @@ internal fun browserDownloadActions(row: BrowserDownloadItem, exportBusy: Boolea
         if (entered && interactive && lastFocus != "back" && lastFocus !in available) restore()
         requesters.keys.retainAll(available)
     }
-    Column(Modifier.fillMaxSize().background(Color(0xFF10151D)).padding(horizontal = 32.dp, vertical = 24.dp)
+    Column(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 32.dp, vertical = 24.dp)
         .focusProperties { onExit = {
             if (interactive && requestedFocusDirection in listOf(FocusDirection.Up, FocusDirection.Down, FocusDirection.Left, FocusDirection.Right)) cancelFocusChange()
         } }.focusGroup()) {
@@ -96,10 +96,11 @@ internal fun browserDownloadActions(row: BrowserDownloadItem, exportBusy: Boolea
         LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = list, contentPadding = PaddingValues(vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (rows.isEmpty()) item { Text("Nenhum download ainda. Abra um site e escolha o arquivo que deseja baixar.", fontSize = 19.sp) }
             items(ordered, key = { it.id }) { row ->
-                Column(Modifier.fillMaxWidth().background(Color(0xFF202A37)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Lighter than the background so theme-colored buttons stay distinct on the card.
+                Column(Modifier.fillMaxWidth().background(Color.White.copy(alpha = .10f)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(row.filename, fontSize = 20.sp, maxLines = 2)
                     Text("${row.status.label} · ${browserDownloadProgress(row)}", fontSize = 15.sp)
-                    if (row.total > 0) Box(Modifier.fillMaxWidth().height(5.dp).background(Color(0xFF445064))) {
+                    if (row.total > 0) Box(Modifier.fillMaxWidth().height(5.dp).background(TvColors.Track)) {
                         Box(Modifier.fillMaxWidth((row.bytes.toFloat() / row.total).coerceIn(0f, 1f)).fillMaxHeight().background(TvColors.FocusAccent))
                     }
                     row.error?.let { Text(it, fontSize = 14.sp, color = TvColors.Muted) }

@@ -8,3 +8,6 @@ internal fun browserFocusOwner(ready: Boolean, url: String, controlsVisible: Boo
     url.isBlank() -> BrowserFocusOwner.Home
     else -> BrowserFocusOwner.Page
 }
+
+/** Home is the browser's first level: with its controls closed there is nothing left for Back to dismiss. */
+internal fun browserBackLeaves(url: String, controlsVisible: Boolean): Boolean = url.isBlank() && !controlsVisible

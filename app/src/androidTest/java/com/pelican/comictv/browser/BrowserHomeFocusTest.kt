@@ -35,6 +35,23 @@ class BrowserHomeFocusTest {
         compose.runOnIdle { assertEquals("https://site.soquadrinhos.com", opened) }
         compose.onNodeWithContentDescription("Fechar aba atual").assertDoesNotExist()
     }
+    @Test fun upFromTheFirstSiteRowAsksForTheControls() {
+        var requests = 0
+        compose.setContent { ComicTvTheme { BrowserHome({}, {}, onTopUp = { requests++ }) } }
+        val first = compose.onNodeWithText("Só Quadrinhos")
+        first.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        first.assertIsFocused().performKeyInput { pressKey(Key.DirectionUp) }
+        compose.runOnIdle { assertEquals(1, requests) }
+    }
+    @Test fun downFromTheLastHomeRowAsksForTheFooter() {
+        var requests = 0
+        compose.setContent { ComicTvTheme { BrowserHome({}, {}, onBottomDown = { requests++ }) } }
+        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Google"))
+        val last = compose.onNodeWithText("Google")
+        last.performSemanticsAction(SemanticsActions.RequestFocus) { it() }
+        last.assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.runOnIdle { assertEquals(1, requests) }
+    }
     @Test fun tabsDownEntersHomeInsteadOfJumpingToFooter() = verifyEntry(false)
     @Test fun footerUpEntersHomeInsteadOfJumpingToTabs() = verifyEntry(true)
 }

@@ -705,6 +705,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     val sidebarReflection by animateFloatAsState(if (expanded) 1f else .6f,
                         tween(160, easing = CubicBezierEasing(.23f, 1f, .32f, 1f)), label = "sidebar-reflection")
                     Box(Modifier.align(if (policy == ThemeNavigationPolicy.ImmersiveMenu) Alignment.TopEnd else Alignment.TopStart)
+                        // Placement only: the shared safe area keeps every other shell element where it is.
+                        .then(if (selected == "library") Modifier.offset(x = (theme.navigation.sidebarLibraryStartDp - theme.navigation.safeHorizontalDp).dp) else Modifier)
                         .width(if (theme.navigation.staticCollapsedRail && !expanded) railWidth else expandedWidth).fillMaxHeight().graphicsLayer {
                             // Constant layout bounds: the overlay moves without measuring the content again.
                             val hiddenWidth = if (theme.navigation.staticCollapsedRail && !expanded) 0f else if (policy == ThemeNavigationPolicy.ImmersiveMenu) size.width else size.width - railWidth.toPx()
