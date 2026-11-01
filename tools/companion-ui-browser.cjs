@@ -21,22 +21,19 @@ const output='docs/result/companion-147';mkdirSync(output,{recursive:true});
  });
  await page.goto('http://companion.test/s/demo');
  await page.locator('#books .book').waitFor();
- await page.locator('[data-tab=control]').click();await page.locator('#pageButtons').waitFor({state:'visible'});
+ await page.locator('[data-tab=control]').click();await page.locator('#tvPrev').waitFor({state:'visible'});
  const checks=[];
  async function bounds(name){await page.waitForFunction(()=>document.querySelector('nav').getBoundingClientRect().bottom<=innerHeight+1);const sizes=await page.evaluate(()=>{const r=document.querySelector('nav').getBoundingClientRect(),c=document.querySelector('#control').getBoundingClientRect();return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,height:innerHeight,navBottom:r.bottom,controlBottom:c.bottom,navTop:r.top}});assert.equal(sizes.width,sizes.scrollWidth);assert.ok(sizes.navBottom<=sizes.height+1);assert.ok(sizes.controlBottom<=sizes.navTop+1);checks.push({name,...sizes});}
  await bounds('portrait-control');await page.screenshot({path:output+'/portrait-control.png'});
- await page.locator('[data-direction=right]').dispatchEvent('pointerdown',{pointerId:1,button:0});await page.locator('[data-direction=right]').dispatchEvent('pointerup',{pointerId:1});
- // Dispatch keyboard click separately: native pointer capture requires trusted events.
- await page.locator('[data-direction=right]').evaluate(el=>el.dispatchEvent(new MouseEvent('click',{detail:0})));
  await page.locator('#tvNext').click();await page.waitForTimeout(150);
- assert.ok(commands.some(c=>c.action==='reader-pan'));assert.ok(commands.some(c=>c.action==='reader-turn'&&c.delta===1));assert.ok(!commands.some(c=>c.action==='right'));
+ assert.ok(commands.some(c=>c.action==='reader-turn'&&c.delta===1));assert.ok(!commands.some(c=>c.action==='right'));
  const pad=await page.locator('#touchpad').boundingBox();await page.mouse.move(pad.x+50,pad.y+100);await page.mouse.down();await page.mouse.move(pad.x+110,pad.y+130);await page.mouse.up();await page.waitForTimeout(150);
  // Trusted multi-touch reaches the real PointerEvent/capture path.
  const cdp=await context.newCDPSession(page);
  async function touch(type,points){await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points.map(([id,x,y])=>({id,x,y}))})}
  const pr=await page.locator('#touchpad').boundingBox(),px=pr.x+45,py=pr.y+70;
  await touch('touchStart',[[1,px,py]]);await touch('touchStart',[[1,px,py],[2,px+80,py]]);await touch('touchMove',[[1,px,py],[2,px+140,py]]);await touch('touchEnd',[]);await page.waitForTimeout(200);
- assert.ok(commands.some(c=>c.action==='reader-zoom'&&c.zoom>2));
+ assert.ok(commands.some(c=>c.action==='reader-pinch'&&c.zoom>2));
  // A keyboard viewport may shrink AND pan independently of the layout viewport.
  await page.locator('#showKeyboard').click();await page.locator('#keyboard').fill('Batman');
  await page.evaluate(()=>{window.realViewport=window.visualViewport;Object.defineProperty(window,'visualViewport',{configurable:true,value:{height:380,offsetTop:130,scale:1}});viewport()});

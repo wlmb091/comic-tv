@@ -72,10 +72,10 @@ class CompanionServerTest {
         try {
             server.open()
             for(body in listOf("""{"action":"cursor","cursorSize":50,"cursorStyle":0}""","""{"action":"cursor","cursorSize":300,"cursorStyle":2}"""))assertEquals(body,200,request(server.url+"/command",body).first)
-            for(body in listOf("""{"action":"reader-scroll-to","dy":0.5}""","""{"action":"browser-history","delta":-1}""","""{"action":"browser-history","delta":1}""","""{"action":"ok-long"}"""))assertEquals(body,200,request(server.url+"/command",body).first)
+            for(body in listOf("""{"action":"reader-scroll-to","dy":0.5}""","""{"action":"browser-history","delta":-1}""","""{"action":"browser-history","delta":1}"""))assertEquals(body,200,request(server.url+"/command",body).first)
             for(body in listOf("""{"action":"reader-scroll-to","dy":1.5}""","""{"action":"reader-scroll-to","dy":-0.1}""","""{"action":"browser-history","delta":0}""","""{"action":"browser-history","delta":2}"""))assertEquals(body,400,request(server.url+"/command",body).first)
             for(body in listOf("""{"action":"cursor","cursorSize":49,"cursorStyle":0}""","""{"action":"cursor","cursorSize":301}""","""{"action":"cursor","cursorStyle":3}""","""{"action":"cursor","cursorSize":100,"cursorStyle":-1}"""))assertEquals(body,400,request(server.url+"/command",body).first)
-            assertEquals(6,commands.size)
+            assertEquals(5,commands.size)
         }finally{server.close();root.deleteRecursively()}
     }
     private fun request(url:String,body:String?=null,type:String="application/json"):Pair<Int,String> {

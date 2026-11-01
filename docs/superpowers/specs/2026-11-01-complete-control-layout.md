@@ -7,6 +7,20 @@ Referências (do usuário): `docs/design/companion/complete-layout-2026-11-01.pn
 Motivo: o layout de uma mão da 1.4.14 deixou botões longe do dedo (Voltar/Menu sob um touchpad alto; Rolagem da Página em coluna comprida). O usuário segura o celular mais ao centro, às vezes com o dedo mínimo apoiando, e quer também servir quem usa as duas mãos.
 Prioridade de uso, informada por ele: Touchpad ou Setas; Zoom/Mover; Rolagem da Página; Linha do tempo da página; Voltar e Menu; o restante. Sensibilidades ficam recuadas.
 
+## Revisão da 1.4.16 (vale sobre o restante deste documento)
+Aprovada pelo usuário em 01/11/2026, publicada na 1.4.16. Referências: `docs/design/companion/complete-layout-v2-2026-11-01.png` e `functions-v2-*.png`.
+
+Layout: bloco único 3×3 (Voltar ↑ Menu / ← OK → / Anterior ↓ Próxima), touchpad mais alto, Esquerdo | Direito, Ajustes de gestos e Inverter · Girar · Teclado. Coluna lateral com rótulo e porcentagem do Zoom em cima, slider de Zoom, contador, slider de Rolagem e rótulo. Knob grande.
+
+Mudanças na tabela de funções:
+- Setas: apagadas no leitor e no navegador; só ativas na navegação do app.
+- OK: ativo nos três contextos (no leitor, o OK da TV, por escolha do usuário para evitar erro).
+- Esquerdo e Direito: apagados na navegação do app. O OK longo saiu do painel e do servidor.
+- Touchpad: apagado e sem ação na navegação do app.
+- Slider de Rolagem: apagado na navegação do app; a rolagem relativa saiu.
+
+Sensibilidade na navegação do app continua como na tabela, mas sem efeito, porque o touchpad está apagado ali.
+
 ## Layout (de cima para baixo)
 1. **‹ Voltar | ☰ Menu**, grandes, no topo (sem as abas Touchpad/Setas).
 2. **Setas** ↑ ← OK → ↓, grandes.

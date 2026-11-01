@@ -13,9 +13,9 @@ function harness() {
   return {elements, requests, run: code=>vm.runInContext(code,context)};
 }
 test('TV mirror and capture requests are removed',()=>{assert.doesNotMatch(html,/\/screen|refreshScreen|id="screen"/)});
-test('reader arrows pan without changing page or sending remote keys',async()=>{
-  const h=harness(); await h.run("tvReader={active:true,page:4,pageCount:10,zoom:2,minZoom:1,maxZoom:4}; directional('right')");
-  const cmd=h.requests.find(r=>r.url.endsWith('/command')); assert.deepEqual(JSON.parse(cmd.options.body),{action:'reader-pan',x:.12,y:0});
+test('arrows are off in the reader and in the browser',async()=>{
+  const h=harness();await h.run("tvReader={active:true,page:4,pageCount:10,zoom:2,minZoom:1,maxZoom:4}; directional('right')");await h.run("tvReader={active:false,browser:true}; directional('right')");
+  assert.equal(h.requests.filter(r=>r.url.endsWith('/command')).length,0);
 });
 test('outside reader arrows navigate and touchpad uses pointer',async()=>{
   const h=harness();await h.run("tvReader={active:false}; directional('down'); movePad(.1,-.2)");
@@ -75,22 +75,22 @@ test('every action the phone sends is on the server allowlist',()=>{
  for(const direction of ['up','down','left','right','ok'])used.push('browser-'+direction);
  for(const action of used)assert.ok(allowed.has(action),action);
 });
-test('layout order follows the approved image, with no Touchpad/Setas tabs',()=>{
- const order=['id="btnBack"','id="btnMenu"','id="arrows"','id="tvPrev"','id="tvNext"','id="touchpad"','id="btnLeft"','id="btnRight"','id="zoomTrack"','id="scrollTrack"','id="sensitivityExtras"','id="tvPage"','id="sensitivity"','id="mirrorSide"','id="rotateScreen"','id="showKeyboard"'].map(mark=>html.indexOf(mark));assert.ok(order.every(at=>at>=0));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
- assert.doesNotMatch(html,/id="(?:modePad|modeArrows|resetZoom|zoomControl|sideColumn|pageSide)"/);assert.doesNotMatch(html,/Controle da TV/);assert.doesNotMatch(html,/#tvPrev{transform/);
+test('layout order follows the approved image, with Voltar, Menu, Anterior and Próxima around the arrows',()=>{
+ const order=['id="btnBack"','data-direction="up"','id="btnMenu"','data-direction="left"','id="padOK"','data-direction="right"','id="tvPrev"','data-direction="down"','id="tvNext"','id="touchpad"','id="btnLeft"','id="btnRight"','id="zoomLabel"','id="zoomTrack"','id="tvPageLabel"','id="scrollTrack"','id="scrollCaption"','id="sensitivityExtras"','id="tvPage"','id="sensitivity"','id="mirrorSide"','id="rotateScreen"','id="showKeyboard"'].map(mark=>html.indexOf(mark));assert.ok(order.every(at=>at>=0));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
+ assert.doesNotMatch(html,/id="(?:modePad|modeArrows|resetZoom|zoomControl|sideColumn|pageSide|pageButtons)"|class="topActions"|ok-long/);assert.doesNotMatch(html,/Controle da TV/);assert.doesNotMatch(html,/#tvPrev\{transform/);
 });
 const flush=h=>h.run('(async()=>{for(let i=0;i<30;i++)await Promise.resolve()})()');
 test('each control does what the approved table says in the reader',()=>{
  const h=harness();h.run("tvReader={active:true,page:4,pageCount:10,zoom:1,minZoom:1,maxZoom:3};$('tvPrev').onclick();$('tvNext').onclick();$('btnLeft').onclick();$('btnRight').onclick();$('padOK').onclick();directional('up')");
- assert.deepEqual(sent(h),[{action:'reader-turn',delta:-1},{action:'reader-turn',delta:1},{action:'reader-turn',delta:-1},{action:'reader-turn',delta:1},{action:'ok'},{action:'reader-pan',x:0,y:-.12}]);
+ assert.deepEqual(sent(h),[{action:'reader-turn',delta:-1},{action:'reader-turn',delta:1},{action:'reader-turn',delta:-1},{action:'reader-turn',delta:1},{action:'ok'}]);
 });
 test('each control does what the approved table says in the browser',()=>{
  const h=harness();h.run("tvReader={active:false,browser:true};$('tvPrev').onclick();$('tvNext').onclick();$('btnLeft').onclick();$('btnRight').onclick();$('padOK').onclick();directional('right')");
- assert.deepEqual(sent(h),[{action:'browser-history',delta:-1},{action:'browser-history',delta:1},{action:'browser-click'},{action:'browser-context'},{action:'browser-ok'},{action:'browser-pointer',dx:.04,dy:0}]);
+ assert.deepEqual(sent(h),[{action:'browser-history',delta:-1},{action:'browser-history',delta:1},{action:'browser-click'},{action:'browser-context'},{action:'browser-ok'}]);
 });
 test('each control does what the approved table says in app navigation',()=>{
  const h=harness();h.run("tvReader={active:false};$('tvPrev').onclick();$('tvNext').onclick();$('btnLeft').onclick();$('btnRight').onclick();$('padOK').onclick();directional('up')");
- assert.deepEqual(sent(h),[{action:'ok'},{action:'ok-long'},{action:'ok'},{action:'up'}]);
+ assert.deepEqual(sent(h),[{action:'ok'},{action:'up'}]);
 });
 test('zoom and page sliders act before release and a poll leaves a held slider alone',async()=>{
  const h=harness();h.run("tvReader={active:true,page:1,pageCount:9,zoom:1,minZoom:1,maxZoom:3};$('tvZoom').value='2';$('tvZoom').oninput()");await flush(h);
@@ -163,8 +163,8 @@ test('tap then drag keeps browser press move release in order',async()=>{
  const h=harness();h.run("tvReader={active:false,browser:true}");pointer(h,'down',1,30,30);pointer(h,'up',1,30,30);await h.run('(async()=>{for(let i=0;i<20;i++)await Promise.resolve()})()');pointer(h,'down',2,30,30);pointer(h,'move',2,60,30);pointer(h,'up',2,60,30);await h.run('(async()=>{for(let i=0;i<40;i++)await Promise.resolve()})()');
  assert.deepEqual(sent(h).map(c=>c.action),['browser-click','browser-press','browser-pointer','browser-release']);
 });
-test('browser arrows move the mouse scaled by its sensitivity, and OK stays Enter on the page',()=>{
- const h=harness();h.run("tvReader={active:false,browser:true};sensitivities.pointer=2;directional('down');$('padOK').onclick()");assert.deepEqual(sent(h),[{action:'browser-pointer',dx:0,dy:.08},{action:'browser-ok'}]);
+test('the touchpad still moves the mouse in the browser, scaled by its sensitivity',()=>{
+ const h=harness();h.run("tvReader={active:false,browser:true};sensitivities.pointer=2;movePad(.1,0)");assert.deepEqual(sent(h),[{action:'browser-pointer',dx:.2,dy:0}]);
 });
 test('the keyboard is off in the reader and on elsewhere',()=>{
  const h=harness();h.run("tvReader={active:true,page:0,pageCount:3};controlLayout()");assert.equal(h.run("$('showKeyboard').disabled"),true);
@@ -189,20 +189,27 @@ test('cursor UI never overrides a value the user just changed',()=>{
  assert.equal(h.run("cursorPrefs.size"),200);assert.equal(h.run("cursorPrefs.style"),2);
 });
 function states(h,state){h.run("tvReader="+state+";controlLayout()");return JSON.parse(h.run("JSON.stringify(['tvPrev','tvNext','btnLeft','btnRight'].map(id=>$(id).disabled))"))}
-test('what does not apply is dimmed in place, per the approved table',()=>{
+test('what does not apply is dimmed in place, per the edited table',()=>{
  assert.deepEqual(states(harness(),"{active:true,page:0,pageCount:5}"),[true,false,true,false]);
  assert.deepEqual(states(harness(),"{active:true,page:4,pageCount:5}"),[false,true,false,true]);
  assert.deepEqual(states(harness(),"{active:false,browser:true,browserCanBack:true,browserCanForward:false}"),[false,true,false,false]);
- assert.deepEqual(states(harness(),"{active:false}"),[true,true,false,false]);
+ assert.deepEqual(states(harness(),"{active:false}"),[true,true,true,true]);
  const h=harness();h.run("tvReader={active:true,page:1,pageCount:5};controlLayout()");assert.equal(h.run("$('tvPageLabel').textContent"),'2 / 5');
  h.run("tvReader={active:false,browser:true};controlLayout()");assert.equal(h.run("$('tvPageLabel').textContent"),'');
 });
+test('arrows and touchpad swap with the context: arrows only in app navigation, touchpad everywhere else',()=>{
+ for(const [state,arrowsOff,padOff] of [["{active:true,page:0,pageCount:5}",true,false],["{active:false,browser:true}",true,false],["{active:false}",false,true]]){
+  const h=harness();h.run("globalThis.keys=[{},{}];document.querySelectorAll=s=>s==='[data-direction]'?keys:[];globalThis.pad=[];$('touchpad').classList.toggle=(n,on)=>pad.push(on);tvReader="+state+";controlLayout()");
+  assert.equal(h.run('keys[0].disabled'),arrowsOff,state);assert.equal(h.run('pad[0]'),padOff,state);
+ }
+});
 function sliderLog(h,state){h.run("globalThis.log=[];for(const id of ['zoomSide','scrollSide'])$(id).classList.toggle=(name,on)=>log.push(id+':'+name+':'+on)");h.run("tvReader="+state+";controlLayout()");return JSON.parse(h.run('JSON.stringify(log)'))}
-test('sliders are dimmed only where they have nothing to act on',()=>{
+test('sliders are off in app navigation and whenever there is nothing to act on',()=>{
  assert.deepEqual(sliderLog(harness(),"{active:true,page:0,pageCount:5,readerScrollable:true}"),['zoomSide:disabled:false','scrollSide:disabled:false']);
  assert.deepEqual(sliderLog(harness(),"{active:true,page:0,pageCount:5,readerScrollable:false}"),['zoomSide:disabled:false','scrollSide:disabled:true']);
  assert.deepEqual(sliderLog(harness(),"{active:false,browser:true,browserScrollable:false}"),['zoomSide:disabled:false','scrollSide:disabled:true']);
- assert.deepEqual(sliderLog(harness(),"{active:false}"),['zoomSide:disabled:true','scrollSide:disabled:false']);
+ assert.deepEqual(sliderLog(harness(),"{active:false,browser:true,browserScrollable:true}"),['zoomSide:disabled:false','scrollSide:disabled:false']);
+ assert.deepEqual(sliderLog(harness(),"{active:false}"),['zoomSide:disabled:true','scrollSide:disabled:true']);
 });
 test('reader scroll slider sets the vertical position, top to bottom, only when the page is enlarged',()=>{
  const h=harness();h.run("tvReader={active:true,page:0,pageCount:5,readerScrollable:false};$('scrollTrack').onpointerdown({pointerId:1,clientY:150,preventDefault(){}})");assert.equal(sent(h).length,0);
@@ -210,11 +217,11 @@ test('reader scroll slider sets the vertical position, top to bottom, only when 
  assert.deepEqual(sent(h),[{action:'reader-scroll-to',dy:.5}]);
 });
 test('zoom slider grows from the bottom, from 100% to 300%',()=>{
- const h=harness();h.run("tvReader={active:true,page:0,pageCount:5,zoom:1,minZoom:1,maxZoom:3};$('tvZoom').min=1;$('tvZoom').max=3;$('zoomTrack').onpointerdown({pointerId:1,clientY:17,preventDefault(){}})");
- assert.deepEqual(sent(h)[0],{action:'reader-zoom',zoom:3});assert.equal(h.run("$('zoomThumb').style.top"),'calc((100% - 34px)*0)');assert.equal(h.run("$('zoomLabel').textContent"),'300%');
- const low=harness();low.run("tvReader={active:true,page:0,pageCount:5,zoom:2,minZoom:1,maxZoom:3};$('tvZoom').min=1;$('tvZoom').max=3;$('zoomTrack').onpointerdown({pointerId:1,clientY:283,preventDefault(){}})");
+ const h=harness();h.run("tvReader={active:true,page:0,pageCount:5,zoom:1,minZoom:1,maxZoom:3};$('tvZoom').min=1;$('tvZoom').max=3;$('zoomTrack').onpointerdown({pointerId:1,clientY:29,preventDefault(){}})");
+ assert.deepEqual(sent(h)[0],{action:'reader-zoom',zoom:3});assert.equal(h.run("$('zoomThumb').style.top"),'calc((100% - 58px)*0)');assert.equal(h.run("$('zoomLabel').textContent"),'300%');
+ const low=harness();low.run("tvReader={active:true,page:0,pageCount:5,zoom:2,minZoom:1,maxZoom:3};$('tvZoom').min=1;$('tvZoom').max=3;$('zoomTrack').onpointerdown({pointerId:1,clientY:271,preventDefault(){}})");
  assert.deepEqual(sent(low)[0],{action:'reader-zoom',zoom:1});assert.equal(low.run("$('zoomLabel').textContent"),'100%');
- const nav=harness();nav.run("tvReader={active:false};$('zoomTrack').onpointerdown({pointerId:1,clientY:17,preventDefault(){}})");assert.equal(sent(nav).length,0);
+ const nav=harness();nav.run("tvReader={active:false};$('zoomTrack').onpointerdown({pointerId:1,clientY:29,preventDefault(){}})");assert.equal(sent(nav).length,0);
 });
 test('the bottom bar folds in every tab',()=>{
  for(const name of ['library','reader','control','files']){const h=harness();h.run("globalThis.log=[];document.body.classList.toggle=(n,on)=>log.push(n+':'+on);tab('"+name+"')");assert.ok(JSON.parse(h.run('JSON.stringify(log)')).includes('tabsFolded:true'),name)}
@@ -223,12 +230,11 @@ test('the bottom bar folds in every tab',()=>{
 test('the TV state is read every 300 ms on the Controle tab, so the sliders follow the page',()=>{
  assert.match(script,/section==='control'\|\|ticks%48===0\)refreshReaderState\(\)\},300\)/);
 });
-test('outside a browser page the slider scrolls the TV screen by the distance dragged, with no jump on touch',()=>{
+test('in app navigation the scroll slider and the touchpad send nothing',()=>{
  const h=harness();h.run("tvReader={active:false,browser:false}");
- h.run("$('scrollTrack').onpointerdown({pointerId:1,clientY:50,preventDefault(){}})");
+ h.run("$('scrollTrack').onpointerdown({pointerId:1,clientY:50,preventDefault(){}});$('scrollTrack').onpointermove({clientY:150});$('scrollTrack').onpointerup()");
+ pointer(h,'down',1,20,20);pointer(h,'move',1,120,20);pointer(h,'up',1,120,20);h.run('flushPad()');
  assert.equal(sent(h).length,0);
- h.run("$('scrollTrack').onpointermove({clientY:150});$('scrollTrack').onpointerup()");
- const [scroll]=sent(h);assert.deepEqual(scroll,{action:'scroll',x:.5,y:.5,delta:600});
 });
 test('Inverter mirrors only the side of the thumb column and never the commands',()=>{
  const h=harness();h.run("globalThis.log=[];$('control').classList.toggle=(name,on)=>log.push(name+':'+on)");
