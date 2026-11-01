@@ -15,6 +15,13 @@ class BrowserSiteToolsTest {
         assertFalse(BrowserAdblock.blocks(""))
         assertFalse(BrowserAdblock.blocks(null))
     }
+    @Test fun adblockCatchesHqNowAdNetworkAndItsRotatingDomains() {
+        listOf("fpyf8.com", "auqot.com", "ekhay.com", "my.rtmark.net", "ep1.adtrafficquality.google").forEach { assertTrue(it, BrowserAdblock.blocks(it)) }
+        assertTrue(BrowserAdblock.blocks("newdomain123.com", "/88/tag.min.js", "www.hq-now.com"))
+        assertTrue(BrowserAdblock.blocks("newdomain123.com", "/vignette.min.js", null))
+        assertFalse(BrowserAdblock.blocks("www.hq-now.com", "/static/tag.min.js", "www.hq-now.com"))
+        assertFalse(BrowserAdblock.blocks("static.hq-now.com", "/app.js", "www.hq-now.com"))
+    }
     @Test fun adblockLeavesTheSitesAndServicesTheAppDependsOn() {
         listOf("www.hq-now.com", "static.hq-now.com", "admin.hq-now.com", "mega.nz", "site.ds-club.net", "site.soquadrinhos.com",
             "dcinfinita.blogspot.com", "archive.org", "www.google.com", "www.gstatic.com", "fonts.googleapis.com",

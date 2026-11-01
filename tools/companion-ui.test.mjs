@@ -75,8 +75,8 @@ test('every action the phone sends is on the server allowlist',()=>{
  for(const direction of ['up','down','left','right','ok'])used.push('browser-'+direction);
  for(const action of used)assert.ok(allowed.has(action),action);
 });
-test('layout order follows the approved image, with Voltar, Menu, Anterior and Próxima around the arrows',()=>{
- const order=['id="btnBack"','data-direction="up"','id="btnMenu"','data-direction="left"','id="padOK"','data-direction="right"','id="tvPrev"','data-direction="down"','id="tvNext"','id="touchpad"','id="btnLeft"','id="btnRight"','id="zoomLabel"','id="zoomTrack"','id="tvPageLabel"','id="scrollTrack"','id="scrollCaption"','id="sensitivityExtras"','id="tvPage"','id="sensitivity"','id="mirrorSide"','id="rotateScreen"','id="showKeyboard"'].map(mark=>html.indexOf(mark));assert.ok(order.every(at=>at>=0));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
+test('layout order follows the approved image, with the gesture bar on top and Voltar, Menu, Anterior and Próxima around the arrows',()=>{
+ const order=['id="sensitivityExtras"','id="tvPage"','id="sensitivity"','id="mirrorSide"','id="rotateScreen"','id="showKeyboard"','id="btnBack"','data-direction="up"','id="btnMenu"','data-direction="left"','id="padOK"','data-direction="right"','id="tvPrev"','data-direction="down"','id="tvNext"','id="touchpad"','id="btnLeft"','id="btnRight"','id="zoomLabel"','id="zoomTrack"','id="tvPageLabel"','id="scrollTrack"','id="scrollCaption"'].map(mark=>html.indexOf(mark));assert.ok(order.every(at=>at>=0));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
  assert.doesNotMatch(html,/id="(?:modePad|modeArrows|resetZoom|zoomControl|sideColumn|pageSide|pageButtons)"|class="topActions"|ok-long/);assert.doesNotMatch(html,/Controle da TV/);assert.doesNotMatch(html,/#tvPrev\{transform/);
 });
 const flush=h=>h.run('(async()=>{for(let i=0;i<30;i++)await Promise.resolve()})()');

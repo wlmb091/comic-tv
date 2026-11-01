@@ -15,7 +15,12 @@ internal object BrowserAdblock {
         "exoclick.com", "exosrv.com", "juicyads.com", "trafficjunky.net", "trafficstars.com", "adsterra.com",
         "hilltopads.net", "clickadu.com", "adcash.com", "admaven.com", "ad-maven.com", "popmyads.com", "a-ads.com",
         "coinzilla.io", "bitmedia.io", "adskeeper.com", "adskeeper.co.uk", "richads.com", "pushground.com",
+        // Seen on hq-now.com: Google's ad-quality probes and the rotating Monetag-style push/vignette network.
+        "adtrafficquality.google", "rtmark.net", "fpyf8.com", "quge5.com", "auqot.com", "ekhay.com", "b3mny.com",
+        "094kk.com", "6opo.com", "jmosl.com", "monetag.com", "propu.sh", "alwingulla.com", "nap5k.com", "gizokraijaw.net",
     )
+    /** Those networks rotate domains daily but keep serving the same script files, so the file name catches the next domain. */
+    private val scriptNames = setOf("tag.min.js", "vignette.min.js", "sw.js.min.js")
     /** Walks the host's parent domains, so a request costs a few set lookups and no regex. */
     fun blocks(host: String?): Boolean {
         var current = host?.lowercase()?.trim('.') ?: return false
@@ -24,6 +29,14 @@ internal object BrowserAdblock {
             current = current.substringAfter('.')
         }
         return false
+    }
+    /** Third-party scripts only: [pageHost] keeps a site's own files of the same name working. */
+    fun blocks(host: String?, path: String?, pageHost: String?): Boolean {
+        if (blocks(host)) return true
+        val name = path?.substringAfterLast('/')?.lowercase() ?: return false
+        if (name !in scriptNames || host.isNullOrBlank()) return false
+        val h = host.lowercase().trim('.'); val p = pageHost?.lowercase()?.trim('.').orEmpty()
+        return p.isEmpty() || !(h == p || h.endsWith(".$p") || p.endsWith(".$h"))
     }
 }
 

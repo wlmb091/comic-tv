@@ -64,7 +64,9 @@ internal class BrowserWebViews(private val context: Context, private val session
             }
             /** Runs off the main thread, so it reads only the session state and the request itself. */
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
-                if (request.isForMainFrame || !session.state.value.adblock || !BrowserAdblock.blocks(request.url.host)) return null
+                if (request.isForMainFrame || !session.state.value.adblock) return null
+                val pageHost = runCatching { android.net.Uri.parse(request.requestHeaders["Referer"]).host }.getOrNull()
+                if (!BrowserAdblock.blocks(request.url.host, request.url.path, pageHost)) return null
                 return WebResourceResponse("text/plain", "utf-8", java.io.ByteArrayInputStream(ByteArray(0)))
             }
             override fun onPageCommitVisible(view: WebView, url: String) { darkMode(view, url) }
