@@ -10,7 +10,8 @@ internal data class BrowserPage(val url: String, val title: String)
 internal data class BrowserSessionState(val tabs: List<BrowserTab> = listOf(BrowserTab()), val selectedId: String = "",
     val bookmarks: List<BrowserPage> = emptyList(), val history: List<BrowserPage> = emptyList(),
     val desktop: Boolean = false, val cursor: Boolean = true, val cursorSpeed: Int = 1,
-    val textZoom: Int = 100, val blockPopups: Boolean = true, val cursorSize: Int = 100, val cursorStyle: Int = 0)
+    val textZoom: Int = 100, val blockPopups: Boolean = true, val cursorSize: Int = 100, val cursorStyle: Int = 0,
+    val adblock: Boolean = true, val darkSites: List<String> = emptyList(), val httpImageSites: List<String> = emptyList())
 
 /** Pointer looks the TV menu and the phone panel can pick: ring with dot (original), dot and mouse arrow. */
 internal val cursorSizes = listOf(50, 75, 100, 150, 200, 250, 300)
@@ -27,7 +28,8 @@ internal class BrowserSession(initial: BrowserSessionState = BrowserSessionState
         selectedId = initial.selectedId.takeIf { id -> restoredTabs.any { it.id == id } } ?: restoredTabs.first().id,
         bookmarks = initial.bookmarks.filter { valid(it.url) }.distinctBy { it.url }.take(100),
         history = initial.history.filter { valid(it.url) }.distinctBy { it.url }.take(100), textZoom = initial.textZoom.coerceIn(75, 150), cursorSpeed = initial.cursorSpeed.coerceIn(0, 2),
-        cursorSize = initial.cursorSize.coerceIn(50, 300), cursorStyle = initial.cursorStyle.coerceIn(0, cursorStyleNames.lastIndex)))
+        cursorSize = initial.cursorSize.coerceIn(50, 300), cursorStyle = initial.cursorStyle.coerceIn(0, cursorStyleNames.lastIndex),
+        darkSites = initial.darkSites.filter { it.isNotBlank() }.distinct().take(200), httpImageSites = initial.httpImageSites.filter { it.isNotBlank() }.distinct().take(200)))
     val state = data.asStateFlow()
     private fun change(block: (BrowserSessionState) -> BrowserSessionState) { data.update(block); persist(data.value) }
     fun newTab(url: String = ""): String? {
@@ -55,8 +57,14 @@ internal class BrowserSession(initial: BrowserSessionState = BrowserSessionState
     fun historyClear() = change { it.copy(history = emptyList()) }
     fun options(desktop: Boolean = data.value.desktop, cursor: Boolean = data.value.cursor, speed: Int = data.value.cursorSpeed,
         textZoom: Int = data.value.textZoom, blockPopups: Boolean = data.value.blockPopups,
-        cursorSize: Int = data.value.cursorSize, cursorStyle: Int = data.value.cursorStyle) = change {
+        cursorSize: Int = data.value.cursorSize, cursorStyle: Int = data.value.cursorStyle, adblock: Boolean = data.value.adblock) = change {
         it.copy(desktop = desktop, cursor = cursor, cursorSpeed = speed.coerceIn(0, 2), textZoom = textZoom.coerceIn(75, 150), blockPopups = blockPopups,
-            cursorSize = cursorSize.coerceIn(50, 300), cursorStyle = cursorStyle.coerceIn(0, cursorStyleNames.lastIndex))
+            cursorSize = cursorSize.coerceIn(50, 300), cursorStyle = cursorStyle.coerceIn(0, cursorStyleNames.lastIndex), adblock = adblock)
     }
+    private fun toggled(sites: List<String>, url: String?): List<String> {
+        val key = BrowserPolicy.siteKey(url) ?: return sites
+        return if (key in sites) sites - key else (sites + key).takeLast(200)
+    }
+    fun toggleDark(url: String?) = change { it.copy(darkSites = toggled(it.darkSites, url)) }
+    fun toggleHttpImages(url: String?) = change { it.copy(httpImageSites = toggled(it.httpImageSites, url)) }
 }

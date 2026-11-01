@@ -1,6 +1,6 @@
 # Controle do celular — layout para uma mão (01/11/2026)
 
-Status: **IMPLEMENTADO LOCALMENTE em 01/11/2026 (usuário autorizou começar). Sem versão, sem push, sem publicação; Box/celular PENDENTES.**
+Status: **PUBLICADO NA 1.4.14 E SUBSTITUÍDO NA 1.4.15 pelo layout Completo** (`2026-11-01-complete-control-layout.md`). Continuam valendo o cursor e o Inverter. O ajuste do slider em tempo real foi feito na 1.4.15 pela opção 1 (leitura a cada 0,3 s); a posição das listas do app continua relativa.
 Fonte: duas fotos do usuário (Touchpad com Próxima/Anterior; Touchpad com Rolagem da Página) e respostas abaixo. **Posição e tamanho dos botões seguem as fotos.**
 
 ## Objetivo
@@ -41,3 +41,18 @@ Problema: o ícone atual (círculo com ponto) atrapalha a leitura de textos pequ
 ## Pendências
 - Seguir o fluxo de duas pastas do AGENTS.md: definir de quem é cada tela; commits só locais, sem push/GitHub; publicação pelo Codex, salvo autorização explícita para o Claude Code.
 - Validação física no iPhone/Android e na Box.
+
+## Ajuste futuro: slider de Rolagem da Página em tempo real (anotado em 01/11/2026, NÃO implementar até o aviso do usuário)
+Pedido: o slider de Rolagem da Página deve acompanhar em tempo real a posição da página na TV, como os outros sliders (Página, Zoom).
+
+Situação na 1.4.14 (do código, sem teste na Box):
+- **Navegador:** o slider já lê a posição do documento (`browserScroll` em `/reader-state`) e move o botão, mas só a cada leitura de estado do painel (cerca de 0,9 s na aba Controle). Rolar pelo touchpad, por dois dedos ou pelo teclado da TV faz o botão atrasar e "pular". Durante o arraste ou logo depois dele, a leitura é ignorada (`sliderHeld`), para o botão não voltar sob o dedo.
+- **Navegação do app (tela principal):** o slider é relativo (rola pela distância arrastada) e não tem posição a refletir, porque a TV não informa a rolagem das listas. Não acompanha nada.
+- Os sliders Página e Zoom do leitor usam a mesma leitura periódica; por isso a diferença percebida pode vir da frequência, não de um defeito só do slider de rolagem.
+
+Opções a decidir na implementação:
+1. Ler `/reader-state` com mais frequência enquanto a aba Controle está aberta no navegador (barato de fazer; custo de rede/CPU na TV a medir).
+2. Enviar a posição por evento (push, como SSE ou long-poll) para atualização imediata, sem aumentar a frequência de consulta. Mais trabalho no servidor do painel.
+3. Navegação do app: expor da TV a posição de rolagem da lista em foco, para o slider virar absoluto também ali; ou manter relativo e avisar o usuário.
+
+Cuidados: não puxar o botão enquanto o dedo está nele; páginas sem rolagem do documento continuam com o slider escondido; manter a atualização leve para a Box. Medir latência e consumo reais na Box e no celular antes de dar por concluído.

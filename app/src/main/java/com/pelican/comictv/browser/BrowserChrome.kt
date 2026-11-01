@@ -43,6 +43,10 @@ private val BrowserControlSurface = Color.White.copy(alpha = .12f)
                     maxLength = 4096, onSubmit = { action("go") })
                 BrowserIcon("⌕", "Acessar endereço ou pesquisar", { action("go") }, onFocus = { caption = it })
                 BrowserIcon("mic", "Pesquisa por voz", { action("voice") }, onFocus = { caption = it })
+                val pageUrl = state.tabs.firstOrNull { tab -> tab.id == state.selectedId }?.url.orEmpty()
+                BrowserIcon("shield", "Bloqueador de anúncios: ${if (state.adblock) "ligado" else "desligado"}", { action("adblock") }, onFocus = { caption = it }, on = state.adblock)
+                val dark = BrowserPolicy.siteMatches(pageUrl, state.darkSites)
+                BrowserIcon("moon", "Modo escuro neste site: ${if (dark) "ligado" else "desligado"}", { action("dark") }, enabled = pageUrl.isNotBlank(), onFocus = { caption = it }, on = dark)
                 BrowserIcon(if (state.bookmarks.any { it.url == state.tabs.firstOrNull { tab -> tab.id == state.selectedId }?.url }) "★" else "☆",
                     "Adicionar ou remover favorito", { action("bookmark") }, onFocus = { caption = it })
             }
@@ -84,15 +88,34 @@ private val BrowserControlSurface = Color.White.copy(alpha = .12f)
     }
 }
 
-@Composable internal fun BrowserIcon(symbol: String, label: String, click: () -> Unit, enabled: Boolean = true, onFocus: (String) -> Unit = {}, modifier: Modifier = Modifier) {
+@Composable internal fun BrowserIcon(symbol: String, label: String, click: () -> Unit, enabled: Boolean = true, onFocus: (String) -> Unit = {}, modifier: Modifier = Modifier, on: Boolean = false) {
+    // A control can gain focus while its label changes, so the caption follows the current state too.
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(label, focused) { if (focused) onFocus(label) }
     // Unavailable actions stay reachable and visibly focused; a press there does nothing.
     Button(onClick = { if (enabled) click() }, modifier = modifier.size(48.dp).semantics { contentDescription = label }
-        .onFocusChanged { if (it.isFocused) onFocus(label) }, contentPadding = PaddingValues(4.dp),
-        colors = ButtonDefaults.colors(containerColor = BrowserControlSurface, contentColor = if (enabled) Color.White else Color.White.copy(alpha = .4f),
+        .onFocusChanged { focused = it.isFocused }, contentPadding = PaddingValues(4.dp),
+        colors = ButtonDefaults.colors(containerColor = if (on) TvColors.Amber.copy(alpha = .28f) else BrowserControlSurface, contentColor = if (enabled) Color.White else Color.White.copy(alpha = .4f),
             focusedContainerColor = TvColors.FocusAccent, focusedContentColor = TvColors.OnFocusAccent),
         border = ButtonDefaults.border(focusedBorder = Border(BorderStroke(2.dp, TvColors.FocusAccent))),
         scale = ButtonDefaults.scale(focusedScale = 1.04f)) {
-        if (symbol == "mic") {
+        if (symbol == "shield" || symbol == "moon") {
+            // Drawn, like the others below, because TV system fonts may not include these glyphs. Filled means on.
+            val ink = LocalContentColor.current
+            androidx.compose.foundation.Canvas(Modifier.size(25.dp)) {
+                val unit = size.width / 24f
+                val style = if (on) androidx.compose.ui.graphics.drawscope.Fill else androidx.compose.ui.graphics.drawscope.Stroke(2 * unit)
+                if (symbol == "shield") drawPath(androidx.compose.ui.graphics.Path().apply {
+                    moveTo(12 * unit, 2 * unit); lineTo(21 * unit, 5 * unit); lineTo(21 * unit, 12 * unit)
+                    quadraticTo(21 * unit, 19 * unit, 12 * unit, 22 * unit); quadraticTo(3 * unit, 19 * unit, 3 * unit, 12 * unit)
+                    lineTo(3 * unit, 5 * unit); close()
+                }, ink, style = style)
+                else drawPath(androidx.compose.ui.graphics.Path().apply {
+                    moveTo(14 * unit, 3 * unit); arcTo(androidx.compose.ui.geometry.Rect(3 * unit, 3 * unit, 21 * unit, 21 * unit), -80f, -280f, false)
+                    quadraticTo(8 * unit, 12 * unit, 14 * unit, 3 * unit); close()
+                }, ink, style = style)
+            }
+        } else if (symbol == "mic") {
             val ink = LocalContentColor.current
             androidx.compose.foundation.Canvas(Modifier.size(25.dp)) {
                 val unit = size.width / 24f

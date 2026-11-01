@@ -190,6 +190,8 @@ import kotlinx.coroutines.*
             key == "home" -> { session.home(tab.id); view?.loadUrl("about:blank"); chrome = true; address = ""; dirtyAddress = false }
             key == "close-tab" -> session.close(tab.id)
             key == "bookmark" -> { if (tab.url.isNotBlank()) session.bookmark(tab.url, tab.title) }
+            key == "adblock" -> { session.options(adblock = !state.adblock); if (tab.url.isNotBlank()) view?.reload() }
+            key == "dark" -> { if (tab.url.isNotBlank()) { session.toggleDark(tab.url); host.refreshDarkMode() } }
             key == "downloads" -> sheet = "downloads"
             key == "more" -> sheet = "more"
             key == "page" -> { chrome = false; pageFocus++ }
@@ -265,6 +267,11 @@ import kotlinx.coroutines.*
         TvButton("Velocidade do cursor: ${listOf("Lenta", "Normal", "Rápida")[state.cursorSpeed]}", { session.options(speed = (state.cursorSpeed + 1) % 3); host.updateOptions() })
         TvButton("Tamanho do cursor: ${state.cursorSize}%", { session.options(cursorSize = nextCursorSize(state.cursorSize)); host.updateOptions() })
         TvButton("Ícone do cursor: ${cursorStyleNames[state.cursorStyle.coerceIn(0, cursorStyleNames.lastIndex)]}", { session.options(cursorStyle = nextCursorStyle(state.cursorStyle)); host.updateOptions() })
+        if (BrowserPolicy.mixedImagesAllowed(tab.url) || (tab.url.startsWith("https://") && BrowserPolicy.siteKey(tab.url) != null)) TvButton(when {
+            BrowserPolicy.mixedImagesBuiltIn(tab.url) -> "Imagens HTTP neste site: ligadas (padrão do site)"
+            BrowserPolicy.siteMatches(tab.url, state.httpImageSites) -> "Imagens HTTP neste site: ligadas"
+            else -> "Imagens HTTP neste site: desligadas"
+        }, { if (!BrowserPolicy.mixedImagesBuiltIn(tab.url)) { session.toggleHttpImages(tab.url); host.reloadWithSiteOptions() } })
         TvButton("Texto da página: ${state.textZoom}%", { session.options(textZoom = if (state.textZoom >= 150) 75 else state.textZoom + 25); host.updateOptions() })
         TvButton(if (host.current()?.dragMode == true) "Arrastar: ligado" else "Arrastar: desligado", { host.current()?.let { it.dragMode = !it.dragMode }; revision++ })
         TvButton(if (state.blockPopups) "Janelas automáticas: bloqueadas" else "Janelas automáticas: permitidas", { session.options(blockPopups = !state.blockPopups); host.updateOptions() })

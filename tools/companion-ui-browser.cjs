@@ -21,16 +21,16 @@ const output='docs/result/companion-147';mkdirSync(output,{recursive:true});
  });
  await page.goto('http://companion.test/s/demo');
  await page.locator('#books .book').waitFor();
- await page.locator('[data-tab=control]').click();await page.locator('#pageSide').waitFor({state:'visible'});
+ await page.locator('[data-tab=control]').click();await page.locator('#pageButtons').waitFor({state:'visible'});
  const checks=[];
  async function bounds(name){await page.waitForFunction(()=>document.querySelector('nav').getBoundingClientRect().bottom<=innerHeight+1);const sizes=await page.evaluate(()=>{const r=document.querySelector('nav').getBoundingClientRect(),c=document.querySelector('#control').getBoundingClientRect();return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,height:innerHeight,navBottom:r.bottom,controlBottom:c.bottom,navTop:r.top}});assert.equal(sizes.width,sizes.scrollWidth);assert.ok(sizes.navBottom<=sizes.height+1);assert.ok(sizes.controlBottom<=sizes.navTop+1);checks.push({name,...sizes});}
  await bounds('portrait-control');await page.screenshot({path:output+'/portrait-control.png'});
- await page.locator('#modeArrows').click();await page.locator('[data-direction=right]').dispatchEvent('pointerdown',{pointerId:1,button:0});await page.locator('[data-direction=right]').dispatchEvent('pointerup',{pointerId:1});
+ await page.locator('[data-direction=right]').dispatchEvent('pointerdown',{pointerId:1,button:0});await page.locator('[data-direction=right]').dispatchEvent('pointerup',{pointerId:1});
  // Dispatch keyboard click separately: native pointer capture requires trusted events.
  await page.locator('[data-direction=right]').evaluate(el=>el.dispatchEvent(new MouseEvent('click',{detail:0})));
  await page.locator('#tvNext').click();await page.waitForTimeout(150);
  assert.ok(commands.some(c=>c.action==='reader-pan'));assert.ok(commands.some(c=>c.action==='reader-turn'&&c.delta===1));assert.ok(!commands.some(c=>c.action==='right'));
- await page.locator('#modePad').click();const pad=await page.locator('#touchpad').boundingBox();await page.mouse.move(pad.x+50,pad.y+100);await page.mouse.down();await page.mouse.move(pad.x+110,pad.y+130);await page.mouse.up();await page.waitForTimeout(150);
+ const pad=await page.locator('#touchpad').boundingBox();await page.mouse.move(pad.x+50,pad.y+100);await page.mouse.down();await page.mouse.move(pad.x+110,pad.y+130);await page.mouse.up();await page.waitForTimeout(150);
  // Trusted multi-touch reaches the real PointerEvent/capture path.
  const cdp=await context.newCDPSession(page);
  async function touch(type,points){await cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points.map(([id,x,y])=>({id,x,y}))})}
@@ -50,7 +50,7 @@ const output='docs/result/companion-147';mkdirSync(output,{recursive:true});
  active=false;browserPage=true;await page.evaluate(()=>refreshReaderState());
  const br=await page.locator('#touchpad').boundingBox(),bx=br.x+45,by=br.y+70;
  await touch('touchStart',[[1,bx,by]]);await touch('touchStart',[[1,bx,by],[2,bx+80,by]]);await touch('touchMove',[[1,bx,by+30],[2,bx+80,by+30]]);await touch('touchEnd',[]);await page.waitForTimeout(200);assert.ok(commands.some(c=>c.action==='browser-scroll'));browserPage=false;
- active=false;await page.evaluate(()=>refreshReaderState());await page.locator('#scrollTrack').waitFor({state:'visible'});await page.locator('#modeArrows').click();await page.locator('[data-direction=down]').evaluate(el=>el.dispatchEvent(new MouseEvent('click',{detail:0})));await page.waitForTimeout(100);assert.ok(commands.some(c=>c.action==='down'));
+ active=false;await page.evaluate(()=>refreshReaderState());await page.locator('#scrollTrack').waitFor({state:'visible'});await page.locator('[data-direction=down]').evaluate(el=>el.dispatchEvent(new MouseEvent('click',{detail:0})));await page.waitForTimeout(100);assert.ok(commands.some(c=>c.action==='down'));
  active=true;await page.evaluate(()=>refreshReaderState());await page.setViewportSize({width:844,height:390});await bounds('landscape-control');await page.screenshot({path:output+'/landscape-control.png'});
  await page.setViewportSize({width:390,height:600});await bounds('short-portrait-control');
  await page.locator('#navToggle').click();await page.locator('[data-tab=library]').click();await page.locator('#books button').first().click();await page.locator('#readerImage').waitFor({state:'visible'});await page.locator('#next').click();await page.waitForTimeout(100);assert.match(await page.locator('#pageLabel').textContent(),/11 de 25/);assert.ok(!commands.some(c=>c.action==='reader-page'));await page.screenshot({path:output+'/portrait-reader.png'});

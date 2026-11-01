@@ -30,6 +30,7 @@ import com.pelican.comictv.ui.*
     onActionFocused: () -> Unit = {},
     posterHeightLimitDp: Float? = null,
     minimumHeightOverrideDp: Float? = null,
+    onRotate: (String) -> Unit = {}, rotationPaused: Boolean = false,
 ) {
     val theme = LocalThemeSpec.current
     val hero = theme.hero
@@ -37,7 +38,7 @@ import com.pelican.comictv.ui.*
     val actionFocus = Modifier.onFocusChanged { if (it.isFocused) onActionFocused() }
     if (hero.variant == HeroVariant.FullbleedCarousel) {
         PrimeLibraryHero(comic, comics, repository, onRead, onOpen, onImport, onSelect, modifier, readModifier,
-            minimumHeightOverrideDp = minimumHeightOverrideDp)
+            minimumHeightOverrideDp = minimumHeightOverrideDp, onRotate = onRotate, rotationPaused = rotationPaused)
         return
     }
     val cinema = theme.navigation.layout == ThemeNavigationPolicy.ImmersiveMenu

@@ -90,7 +90,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 val page=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)?.takeIf{dialogs.focused()==null&&activity.hasWindowFocus()}
                 val position=page?.companionScrollPosition()
                 val cursor=com.pelican.comictv.browser.BrowserCursorBridge.handle?.read?.invoke()
-                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"),cursorAvailable=cursor!=null&&owner==null,cursorSize=cursor?.first?:100,cursorStyle=cursor?.second?:0)
+                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null,browserCanBack=page?.canGoBack()==true,browserCanForward=page?.canGoForward()==true) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId,readerScroll=((it.panY+1f)/2f).coerceIn(0f,1f),readerScrollable=it.zoom>1.001f)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"),cursorAvailable=cursor!=null&&owner==null,cursorSize=cursor?.first?:100,cursorStyle=cursor?.second?:0)
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
         }
@@ -154,7 +154,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         if(c.action=="tap"||c.action=="scroll"){
             touchGesture(c,dialog.window.decorView){event->dialog.window.callback?.dispatchTouchEvent(event)};return
         }
-        val code=when(c.action){"up"->KeyEvent.KEYCODE_DPAD_UP;"down"->KeyEvent.KEYCODE_DPAD_DOWN;"left"->KeyEvent.KEYCODE_DPAD_LEFT;"right"->KeyEvent.KEYCODE_DPAD_RIGHT;"ok"->KeyEvent.KEYCODE_DPAD_CENTER;"enter"->KeyEvent.KEYCODE_ENTER;"menu"->KeyEvent.KEYCODE_MENU;else->error("Feche o menu da TV para usar esse gesto.")}
+        val code=when(c.action){"up"->KeyEvent.KEYCODE_DPAD_UP;"down"->KeyEvent.KEYCODE_DPAD_DOWN;"left"->KeyEvent.KEYCODE_DPAD_LEFT;"right"->KeyEvent.KEYCODE_DPAD_RIGHT;"ok","ok-long"->KeyEvent.KEYCODE_DPAD_CENTER;"enter"->KeyEvent.KEYCODE_ENTER;"menu"->KeyEvent.KEYCODE_MENU;else->error("Feche o menu da TV para usar esse gesto.")}
         dialog.window.callback?.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code))
         dialog.window.callback?.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code))
     }
@@ -189,6 +189,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         if(c.action.startsWith("browser-")) {
             val browser=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)
                 ?:error("Selecione a página do navegador na TV.")
+            if(c.action=="browser-history"){check(browser.companionHistory(c.delta)){"Não há página nessa direção no histórico da aba."};return}
             if(c.action=="browser-pinch"){check(browser.companionPinch(c.zoom,c.x.toFloat(),c.y.toFloat(),c.dx.toFloat(),c.dy.toFloat())){"A página não está disponível para este gesto."};return}
             check(browser.companionGesture(c.action,c.dx.toFloat(),c.dy.toFloat(),c.zoom)){"A página não está disponível para este gesto."};return
         }
@@ -208,6 +209,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 "reader-page"->owner.companionPage(c.page)
                 "reader-turn"->owner.companionTurn(c.delta)
                 "reader-zoom"->owner.companionZoom(c.zoom)
+                "reader-scroll-to"->owner.companionScrollTo(c.dy.toFloat())
                 "reader-pinch"->owner.companionPinch(c.zoom,c.x.toFloat(),c.y.toFloat(),c.dx.toFloat(),c.dy.toFloat())
                 else->error("Comando de leitor inválido.")
             };return
@@ -230,6 +232,12 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         val view=activity.window.decorView
         if(c.action=="tap"||c.action=="scroll"){
             touchGesture(c,view){event->activity.dispatchTouchEvent(event)};return
+        }
+        if(c.action=="ok-long"){
+            // The TV opens an item's options after OK is held for one second: press now, release after the hold.
+            view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_DPAD_CENTER))
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_DPAD_CENTER))},1100)
+            return
         }
         val code=when(c.action){"up"->KeyEvent.KEYCODE_DPAD_UP;"down"->KeyEvent.KEYCODE_DPAD_DOWN;"left"->KeyEvent.KEYCODE_DPAD_LEFT;"right"->KeyEvent.KEYCODE_DPAD_RIGHT;"ok"->KeyEvent.KEYCODE_DPAD_CENTER;"enter"->KeyEvent.KEYCODE_ENTER;"menu"->KeyEvent.KEYCODE_MENU;else->error("Comando inválido.")}
         view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code));view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code))

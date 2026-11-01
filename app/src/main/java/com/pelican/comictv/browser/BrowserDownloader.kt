@@ -24,9 +24,14 @@ internal object BrowserPolicy {
     }
     /** HQ Now serves every comic page as http://static.hq-now.com/...; the WebView blocks that on its HTTPS reader. Images only, for this site only. */
     private val mixedImageSites = listOf("hq-now.com")
-    fun mixedImagesAllowed(pageUrl: String?): Boolean {
-        val page = pageUrl?.toHttpUrlOrNull()?.takeIf { it.isHttps } ?: return false
-        return mixedImageSites.any { page.host == it || page.host.endsWith(".$it") }
+    fun mixedImagesBuiltIn(pageUrl: String?) = siteMatches(pageUrl, mixedImageSites)
+    fun mixedImagesAllowed(pageUrl: String?, chosen: List<String> = emptyList()): Boolean =
+        pageUrl?.toHttpUrlOrNull()?.isHttps == true && (mixedImagesBuiltIn(pageUrl) || siteMatches(pageUrl, chosen))
+    /** The address a per-site choice is remembered under; www is the same site. */
+    fun siteKey(pageUrl: String?): String? = pageUrl?.toHttpUrlOrNull()?.host?.removePrefix("www.")?.takeIf { it.isNotBlank() }
+    fun siteMatches(pageUrl: String?, sites: List<String>): Boolean {
+        val host = pageUrl?.toHttpUrlOrNull()?.host ?: return false
+        return sites.any { host == it || host.endsWith(".$it") }
     }
     fun url(value: String): HttpUrl = value.trim().toHttpUrlOrNull()?.takeIf {
         it.username.isEmpty() && it.password.isEmpty()

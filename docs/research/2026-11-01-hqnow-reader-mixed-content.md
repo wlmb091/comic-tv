@@ -1,6 +1,6 @@
 # HQ Now no Navegador: imagem do leitor não carrega — 01/11/2026
 
-Status: **INVESTIGADO, NADA ALTERADO.** Usuário pediu só registrar e aguardar aviso para começar as mudanças.
+Status: **CORREÇÃO PUBLICADA NA 1.4.14; opção por site na 1.4.15. A causa segue como hipótese até o teste com um capítulo real na Box.** As seções "Opções de correção" e "Pendências" abaixo são o registro original da investigação.
 
 ## Relato
 No navegador do aplicativo, ao abrir um quadrinho direto no site do HQ Now, o leitor mostra erro e a imagem não carrega. Dúvida do usuário: incompatibilidade do arquivo ou limitação do navegador?
@@ -36,3 +36,11 @@ Abrir a mesma página no Chrome do celular. Se carregar lá e falhar no app, a c
 ## Pendências
 - Aguardar o aviso do usuário para iniciar as alterações.
 - Validação física na Box. Seguir o fluxo: Claude só altera local; Codex publica.
+
+## Imagens HTTP por site (implementado na 1.4.15)
+Contexto: a 1.4.14 liberou imagens `http://` só em páginas HTTPS de `hq-now.com` (lista fixa `mixedImageSites` em `BrowserPolicy`). Outros sites com o mesmo defeito continuam bloqueados.
+- **Proposta:** item nas Opções do navegador, "Permitir imagens HTTP neste site", ligado por host e lembrado no estado salvo do navegador. O HQ Now já viria liberado. Evita nova versão a cada site.
+- **Cuidados:** `MIXED_CONTENT_COMPATIBILITY_MODE` libera imagem, áudio e vídeo, não só imagem (as notas da 1.4.14 dizem "só imagens", impreciso); scripts e requisições continuam bloqueados. Valer só em páginas HTTPS, por host exato ou subdomínio, e desligar com um toque.
+- **Alternativa descartada por ora:** liberar para todos os sites (reduz a proteção em toda página).
+- **Antes de implementar:** confirmar na Box que o HQ Now carrega com a 1.4.14. Se não carregar, a causa pode ser outra e esta proposta muda; nesse caso diagnosticar erros de imagem no WebView (`onReceivedError` só avisa o frame principal hoje).
+- Usuário ainda está reunindo outras alterações; reunir tudo em um único lote.

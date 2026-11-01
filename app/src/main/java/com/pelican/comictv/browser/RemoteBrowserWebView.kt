@@ -160,6 +160,15 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
             else->return false
         };showPointer();return true
     }
+    /** Back and forward in the current tab's own history; false when there is nowhere to go. */
+    fun companionHistory(delta: Int): Boolean {
+        if (!hasFocus() || !isAttachedToWindow) return false
+        return when {
+            delta < 0 && canGoBack() -> { onPageInteraction(); endCompanionDrag(true); goBack(); true }
+            delta > 0 && canGoForward() -> { onPageInteraction(); endCompanionDrag(true); goForward(); true }
+            else -> false
+        }
+    }
     /** The document's own vertical position; a site that scrolls an inner area has no range here. */
     fun companionScrollPosition(): Float? {
         val range = computeVerticalScrollRange() - computeVerticalScrollExtent()

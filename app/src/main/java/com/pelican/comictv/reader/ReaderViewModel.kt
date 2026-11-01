@@ -187,6 +187,13 @@ class ReaderViewModel(
         _state.value=if(old.zoom<=1f)old.copy(panX=0f,panY=0f) else old.copy(
             panX=(old.panX+x).coerceIn(-1f,1f),panY=(old.panY+y).coerceIn(-1f,1f))
     }
+    /** Absolute vertical position of an enlarged page: 0 is the top edge, 1 the bottom edge. */
+    internal fun companionScrollTo(position:Float) {
+        check(companionAvailable()){ "Leitor indisponível para controle." };require(position.isFinite()&&position in 0f..1f)
+        pauseAutomaticReading()
+        val old=_state.value
+        if(old.zoom>1f)_state.value=old.copy(panY=position*2f-1f)
+    }
     internal fun companionZoom(zoom:Float) {
         check(companionAvailable()){ "Leitor indisponível para controle." };require(zoom.isFinite())
         pauseAutomaticReading()

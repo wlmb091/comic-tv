@@ -5,8 +5,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -37,17 +48,27 @@ import com.pelican.comictv.ui.homeHeroTitleSizeSp
 import com.pelican.comictv.ui.LocalHomeFocusSafety
 import com.pelican.comictv.ui.homeFocusCard
 
+/** Editions the Prime strip rotates through, a group at a time. */
+internal const val PRIME_STRIP_EDITIONS = 12
+/** Same interval as the other carousels. */
+internal const val PRIME_STRIP_INTERVAL_MS = HeroCarouselPolicy.INTERVAL_MS
+
+/** Only complete groups rotate; fewer editions than one group (or one spare group) leave the strip still. */
+internal fun primeStripGroups(choices: List<ComicEntity>, groupSize: Int): List<List<ComicEntity>> =
+    choices.chunked(groupSize).filterIndexed { index, group -> index == 0 || group.size == groupSize }
+internal fun primeStripNext(page: Int, groups: Int) = if (groups > 1) (page + 1) % groups else 0
+
 /** Prime's broad banner shares the screen artwork and adds real edition cards over its right side. */
 @Composable internal fun PrimeLibraryHero(
     comic: ComicEntity?, comics: List<ComicEntity>, repository: LibraryRepository,
     onRead: (String) -> Unit, onOpen: (String) -> Unit, onImport: () -> Unit,
     onSelect: (String) -> Unit, modifier: Modifier = Modifier, readModifier: Modifier = Modifier,
-    minimumHeightOverrideDp: Float? = null,
+    minimumHeightOverrideDp: Float? = null, onRotate: (String) -> Unit = {}, rotationPaused: Boolean = false,
 ) {
     val theme = LocalThemeSpec.current
     // The strip does not reorder when focus changes the selected banner edition.
-    val choices = remember(comics, if (comics.isEmpty()) comic else null, theme.hero.carouselChoices) {
-        (comics.ifEmpty { listOfNotNull(comic) }).distinctBy { it.id }.take(theme.hero.carouselChoices)
+    val choices = remember(comics, if (comics.isEmpty()) comic else null) {
+        (comics.ifEmpty { listOfNotNull(comic) }).distinctBy { it.id }.take(PRIME_STRIP_EDITIONS)
     }
     val highContrast = TvColors.options.highContrast
     BoxWithConstraints(modifier.fillMaxWidth()
@@ -60,7 +81,34 @@ import com.pelican.comictv.ui.homeFocusCard
             (if (compact) 4f else 48f) + 40f * fontScale + maxOf(48f, 32f * fontScale + 24f) + 4f +
                 (if (compact) 8f else 40f))
         val wide = maxWidth >= 720.dp * fontScale
-        val visibleChoices = choices.take(if (wide || portrait) 3 else 2)
+        val groupSize = if (wide || portrait) 3 else 2
+        val groups = remember(choices, groupSize) { primeStripGroups(choices, groupSize) }
+        var page by rememberSaveable { mutableIntStateOf(0) }
+        var stripFocused by remember { mutableStateOf(false) }
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+        var resumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
+        DisposableEffect(lifecycle) {
+            val observer = LifecycleEventObserver { _, _ -> resumed = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+            lifecycle.addObserver(observer)
+            onDispose { lifecycle.removeObserver(observer) }
+        }
+        val shownPage = page.coerceIn(0, (groups.size - 1).coerceAtLeast(0))
+        // A banner edition chosen elsewhere brings its own group into the strip.
+        LaunchedEffect(comic?.id, groups) {
+            val index = groups.indexOfFirst { group -> group.any { it.id == comic?.id } }
+            if (index >= 0) page = index
+        }
+        val rotating = TvColors.options.carouselAutoplay && !highContrast && groups.size > 1 && resumed && !stripFocused && !rotationPaused
+        // Any pause or manual choice restarts a full interval; focus and progress are never touched.
+        LaunchedEffect(rotating, shownPage, groups) {
+            if (rotating) {
+                delay(PRIME_STRIP_INTERVAL_MS)
+                val next = primeStripNext(shownPage, groups.size)
+                page = next
+                groups.getOrNull(next)?.firstOrNull()?.let { onRotate(it.id) }
+            }
+        }
+        val visibleChoices = groups.getOrNull(shownPage) ?: choices.take(groupSize)
         val ordinaryCardWidth = if (portrait) (maxWidth - 24.dp) / 3 else (maxWidth * if (wide) .165f else .20f).coerceIn(82.dp, 136.dp)
         // Account for the caption and position markers as well as the image itself.
         val cardWidth = if (compact) minOf(ordinaryCardWidth,
@@ -95,16 +143,20 @@ import com.pelican.comictv.ui.homeFocusCard
         @Composable fun Choices(modifier: Modifier) {
             if (visibleChoices.isNotEmpty()) Column(modifier,
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 18.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
+                Row(Modifier.fillMaxWidth().onFocusChanged { stripFocused = it.hasFocus }, horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                     verticalAlignment = Alignment.Bottom) {
                     visibleChoices.forEach { edition -> key(edition.id) {
                         PrimeEditionCard(edition, repository, edition.id == comic?.id, cardWidth,
                             onSelect = { onSelect(edition.id) }, onOpen = { onOpen(edition.id) })
                     } }
                 }
-                // Position markers follow D-pad selection; no timed rotation or focus changes.
+                // With several groups the markers are the group pages; a single group keeps the per-card markers that follow D-pad selection.
                 Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    visibleChoices.forEach { edition ->
+                    if (groups.size > 1) groups.indices.forEach { index ->
+                        val active = index == shownPage
+                        Box(Modifier.size(width = if (active) 16.dp else 6.dp, height = 6.dp)
+                            .background(if (active) Color.White else TvColors.Muted.copy(alpha = .5f), RoundedCornerShape(3.dp)))
+                    } else visibleChoices.forEach { edition ->
                         val active = edition.id == comic?.id
                         Box(Modifier.size(width = if (active) 16.dp else 6.dp, height = 6.dp)
                             .background(if (active) Color.White else TvColors.Muted.copy(alpha = .5f), RoundedCornerShape(3.dp)))

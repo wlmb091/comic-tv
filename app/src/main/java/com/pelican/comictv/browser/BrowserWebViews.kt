@@ -49,7 +49,12 @@ internal class BrowserWebViews(private val context: Context, private val session
                 val url = request.url.toString()
                 if (url == "about:blank") return false
                 if (url.startsWith("blob:") && browserBlobOrigin(url) != null) return !foreground
-                return try { BrowserPolicy.url(url); if (request.isForMainFrame) mixedContent(view, url); !foreground }
+                return try {
+                    BrowserPolicy.url(url)
+                    if (request.isForMainFrame && session.state.value.adblock && BrowserAdblock.blocks(request.url.host)) return true
+                    if (request.isForMainFrame) mixedContent(view, url)
+                    !foreground
+                }
                 catch (_: Exception) { message("Este link precisa de outro aplicativo ou não é uma página HTTP/HTTPS."); true }
             }
             override fun onPageStarted(view: WebView, url: String, icon: Bitmap?) {
@@ -57,8 +62,14 @@ internal class BrowserWebViews(private val context: Context, private val session
                 if (url == "about:blank") session.home(tab.id) else session.page(tab.id, url, view.title.orEmpty())
                 changed()
             }
+            /** Runs off the main thread, so it reads only the session state and the request itself. */
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+                if (request.isForMainFrame || !session.state.value.adblock || !BrowserAdblock.blocks(request.url.host)) return null
+                return WebResourceResponse("text/plain", "utf-8", java.io.ByteArrayInputStream(ByteArray(0)))
+            }
+            override fun onPageCommitVisible(view: WebView, url: String) { darkMode(view, url) }
             override fun onPageFinished(view: WebView, url: String) {
-                progress[tab.id] = 100
+                progress[tab.id] = 100; darkMode(view, url)
                 if (url != "about:blank") session.page(tab.id, url, view.title.orEmpty(), true)
                 changed()
             }
@@ -110,11 +121,17 @@ internal class BrowserWebViews(private val context: Context, private val session
         if (!restored && load && tab.url.isNotBlank()) web.loadUrl(tab.url)
         trim(tab.id); return web
     }
-    /** Strict everywhere; the compatibility mode lets a listed site's HTTP images through while scripts and requests stay blocked. */
+    /** Strict everywhere; the compatibility mode lets a chosen site's HTTP images and media through while scripts and requests stay blocked. */
     private fun mixedContent(view: WebView, url: String) {
-        val mode = if (BrowserPolicy.mixedImagesAllowed(url)) WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE else WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        val mode = if (BrowserPolicy.mixedImagesAllowed(url, session.state.value.httpImageSites)) WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE else WebSettings.MIXED_CONTENT_NEVER_ALLOW
         if (view.settings.mixedContentMode != mode) view.settings.mixedContentMode = mode
     }
+    private fun darkMode(view: WebView, url: String) {
+        if (url != "about:blank") view.evaluateJavascript(BrowserDarkMode.script(BrowserPolicy.siteMatches(url, session.state.value.darkSites)), null)
+    }
+    /** Applies a just-changed per-site choice to the open page. */
+    fun refreshDarkMode() { current()?.let { view -> view.url?.let { darkMode(view, it) } } }
+    fun reloadWithSiteOptions() { current()?.let { view -> view.url?.let { mixedContent(view, it) }; view.reload() } }
     private fun applyOptions(id: String, web: RemoteBrowserWebView) {
         val options = session.state.value
         web.cursorEnabled = options.cursor; web.cursorSpeed = options.cursorSpeed

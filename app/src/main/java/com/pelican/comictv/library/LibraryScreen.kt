@@ -103,6 +103,8 @@ import kotlinx.coroutines.launch
     var featuredId by remember { mutableStateOf(focusedId) }
     fun clearExplorerOrigin() { explorerOriginKey = null; explorerRestoreKey = null }
     fun focusComic(id: String) { restored = true; clearExplorerOrigin(); homeOriginRow = null; homeOriginItem = null; featuredId = id; onFocus(id) }
+    /** Prime's timed strip changes the banner edition only; it never touches focus origins or reading progress. */
+    fun rotateHero(id: String) { featuredId = id; onFocus(id) }
     fun focusHomeComic(id: String, row: String) { focusComic(id); homeOriginRow = row; homeOriginItem = id }
     val featured = featuredComic(comics, featuredIdOverride ?: featuredId)
     val recent = remember(comics) { comics.filter { it.lastRead > 0 && !it.hiddenFromHistory }.sortedByDescending { it.lastRead } }
@@ -574,6 +576,7 @@ import kotlinx.coroutines.launch
                         readModifier = if (topSearch) Modifier else Modifier.focusRequester(headerFocus).then(firstControl)
                             .onFocusChanged { if (it.isFocused) clearExplorerOrigin() },
                         comics = comics, onSelect = ::focusComic, onActionFocused = ::clearExplorerOrigin,
+                        onRotate = ::rotateHero, rotationPaused = heroInteraction,
                         minimumHeightOverrideDp = streamingHeroHeight.value,
                         posterHeightLimitDp = (streamingHeroHeight.value - theme.hero.verticalPaddingDp * 2).coerceAtLeast(150f))
                 } else {
