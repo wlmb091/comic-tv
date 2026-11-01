@@ -30,4 +30,8 @@ Só a barra se move, por `offset`, sem medir o conteúdo de novo. Posição inic
 - `build/batch-browser-sidebar.log`: BUILD SUCCESSFUL em 3m38; 53 testes JVM do recorte, 0 falhas; testes nativos compilados.
 - `build/batch-browser-sidebar-lint.log`: lint release com 0 erros e 100 avisos.
 - `build/batch-browser-footer.log`, depois de liberar o rodapé: BUILD SUCCESSFUL em 47s; 36 testes JVM do Navegador, 0 falhas; testes nativos compilados; lint release com 0 erros e 101 avisos.
-- Testes nativos não executados: sem ADB nem emulador. Posição da barra, cores e D-pad ainda não foram vistos na Box.
+- Testes nativos não executados: sem ADB nem emulador.
+
+## Confirmação na Box
+
+31/10/2026: na 1.4.10, o usuário testou o que foi corrigido e informou que funciona corretamente. Depois, o usuário confirmou que todo o roteiro passou, incluindo as pendências de versões anteriores: instalação da DB New Hope (1.4.8), Voltar nas Configurações, fontes, grades irregulares e tempo das capas (1.4.9), além do Navegador com site aberto. Relato do usuário, sem detalhe item a item.
