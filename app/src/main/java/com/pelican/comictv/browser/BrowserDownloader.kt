@@ -22,6 +22,12 @@ internal object BrowserPolicy {
                 text.startsWith("localhost") || text.startsWith("["))) return url("https://$text")
         return url("https://www.google.com/search").newBuilder().addQueryParameter("q", text).build()
     }
+    /** HQ Now serves every comic page as http://static.hq-now.com/...; the WebView blocks that on its HTTPS reader. Images only, for this site only. */
+    private val mixedImageSites = listOf("hq-now.com")
+    fun mixedImagesAllowed(pageUrl: String?): Boolean {
+        val page = pageUrl?.toHttpUrlOrNull()?.takeIf { it.isHttps } ?: return false
+        return mixedImageSites.any { page.host == it || page.host.endsWith(".$it") }
+    }
     fun url(value: String): HttpUrl = value.trim().toHttpUrlOrNull()?.takeIf {
         it.username.isEmpty() && it.password.isEmpty()
     } ?: throw IOException("Use um endereço HTTP ou HTTPS sem credenciais.")

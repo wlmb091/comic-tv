@@ -49,11 +49,11 @@ internal class BrowserWebViews(private val context: Context, private val session
                 val url = request.url.toString()
                 if (url == "about:blank") return false
                 if (url.startsWith("blob:") && browserBlobOrigin(url) != null) return !foreground
-                return try { BrowserPolicy.url(url); !foreground }
+                return try { BrowserPolicy.url(url); if (request.isForMainFrame) mixedContent(view, url); !foreground }
                 catch (_: Exception) { message("Este link precisa de outro aplicativo ou não é uma página HTTP/HTTPS."); true }
             }
             override fun onPageStarted(view: WebView, url: String, icon: Bitmap?) {
-                progress[tab.id] = 0
+                progress[tab.id] = 0; mixedContent(view, url)
                 if (url == "about:blank") session.home(tab.id) else session.page(tab.id, url, view.title.orEmpty())
                 changed()
             }
@@ -110,9 +110,15 @@ internal class BrowserWebViews(private val context: Context, private val session
         if (!restored && load && tab.url.isNotBlank()) web.loadUrl(tab.url)
         trim(tab.id); return web
     }
+    /** Strict everywhere; the compatibility mode lets a listed site's HTTP images through while scripts and requests stay blocked. */
+    private fun mixedContent(view: WebView, url: String) {
+        val mode = if (BrowserPolicy.mixedImagesAllowed(url)) WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE else WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        if (view.settings.mixedContentMode != mode) view.settings.mixedContentMode = mode
+    }
     private fun applyOptions(id: String, web: RemoteBrowserWebView) {
         val options = session.state.value
         web.cursorEnabled = options.cursor; web.cursorSpeed = options.cursorSpeed
+        web.cursorScale = options.cursorSize / 100f; web.cursorStyle = options.cursorStyle
         web.settings.textZoom = options.textZoom
         web.settings.javaScriptCanOpenWindowsAutomatically = !options.blockPopups
         val original = agents[id] ?: web.settings.userAgentString

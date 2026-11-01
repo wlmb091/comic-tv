@@ -33,4 +33,20 @@ class BrowserSessionTest {
         assertEquals(session.state.value.tabs.single().id, session.state.value.selectedId)
         assertEquals(150, session.state.value.textZoom)
     }
+    @Test fun cursorSizeAndIconStayBounded() {
+        val old = BrowserSession(BrowserSessionState(cursorSize = 0, cursorStyle = 9))
+        assertEquals(50, old.state.value.cursorSize)
+        assertEquals(2, old.state.value.cursorStyle)
+        val session = BrowserSession()
+        assertEquals(100, session.state.value.cursorSize)
+        assertEquals(0, session.state.value.cursorStyle)
+        session.options(cursorSize = 900, cursorStyle = -4)
+        assertEquals(300, session.state.value.cursorSize)
+        assertEquals(0, session.state.value.cursorStyle)
+        session.options(speed = 2)
+        assertEquals(300, session.state.value.cursorSize)
+        assertEquals(50, nextCursorSize(300))
+        assertEquals(75, nextCursorSize(50))
+        assertEquals(0, nextCursorStyle(2))
+    }
 }

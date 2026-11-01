@@ -89,7 +89,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 val owner=reader?.takeIf{it.companionAvailable()&&dialogs.focused()==null}
                 val page=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)?.takeIf{dialogs.focused()==null&&activity.hasWindowFocus()}
                 val position=page?.companionScrollPosition()
-                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"))
+                val cursor=com.pelican.comictv.browser.BrowserCursorBridge.handle?.read?.invoke()
+                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"),cursorAvailable=cursor!=null&&owner==null,cursorSize=cursor?.first?:100,cursorStyle=cursor?.second?:0)
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
         }
@@ -179,6 +180,10 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             require(values.all{it.isFinite()&&it in .25f..3f})
             preferences.edit().putFloat("reader",c.readerSensitivity).putFloat("pointer",c.pointerSensitivity)
                 .putFloat("zoom",c.zoomSensitivity).putFloat("scroll",c.scrollSensitivity).apply();return
+        }
+        if(c.action=="cursor") {
+            val handle=com.pelican.comictv.browser.BrowserCursorBridge.handle?:error("Abra o navegador na TV para ajustar o cursor.")
+            handle.apply(c.cursorSize,c.cursorStyle);return
         }
         if(dialog!=null){controlDialog(c,dialog);return}
         if(c.action.startsWith("browser-")) {

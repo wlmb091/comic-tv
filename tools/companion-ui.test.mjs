@@ -75,8 +75,8 @@ test('every action the phone sends is on the server allowlist',()=>{
  for(const direction of ['up','down','left','right','ok'])used.push('browser-'+direction);
  for(const action of used)assert.ok(allowed.has(action),action);
 });
-test('mode tabs come first, Girar sits atop the side column and the sliders live in Ajustes de gestos',()=>{
- const order=['id="modePad"','id="touchpad"','id="rotateScreen"','id="pageSide"','id="sensitivityExtras"','id="tvPage"','id="tvZoom"','id="sensitivity"'].map(mark=>html.indexOf(mark));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
+test('mode tabs come first, then pad, thumb column, gesture sliders and the Inverter/Girar/Teclado row',()=>{
+ const order=['id="modePad"','id="touchpad"','id="pageSide"','id="sensitivityExtras"','id="tvPage"','id="tvZoom"','id="sensitivity"','id="mirrorSide"','id="rotateScreen"','id="showKeyboard"'].map(mark=>html.indexOf(mark));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
  assert.doesNotMatch(html,/Controle da TV/);
 });
 const flush=h=>h.run('(async()=>{for(let i=0;i<30;i++)await Promise.resolve()})()');
@@ -171,4 +171,34 @@ test('opening the keyboard switches to arrows and a sent text leaves them ready'
  h.run("$('keyboard').value='Batman';$('keyboardForm').onsubmit({preventDefault(){}})");
  await new Promise(resolve=>setImmediate(resolve));await new Promise(resolve=>setImmediate(resolve));
  assert.deepEqual(sent(h).filter(c=>c.action==='text'),[{action:'text',text:'Batman'}]);assert.equal(h.run("$('keyboard').value"),'');
+});
+test('cursor size and icon controls appear only while the TV browser lends them',async()=>{
+ const h=harness();h.run("tvReader={active:false,browser:true,cursorAvailable:false,cursorSize:100,cursorStyle:0};cursorUI()");
+ h.run("tvReader={active:false,browser:true,cursorAvailable:true,cursorSize:175,cursorStyle:2};cursorUI()");
+ assert.equal(h.run("cursorPrefs.size"),175);assert.equal(h.run("cursorPrefs.style"),2);
+ await h.run("cursorPrefs={size:150,style:1};saveCursor()");
+ assert.deepEqual(sent(h).at(-1),{action:'cursor',cursorSize:150,cursorStyle:1});
+});
+test('cursor UI never overrides a value the user just changed',()=>{
+ const h=harness();h.run("tvReader={cursorAvailable:true,cursorSize:100,cursorStyle:0};cursorPrefs={size:200,style:2};cursorDirty=Date.now()+1000;cursorUI()");
+ assert.equal(h.run("cursorPrefs.size"),200);assert.equal(h.run("cursorPrefs.style"),2);
+});
+function layoutLog(h,state){h.run("globalThis.log=[];for(const id of ['sideColumn','pageSide','scrollSide','control'])$(id).classList.toggle=(name,on)=>log.push(id+':'+name+':'+on)");h.run(state+";controlLayout()");return JSON.parse(h.run('JSON.stringify(log)'))}
+test('thumb column: Próxima/Anterior in the reader, Rolagem da Página elsewhere, hidden for a page that cannot scroll',()=>{
+ assert.deepEqual(layoutLog(harness(),"tvReader={active:true,page:1,pageCount:5}"),['sideColumn:hidden:false','control:noSide:false','pageSide:hidden:false','scrollSide:hidden:true']);
+ assert.deepEqual(layoutLog(harness(),"tvReader={active:false,browser:true,browserScrollable:true}"),['sideColumn:hidden:false','control:noSide:false','pageSide:hidden:true','scrollSide:hidden:false']);
+ assert.deepEqual(layoutLog(harness(),"tvReader={active:false,browser:true,browserScrollable:false}"),['sideColumn:hidden:true','control:noSide:true','pageSide:hidden:true','scrollSide:hidden:true']);
+ assert.deepEqual(layoutLog(harness(),"tvReader={active:false,browser:false}"),['sideColumn:hidden:false','control:noSide:false','pageSide:hidden:true','scrollSide:hidden:false']);
+});
+test('outside a browser page the slider scrolls the TV screen by the distance dragged, with no jump on touch',()=>{
+ const h=harness();h.run("tvReader={active:false,browser:false}");
+ h.run("$('scrollTrack').onpointerdown({pointerId:1,clientY:50,preventDefault(){}})");
+ assert.equal(sent(h).length,0);
+ h.run("$('scrollTrack').onpointermove({clientY:150});$('scrollTrack').onpointerup()");
+ const [scroll]=sent(h);assert.deepEqual(scroll,{action:'scroll',x:.5,y:.5,delta:600});
+});
+test('Inverter mirrors only the side of the thumb column and never the commands',()=>{
+ const h=harness();h.run("globalThis.log=[];$('control').classList.toggle=(name,on)=>log.push(name+':'+on)");
+ h.run("$('mirrorSide').onclick()");assert.equal(h.run('mirrored'),true);h.run("$('mirrorSide').onclick()");assert.equal(h.run('mirrored'),false);
+ assert.deepEqual(JSON.parse(h.run('JSON.stringify(log)')),['mirrored:true','mirrored:false']);assert.equal(sent(h).length,0);
 });

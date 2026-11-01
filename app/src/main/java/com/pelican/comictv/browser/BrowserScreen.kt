@@ -136,6 +136,13 @@ import kotlinx.coroutines.*
         lifecycle.addObserver(observer)
         onDispose { lifecycle.removeObserver(observer); pendingFiles?.onReceiveValue(null); downloads.setForeground(false); host.close() }
     }
+    DisposableEffect(session, host) {
+        val handle = BrowserCursorBridge.Handle(
+            read = { session.state.value.let { it.cursorSize to it.cursorStyle } },
+            apply = { size, style -> session.options(cursorSize = size, cursorStyle = style); host.updateOptions() })
+        BrowserCursorBridge.handle = handle
+        onDispose { if (BrowserCursorBridge.handle === handle) BrowserCursorBridge.handle = null }
+    }
     LaunchedEffect(lifecycle) { lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
         withFrameNanos { }; ready = true; withFrameNanos { }
         pageFocus++
@@ -256,6 +263,8 @@ import kotlinx.coroutines.*
         })
         TvButton(if (state.cursor) "Cursor: ligado" else "Navegação direta: ligada", { session.options(cursor = !state.cursor); host.updateOptions() })
         TvButton("Velocidade do cursor: ${listOf("Lenta", "Normal", "Rápida")[state.cursorSpeed]}", { session.options(speed = (state.cursorSpeed + 1) % 3); host.updateOptions() })
+        TvButton("Tamanho do cursor: ${state.cursorSize}%", { session.options(cursorSize = nextCursorSize(state.cursorSize)); host.updateOptions() })
+        TvButton("Ícone do cursor: ${cursorStyleNames[state.cursorStyle.coerceIn(0, cursorStyleNames.lastIndex)]}", { session.options(cursorStyle = nextCursorStyle(state.cursorStyle)); host.updateOptions() })
         TvButton("Texto da página: ${state.textZoom}%", { session.options(textZoom = if (state.textZoom >= 150) 75 else state.textZoom + 25); host.updateOptions() })
         TvButton(if (host.current()?.dragMode == true) "Arrastar: ligado" else "Arrastar: desligado", { host.current()?.let { it.dragMode = !it.dragMode }; revision++ })
         TvButton(if (state.blockPopups) "Janelas automáticas: bloqueadas" else "Janelas automáticas: permitidas", { session.options(blockPopups = !state.blockPopups); host.updateOptions() })

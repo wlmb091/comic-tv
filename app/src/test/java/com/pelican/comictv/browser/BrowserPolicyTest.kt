@@ -17,6 +17,15 @@ class BrowserPolicyTest {
         rejected { BrowserPolicy.destination("javascript:alert(1)") }
         rejected { BrowserPolicy.destination("") }
     }
+    @Test fun plainHttpImagesAreAllowedOnlyOnTheListedSitesOverHttps() {
+        assertTrue(BrowserPolicy.mixedImagesAllowed("https://www.hq-now.com/hq-reader/1079/saga/chapter/11572/page/1"))
+        assertTrue(BrowserPolicy.mixedImagesAllowed("https://hq-now.com/"))
+        assertFalse(BrowserPolicy.mixedImagesAllowed("http://www.hq-now.com/"))
+        assertFalse(BrowserPolicy.mixedImagesAllowed("https://evilhq-now.com/"))
+        assertFalse(BrowserPolicy.mixedImagesAllowed("https://hq-now.com.evil.example/"))
+        assertFalse(BrowserPolicy.mixedImagesAllowed("https://example.org/"))
+        assertFalse(BrowserPolicy.mixedImagesAllowed(null))
+    }
     private fun rejected(block: () -> Unit) { try { block(); fail("Should reject") } catch (_: IOException) {} }
     @Test fun schemesCredentialsAndApksAreRejected() {
         listOf("file:///tmp/x", "data:text/plain,a", "blob:https://example.org/a", "intent://a", "https://user:pass@example.org/").forEach {

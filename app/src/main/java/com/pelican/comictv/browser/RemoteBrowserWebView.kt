@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.os.SystemClock
 import android.os.Handler
 import android.os.Looper
@@ -31,10 +32,18 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
     var cursorEnabled = true
         set(value) { if (field != value) releasePointer(); field = value; invalidate() }
     var cursorSpeed = 1
+    /** Pointer drawing only; the click point stays the cursor position (the tip, for the arrow). */
+    var cursorScale = 1f
+        set(value) { field = value.coerceIn(.5f, 3f); invalidate() }
+    var cursorStyle = 0
+        set(value) { field = value.coerceIn(0, 2); invalidate() }
     var dragMode = false
     private val density = resources.displayMetrics.density
     private var cursorX = 0f; private var cursorY = 0f
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val arrow = Path().apply {
+        moveTo(0f, 0f); lineTo(0f, 17f); lineTo(4.2f, 13.2f); lineTo(7f, 19.5f); lineTo(9.6f, 18.4f); lineTo(6.8f, 12.2f); lineTo(12f, 12.2f); close()
+    }
     private val handler = Handler(Looper.getMainLooper())
     private val held = mutableSetOf<Int>()
     private var heldSince = 0L; private var frameAt = 0L; private var lastMove = 0L
@@ -74,10 +83,27 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (!cursorEnabled || !hasFocus() || SystemClock.uptimeMillis() - lastMove > 8000) return
-        val x = scrollX + cursorX; val y = scrollY + cursorY; val radius = (if (pressed) 6f else 9f) * density
-        paint.style = Paint.Style.FILL; paint.color = Color.argb(220, 15, 15, 15); canvas.drawCircle(x, y, radius, paint)
-        paint.style = Paint.Style.STROKE; paint.strokeWidth = 2f * density; paint.color = Color.WHITE; canvas.drawCircle(x, y, radius, paint)
-        paint.style = Paint.Style.FILL; canvas.drawCircle(x, y, 2f * density, paint)
+        val x = scrollX + cursorX; val y = scrollY + cursorY; val unit = density * cursorScale
+        when (cursorStyle) {
+            1 -> {
+                val radius = (if (pressed) 3.5f else 5f) * unit
+                paint.style = Paint.Style.FILL; paint.color = Color.argb(235, 15, 15, 15); canvas.drawCircle(x, y, radius, paint)
+                paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.5f * unit; paint.color = Color.WHITE; canvas.drawCircle(x, y, radius, paint)
+            }
+            2 -> {
+                val size = unit * (if (pressed) .85f else 1f)
+                canvas.save(); canvas.translate(x, y); canvas.scale(size, size)
+                paint.style = Paint.Style.FILL; paint.color = Color.WHITE; canvas.drawPath(arrow, paint)
+                paint.style = Paint.Style.STROKE; paint.strokeWidth = 1.3f; paint.strokeJoin = Paint.Join.ROUND; paint.color = Color.rgb(15, 15, 15); canvas.drawPath(arrow, paint)
+                canvas.restore()
+            }
+            else -> {
+                val radius = (if (pressed) 6f else 9f) * unit
+                paint.style = Paint.Style.FILL; paint.color = Color.argb(220, 15, 15, 15); canvas.drawCircle(x, y, radius, paint)
+                paint.style = Paint.Style.STROKE; paint.strokeWidth = 2f * unit; paint.color = Color.WHITE; canvas.drawCircle(x, y, radius, paint)
+                paint.style = Paint.Style.FILL; canvas.drawCircle(x, y, 2f * unit, paint)
+            }
+        }
     }
     private fun showPointer() { lastMove = SystemClock.uptimeMillis(); handler.removeCallbacks(hide); handler.postDelayed(hide, 8050); invalidate() }
     private fun touch(action: Int) {
