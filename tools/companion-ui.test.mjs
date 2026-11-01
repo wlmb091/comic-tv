@@ -48,12 +48,38 @@ test('new text section resets its own scroll container',async()=>{
 
 function pointer(h,kind,id,x,y){return h.run(`$('touchpad').onpointer${kind}({pointerId:${id},button:0,pointerType:'touch',clientX:${x},clientY:${y},preventDefault(){}})`)}
 function sent(h){return h.requests.filter(r=>r.url.endsWith('/command')).map(r=>JSON.parse(r.options.body))}
-test('reader pinch zooms proportionally without pan or click',()=>{
+test('reader pinch sends zoom with the point under the fingers, without click',()=>{
  const h=harness();h.run("tvReader={active:true,zoom:1.5,minZoom:1,maxZoom:3};");
  pointer(h,'down',1,20,20);pointer(h,'down',2,120,20);pointer(h,'move',2,220,20);h.run('flushPad()');
- assert.deepEqual(sent(h),[{action:'reader-zoom',zoom:3}]);
+ const [pinch]=sent(h);assert.equal(pinch.action,'reader-pinch');assert.equal(pinch.zoom,3);assert.equal(pinch.x,.4);assert.equal(pinch.y,20/300);assert.equal(pinch.dy,0);
  pointer(h,'up',2,220,20);pointer(h,'up',1,20,20);assert.equal(sent(h).length,1);
 });
+test('two fingers moving together pan the reader while zoom stays',()=>{
+ const h=harness();h.run("tvReader={active:true,zoom:2,minZoom:1,maxZoom:3};");
+ pointer(h,'down',1,50,50);pointer(h,'down',2,150,50);pointer(h,'move',1,50,110);pointer(h,'move',2,150,110);h.run('flushPad()');
+ const [pinch]=sent(h);assert.equal(pinch.action,'reader-pinch');assert.ok(Math.abs(pinch.zoom-2)<.4);assert.ok(pinch.dy>0);assert.equal(pinch.dx,0);
+});
+test('a horizontal flick turns the phone page, unless pinched or mostly vertical',()=>{
+ const h=harness();const delta=code=>h.run('swipeTurn('+code+')');
+ assert.equal(delta('-120,5,200,1'),1);assert.equal(delta('120,5,200,1'),-1);
+ assert.equal(delta('-120,5,200,2'),0);assert.equal(delta('-120,100,200,1'),0);assert.equal(delta('-30,0,200,1'),0);assert.equal(delta('-120,5,1500,1'),0);
+});
+test('turning past the last phone page does not reload it',()=>{
+ const h=harness();h.run("current={id:'book',pages:3};page=2;globalThis.loads=0;loadPage=()=>{loads++};turn(1)");assert.equal(h.run('loads+page'),2);
+});
+test('every action the phone sends is on the server allowlist',()=>{
+ const server=readFileSync(new URL('../core/src/main/kotlin/com/pelican/comictv/transfer/CompanionServer.kt',import.meta.url),'utf8');
+ const allowed=new Set([...server.match(/c\.action !in setOf\(([^)]*)\)/)[1].matchAll(/"([^"]+)"/g)].map(m=>m[1]));
+ const used=[...html.matchAll(/data-command="([^"]+)"/g)].map(m=>m[1]);
+ for(const m of script.matchAll(/(?:command|queuePad)\('([a-z-]+)'(?!\+)/g))used.push(m[1]);
+ for(const direction of ['up','down','left','right','ok'])used.push('browser-'+direction);
+ for(const action of used)assert.ok(allowed.has(action),action);
+});
+test('mode tabs come first, with zoom and rotate right above the touchpad',()=>{
+ const order=['id="modePad"','id="tvZoom"','id="rotateScreen"','id="touchpad"'].map(mark=>html.indexOf(mark));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
+ assert.doesNotMatch(html,/Controle da TV/);
+});
+
 test('browser two fingers scroll, not click or cursor movement',()=>{
  const h=harness();h.run("tvReader={active:false,browser:true};");
  pointer(h,'down',1,30,30);pointer(h,'down',2,130,30);pointer(h,'move',1,30,60);pointer(h,'move',2,130,60);h.run('flushPad()');
@@ -87,6 +113,10 @@ test('tap then drag keeps browser press move release in order',async()=>{
 });
 test('browser arrows and OK drive the page, leaving the cursor to the touchpad',()=>{
  const h=harness();h.run("tvReader={active:false,browser:true};sensitivities.pointer=2;directional('right');$('padOK').onclick()");assert.deepEqual(sent(h),[{action:'browser-right'},{action:'browser-ok'}]);
+});
+test('opening the keyboard in the browser keeps the touchpad',()=>{
+ const h=harness();const pressed=[];h.elements.set('modeArrows',{...h.run("$('modeArrows')"),setAttribute(name,value){pressed.push(value)}});
+ h.run("tvReader={active:false,browser:true};$('showKeyboard').onclick()");assert.deepEqual(pressed,[]);
 });
 test('opening the keyboard switches to arrows and a sent text leaves them ready',async()=>{
  const h=harness();const pressed=[];h.elements.set('modeArrows',{...h.run("$('modeArrows')"),setAttribute(name,value){pressed.push(value)}});

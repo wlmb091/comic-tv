@@ -192,6 +192,16 @@ class ReaderViewModel(
         val old=_state.value;val value=zoom.coerceIn(1f,3f)
         _state.value=old.copy(zoom=value,panX=if(value==1f)0f else old.panX,panY=if(value==1f)0f else old.panY)
     }
+    /** How much of the view the shown pages fill at zoom 1; published by the renderer that measures them. */
+    @Volatile private var pageFill=1f to 1f
+    internal fun reportPageFill(width:Float,height:Float){if(width>0f&&height>0f)pageFill=width to height}
+    /** Phone pinch: the page point under the fingers stays there while they zoom and move. */
+    internal fun companionPinch(zoom:Float,x:Float,y:Float,dx:Float,dy:Float) {
+        check(companionAvailable()){ "Leitor indisponível para controle." };require(zoom.isFinite()&&x.isFinite()&&y.isFinite()&&dx.isFinite()&&dy.isFinite())
+        pauseAutomaticReading()
+        val old=_state.value;val value=zoom.coerceIn(1f,3f);val (fillX,fillY)=pageFill
+        _state.value=old.copy(zoom=value,panX=pinchPan(fillX,old.zoom,value,old.panX,x-dx,x),panY=pinchPan(fillY,old.zoom,value,old.panY,y-dy,y))
+    }
     internal fun companionPage(page:Int) {
         check(companionAvailable()){ "Leitor indisponível para controle." };require(page in pages.indices){ "Página não encontrada." }
         pauseAutomaticReading();val old=_state.value

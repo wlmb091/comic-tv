@@ -525,7 +525,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     @Composable fun NavigationIcon(route: String, title: String, modifier: Modifier) {
         val drawable = icons[route]
         if (drawable != null) androidx.tv.material3.Icon(painterResource(drawable),
-            if ((expanded || horizontal) && !theme.navigation.dockIconsOnly) null else title, modifier)
+            if (expanded || horizontal) null else title, modifier)
         else {
             val tint = androidx.tv.material3.LocalContentColor.current
             androidx.compose.foundation.Canvas(modifier) {
@@ -572,10 +572,6 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (route == "search") NavigationIcon(route, title, Modifier.size(18.dp))
                     Text(title, fontSize = 14.sp, maxLines = 1, softWrap = false)
-                }
-            } else if (theme.navigation.dockIconsOnly) {
-                Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                    NavigationIcon(route, title, Modifier.size(26.dp))
                 }
             } else if (policy == ThemeNavigationPolicy.BottomDock) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),

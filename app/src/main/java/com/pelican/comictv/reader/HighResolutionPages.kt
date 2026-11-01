@@ -27,6 +27,9 @@ internal fun overviewRegion(page: PageImage): TileRegion {
     return TileRegion(0, 0, page.width, page.height, sample)
 }
 
+/** Lets the phone pinch know how much of the view the shown pages fill at zoom 1. */
+internal val LocalReaderPageFill = staticCompositionLocalOf<(Float, Float) -> Unit> { { _, _ -> } }
+
 /** Display coordinates change immediately; visible source pixels are decoded asynchronously. */
 @Composable internal fun HighResolutionPages(state: ReaderState, pages: List<PageImage?>,
     cache: ReaderTileCache, options: ReaderImageOptions, modifier: Modifier = Modifier, gap: Float = 0f,
@@ -35,6 +38,12 @@ internal fun overviewRegion(page: PageImage): TileRegion {
     val extents = pages.map { ImageExtent(it?.width ?: pages.filterNotNull().firstOrNull()?.width ?: 1,
         it?.height ?: pages.filterNotNull().firstOrNull()?.height ?: 1) }
     val placements = zoomPlacements(extents, size.width, size.height, state.zoom, state.fit, state.panX, state.panY, gap)
+    val reportPageFill = LocalReaderPageFill.current
+    SideEffect {
+        val fitted = zoomPlacements(extents, size.width, size.height, 1f, state.fit, 0f, 0f, gap)
+        if (fitted.isNotEmpty()) reportPageFill((fitted.last().left + fitted.last().width - fitted.first().left) / size.width,
+            fitted.maxOf { it.height } / size.height)
+    }
     val stamps = remember(pages.map { it?.file }) { pages.map { it?.let(::tileIdentity) } }
     val visible = placements.flatMapIndexed { index, placement -> pages[index]?.let { page ->
         readerRenderRegions(placement, size.width, size.height, cache.framePixelLimit(options)).map { TileKey(page.file, stamps[index].orEmpty(), it, options) }

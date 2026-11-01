@@ -23,8 +23,6 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val sidebarLibraryStartDp: Int = safeHorizontalDp,
     val overlayDurationMs: Int = 220,
     val staticCollapsedRail: Boolean = false,
-    /** Portrait only: a dock with one icon per route, sized to fit every route at once. */
-    val dockIconsOnly: Boolean = false,
     /** Portrait only: dock items keep this width and the dock scrolls with focus. */
     val dockScrollItemWidthDp: Int? = null,
     /** Portrait only: the Prime brand takes its own line above the categories. */
@@ -203,11 +201,8 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
                 hero = hero.copy(heightPolicy = HeroHeightPolicy.Fraction, viewportFraction = .42f, textWidthFraction = 1f))
             ColorPreset.Cinema -> copy(navigation = shared,
                 hero = hero.copy(viewportInsetDp = 190, horizontalPaddingDp = 8, verticalPaddingDp = 20, textWidthFraction = 1f))
-            // Comic and the legacy editorial presets replace the side rail with an icon bar below.
-            else -> copy(navigation = shared.copy(layout = ThemeNavigationPolicy.BottomDock, dockIconsOnly = true,
-                    searchInNavigation = true, libraryBrand = true, dockFocusScale = 1f, dockActiveAlpha = .15f,
-                    dockSurface = 0xFF1E1E1E, dockBorder = 0xFF333333),
-                hero = hero.copy(viewportFraction = .3f, minimumHeightDp = 194, textWidthFraction = 1f, posterWidthDp = 180, posterHeightDp = 240))
+            else -> copy(navigation = shared,
+                hero = hero.copy(viewportFraction = .3f, minimumHeightDp = 194, textWidthFraction = 1f, posterWidthDp = 160, posterHeightDp = 214))
         }
     }
 }

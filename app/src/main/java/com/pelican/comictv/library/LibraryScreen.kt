@@ -54,8 +54,7 @@ import kotlinx.coroutines.launch
     val footerControls = theme.footerControls
     val topSearch = theme.topSearch
     val portrait = LocalAppOrientation.current.portrait
-    // Comic also has a bottom dock in portrait; the Max home and its pages belong to Max alone.
-    val maxLayout = theme.navigation.layout == ThemeNavigationPolicy.BottomDock && !theme.navigation.dockIconsOnly
+    val maxLayout = theme.navigation.layout == ThemeNavigationPolicy.BottomDock
     var activeCollectionId by rememberSaveable { mutableStateOf<String?>(null) }
     var fullLibrary by rememberSaveable { mutableStateOf(false) }
     val streaming = theme.artwork

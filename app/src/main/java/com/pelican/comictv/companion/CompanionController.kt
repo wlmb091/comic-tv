@@ -194,6 +194,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 "reader-page"->owner.companionPage(c.page)
                 "reader-turn"->owner.companionTurn(c.delta)
                 "reader-zoom"->owner.companionZoom(c.zoom)
+                "reader-pinch"->owner.companionPinch(c.zoom,c.x.toFloat(),c.y.toFloat(),c.dx.toFloat(),c.dy.toFloat())
                 else->error("Comando de leitor inválido.")
             };return
         }

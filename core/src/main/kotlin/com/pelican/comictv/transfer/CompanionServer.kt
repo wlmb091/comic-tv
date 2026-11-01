@@ -48,7 +48,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
     }
     private fun valid(c:CompanionCommand):Boolean {
-        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","home","settings","browser-pointer","browser-scroll","browser-zoom","browser-click","browser-context","browser-press","browser-release","browser-cancel"))return false
+        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","home","settings","rotate","browser-pointer","browser-scroll","browser-zoom","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
         if(c.text.length>1000||c.id.length>100||c.text.any {it=='\u0000'})return false
         if(c.action=="open"&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
         if(!c.x.isFinite()||!c.y.isFinite()||!c.dx.isFinite()||!c.dy.isFinite()||!c.zoom.isFinite())return false
@@ -61,6 +61,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
             "reader-page"->c.page in 0..4999
             "reader-turn"->c.delta==-1||c.delta==1
             "reader-zoom"->c.zoom in 1f..3f
+            "reader-pinch"->c.zoom in 1f..3f&&c.x in 0.0..1.0&&c.y in 0.0..1.0&&c.dx in -1.0..1.0&&c.dy in -1.0..1.0
             else->c.x in 0.0..1.0&&c.y in 0.0..1.0&&c.delta in -600..600
         }
     }

@@ -26,6 +26,20 @@ fun zoomPlacements(images: List<ImageExtent>, viewWidth: Int, viewHeight: Int, z
     }
 }
 
+/**
+ * Pan that keeps the page point under the fingers while they zoom and move, on one axis.
+ * [fill] is the row's size at zoom 1 as a fraction of the view; [from] and [to] are view fractions.
+ */
+fun pinchPan(fill: Float, oldZoom: Float, newZoom: Float, pan: Float, from: Float, to: Float): Float {
+    val oldSize = fill * oldZoom
+    val newSize = fill * newZoom
+    val oldOverflow = ((oldSize - 1f) / 2f).coerceAtLeast(0f)
+    val newOverflow = ((newSize - 1f) / 2f).coerceAtLeast(0f)
+    if (newOverflow <= 0f) return 0f
+    val pagePoint = (from - (1f - oldSize) / 2f + pan.coerceIn(-1f, 1f) * oldOverflow) / oldSize
+    return ((pagePoint * newSize - to + (1f - newSize) / 2f) / newOverflow).coerceIn(-1f, 1f)
+}
+
 fun sampleSizeForScale(scale: Float): Int {
     var sample = 1
     while (sample < 128 && sample * 2 * scale <= 1f) sample *= 2

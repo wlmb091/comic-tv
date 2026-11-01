@@ -8,6 +8,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CompanionServerTest {
+    /** The server is an allowlist: a phone button whose action is missing here fails as "Comando inválido". */
+    @Test fun rotateBrowserArrowsAndPinchReachTheApp() {
+        val root=Files.createTempDirectory("companion-actions").toFile();val commands=mutableListOf<CompanionCommand>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={commands+=it})
+        try {
+            server.open()
+            for(body in listOf("""{"action":"rotate"}""","""{"action":"browser-up"}""","""{"action":"browser-down"}""","""{"action":"browser-left"}""","""{"action":"browser-right"}""","""{"action":"browser-ok"}""","""{"action":"reader-pinch","zoom":2,"x":0.5,"y":0.25,"dx":-0.1,"dy":0.1}"""))assertEquals(body,200,request(server.url+"/command",body).first)
+            assertEquals(7,commands.size)
+            for(body in listOf("""{"action":"reader-pinch","zoom":3.1,"x":0.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":1.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":0.5,"y":0.5,"dx":2}"""))assertEquals(body,400,request(server.url+"/command",body).first)
+        }finally{server.close();root.deleteRecursively()}
+    }
     @Test fun contextualReaderAndPointerCommandsAreBoundedAndMirrorIsAbsent() {
         val root=Files.createTempDirectory("companion-reader").toFile();val commands=mutableListOf<CompanionCommand>()
         val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{\"active\":false}".toByteArray())},command={commands+=it})

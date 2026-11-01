@@ -40,8 +40,11 @@ import kotlinx.coroutines.launch
     var rotatedChoice by rememberSaveable { mutableStateOf(false) }
     // The app-wide portrait already turned this screen: turning the reader too would undo it.
     val rotated = rotatedChoice && !com.pelican.comictv.ui.LocalAppOrientation.current.portrait
+    val reportPageFill = remember(viewModel) { viewModel::reportPageFill }
     ReaderSurface(rotated) {
-        ReaderContent(viewModel, onExit, onEditions, onChapterStep, narrationOriginal, rotated, onUsePageAsSagaCover) { rotatedChoice = !rotatedChoice }
+        CompositionLocalProvider(LocalReaderPageFill provides reportPageFill) {
+            ReaderContent(viewModel, onExit, onEditions, onChapterStep, narrationOriginal, rotated, onUsePageAsSagaCover) { rotatedChoice = !rotatedChoice }
+        }
     }
 }
 

@@ -34,14 +34,13 @@ class AppOrientationTest {
 
     @Test fun portraitKeepsEachThemesMenuIdentity() {
         val comic = ThemeSpec.forPreset(ColorPreset.Amber, true).navigation
-        assertEquals(ThemeNavigationPolicy.BottomDock, comic.layout)
-        assertTrue(comic.dockIconsOnly)
+        assertEquals(ThemeNavigationPolicy.Sidebar, comic.layout)
+        assertTrue(comic.staticCollapsedRail)
         val flix = ThemeSpec.forPreset(ColorPreset.Flix, true).navigation
         assertEquals(ThemeNavigationPolicy.Sidebar, flix.layout)
         assertFalse(flix.sidebarInitiallyExpanded)
         assertTrue(ThemeSpec.forPreset(ColorPreset.Prime, true).navigation.topBarStacked)
         val max = ThemeSpec.forPreset(ColorPreset.Max, true).navigation
-        assertFalse(max.dockIconsOnly)
         assertEquals(92, max.dockScrollItemWidthDp)
         assertEquals(ThemeNavigationPolicy.ImmersiveMenu, ThemeSpec.forPreset(ColorPreset.Cinema, true).navigation.layout)
         assertNull(ThemeSpec.forPreset(ColorPreset.Cinema, true).navigation.dockScrollItemWidthDp)
