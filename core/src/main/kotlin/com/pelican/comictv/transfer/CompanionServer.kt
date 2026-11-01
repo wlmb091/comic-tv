@@ -14,17 +14,18 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicInteger
 
 data class CompanionCommand(val action:String="",val text:String="",val id:String="",val x:Double=0.0,val y:Double=0.0,val delta:Int=0,val dx:Double=0.0,val dy:Double=0.0,val page:Int=0,val zoom:Float=1f,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f)
-data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f,val browser:Boolean=false,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f)
+data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f,val browser:Boolean=false,val comicId:String="",val browserScroll:Float=0f,val browserScrollable:Boolean=false,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f)
 data class CompanionResource(val mime:String,val bytes:ByteArray?=null,val file:File?=null,val filename:String?=null)
 
-/** An explicitly opened, expiring LAN session. No arbitrary URL/path/OS commands. */
+/** An explicitly opened LAN session that ends when idle or at its absolute limit. No arbitrary URL/path/OS commands. */
 class CompanionServer(private val host:String,private val temporaryDirectory:File,private val html:String,
     private val get:(String)->CompanionResource,private val command:(CompanionCommand)->Unit,
     private val received:(File,String)->Unit={_,_->},private val clock:()->Long=System::currentTimeMillis,
-    private val lifetimeMillis:Long=30*60*1000L,private val status:(String)->Unit={}) : Closeable {
+    private val lifetimeMillis:Long=30*60*1000L,private val status:(String)->Unit={},private val maxLifetimeMillis:Long=8*60*60*1000L) : Closeable {
     private val token=ByteArray(24).also {SecureRandom().nextBytes(it)}.joinToString(""){"%02x".format(it.toInt() and 255)}
     private val root="/s/$token"
     private var openedAt=0L
+    @Volatile private var usedAt=0L
     @Volatile private var active=false
     private var closed=false
     private val transfers=Semaphore(1);private val resources=Semaphore(2)
@@ -33,29 +34,31 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
     private val server=object:NanoHTTPD(host,0){override fun serve(session:IHTTPSession):Response=handle(session)}.apply {
         val delegate=DefaultAsyncRunner();val count=AtomicInteger()
         setAsyncRunner(object:AsyncRunner {
-            override fun exec(handler:ClientHandler){if(count.incrementAndGet()>8){count.decrementAndGet();handler.close()}else delegate.exec(handler)}
+            override fun exec(handler:ClientHandler){if(count.incrementAndGet()>16){count.decrementAndGet();handler.close()}else delegate.exec(handler)}
             override fun closed(handler:ClientHandler){count.decrementAndGet();delegate.closed(handler)}
             override fun closeAll(){delegate.closeAll()}
         })
     }
-    @Synchronized fun open(){check(!closed&&!active);temporaryDirectory.mkdirs();server.start(15_000,true);openedAt=clock();active=true}
-    fun expired()=clock()-openedAt>=lifetimeMillis
+    @Synchronized fun open(){check(!closed&&!active);temporaryDirectory.mkdirs();server.start(15_000,true);openedAt=clock();usedAt=openedAt;active=true}
+    fun expired()=clock().let{now->now-usedAt>=lifetimeMillis||now-openedAt>=maxLifetimeMillis}
     @Synchronized override fun close(){closed=true;active=false;server.stop()}
     private fun response(code:Response.Status,text:String,mime:String="text/plain; charset=utf-8")=secure(newFixedLengthResponse(code,mime,text))
     private fun secure(r:Response)=r.apply {
         addHeader("Connection","close")
         addHeader("Cache-Control","no-store");addHeader("Referrer-Policy","no-referrer");addHeader("X-Content-Type-Options","nosniff");addHeader("X-Frame-Options","DENY")
-        addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+        addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; media-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
     }
     private fun valid(c:CompanionCommand):Boolean {
-        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","home","settings","rotate","browser-pointer","browser-scroll","browser-zoom","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
+        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","home","settings","rotate","browser-pointer","browser-scroll","browser-scroll-to","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
         if(c.text.length>1000||c.id.length>100||c.text.any {it=='\u0000'})return false
         if(c.action=="open"&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
         if(!c.x.isFinite()||!c.y.isFinite()||!c.dx.isFinite()||!c.dy.isFinite()||!c.zoom.isFinite())return false
         return when(c.action){
             "settings"->listOf(c.readerSensitivity,c.pointerSensitivity,c.zoomSensitivity,c.scrollSensitivity).all{it.isFinite()&&it in .25f..3f}
             "browser-pointer","browser-scroll"->c.dx in -1.0..1.0&&c.dy in -1.0..1.0
+            "browser-scroll-to"->c.dy in 0.0..1.0
             "browser-zoom"->c.zoom in .5f..2f
+            "browser-pinch"->c.zoom in .5f..2f&&c.x in 0.0..1.0&&c.y in 0.0..1.0&&c.dx in -1.0..1.0&&c.dy in -1.0..1.0
             "reader-pan"->c.x in -1.0..1.0&&c.y in -1.0..1.0
             "pointer"->c.dx in -1.0..1.0&&c.dy in -1.0..1.0
             "reader-page"->c.page in 0..4999
@@ -87,12 +90,15 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         if(session.headers["host"]!="$host:${server.listeningPort}")return response(Response.Status.FORBIDDEN,"Endereço inválido.")
         val origin=session.headers["origin"]
         if(origin!=null&&origin!="http://$host:${server.listeningPort}")return response(Response.Status.FORBIDDEN,"Origem inválida.")
+        usedAt=clock()
         val endpoint=path.removePrefix(root).trimEnd('/')
         try {
             if(session.method==Method.GET){
                 if(endpoint.isEmpty())return response(Response.Status.OK,html,"text/html; charset=utf-8")
                 if(!endpoint.matches(Regex("/(library|reader-state|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
-                if(!resources.tryAcquire())return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
+                // The state poll is light and must keep answering while pages and covers load.
+                val limited=endpoint!="/reader-state"
+                if(limited&&!resources.tryAcquire())return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
                 try {
                     val resource=get(endpoint)
                     val file=resource.file
@@ -100,7 +106,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
                         else newFixedLengthResponse(Response.Status.OK,resource.mime,resource.bytes!!.inputStream(),resource.bytes.size.toLong())
                     if(resource.filename!=null){val encoded=java.net.URLEncoder.encode(resource.filename.take(180),"UTF-8").replace("+","%20");out.addHeader("Content-Disposition","attachment; filename=\"Comic-TV\"; filename*=UTF-8''$encoded")}
                     return secure(out)
-                } finally {resources.release()}
+                } finally {if(limited)resources.release()}
             }
             if(session.method!=Method.POST)return response(Response.Status.METHOD_NOT_ALLOWED,"Método não permitido.")
             if(endpoint=="/command") {

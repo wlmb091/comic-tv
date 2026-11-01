@@ -118,7 +118,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
                 try {
                     val cached = snapshots.get(query)
                     cached?.snapshot?.titles?.let { titles ->
-                        val sample = titles.distinctBy { it.key }.take(12)
+                        val sample = titles.distinctBy { it.key }.take(com.pelican.comictv.library.HOME_SOURCE_POOL_LIMIT)
                         _homePreviews.update { if (latest) it.copy(latest = sample) else it.copy(catalog = sample) }
                     }
                     val titles = if (cached?.fresh == true) cached.snapshot.titles else {
@@ -130,7 +130,7 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
                     }
                     currentCoroutineContext().ensureActive()
                     if (sourceGeneration != generation || state.value.activeSource != source) return@collectLatest
-                    val sample = titles.distinctBy { it.key }.take(12)
+                    val sample = titles.distinctBy { it.key }.take(com.pelican.comictv.library.HOME_SOURCE_POOL_LIMIT)
                     _homePreviews.update { if (latest) it.copy(latest = sample) else it.copy(catalog = sample) }
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (error: Exception) { Log.w("ComicTV-Sources", "Home preview unavailable", error) }

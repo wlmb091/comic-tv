@@ -19,6 +19,7 @@ import androidx.tv.material3.*
 import coil3.compose.AsyncImage
 import com.pelican.comictv.sources.OnlineTitle
 import com.pelican.comictv.ui.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 
 @Composable
@@ -28,11 +29,35 @@ internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: Lazy
     val theme = LocalThemeSpec.current
     val horizontal = theme.cards.collectionStyle in setOf(CollectionCardStyle.Horizontal, CollectionCardStyle.Mini)
     val restore = remember { FocusRequester() }
-    val sample = remember(titles, gridPreview) { if (gridPreview) comicHomePreviewItems(titles) { it.key } else homePreviewItems(titles) { it.key } }
+    val pool = remember(titles) { titles.distinctBy { it.key } }
+    val windowSize = if (gridPreview) COMIC_HOME_PREVIEW_LIMIT else HOME_PREVIEW_LIMIT
+    var cycleStart by remember(pool) { mutableIntStateOf(0) }
+    // Returning from a title shows the slice that holds it, so its card can take focus back.
+    val restoreStart = restoreKey?.let { key -> pool.indexOfFirst { it.key == key }.takeIf { it >= 0 } }
+        ?.takeIf { homeCycleWindow(pool, cycleStart, windowSize).none { it.key == restoreKey } }
+    val start = restoreStart ?: cycleStart
+    val sample = remember(pool, start, windowSize) { homeCycleWindow(pool, start, windowSize) }
     val effectiveRestoreKey = restoreKey?.let { key -> if (key == "more" || sample.any { it.key == key }) key else "more" }
     var positioned by remember { mutableStateOf<String?>(null) }
+    var focusInRow by remember { mutableStateOf(false) }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val resumed by lifecycle.currentStateFlow.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val cycling = TvColors.options.carouselAutoplay && !TvColors.options.highContrast && !focusInRow && restoreKey == null &&
+        resumed.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) && pool.size > windowSize
+    LaunchedEffect(cycling, pool, cycleStart, windowSize) {
+        if (!cycling) return@LaunchedEffect
+        delay(HOME_SOURCE_CYCLE_MS - HOME_SOURCE_PRELOAD_MS)
+        val next = homeCycleNext(pool.size, cycleStart, windowSize)
+        homeCycleWindow(pool, next, windowSize).forEach { title ->
+            coil3.SingletonImageLoader.get(context).enqueue(coil3.request.ImageRequest.Builder(context).data(title.coverUrl).build())
+        }
+        delay(HOME_SOURCE_PRELOAD_MS)
+        cycleStart = next
+    }
     LaunchedEffect(effectiveRestoreKey) {
         if (effectiveRestoreKey == null) return@LaunchedEffect
+        cycleStart = start
         val index = if (effectiveRestoreKey == "more") sample.size else sample.indexOfFirst { it.key == effectiveRestoreKey }
         if (index < 0) { onRestored(); return@LaunchedEffect }
         if (!gridPreview) state.scrollToItem(index)
@@ -40,7 +65,7 @@ internal fun HomeSourceRow(label: String, titles: List<OnlineTitle>, state: Lazy
         restore.requestFocus()
         onRestored()
     }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.onFocusChanged { focusInRow = it.hasFocus }, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(label, fontSize = 20.sp)
         if (gridPreview) {
             ComicHomePreviewGrid(sample, { it.key }, onMore = { onFocus("more"); onMore() },

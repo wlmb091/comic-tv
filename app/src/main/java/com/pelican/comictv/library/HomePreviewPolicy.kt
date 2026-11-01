@@ -4,6 +4,15 @@ internal const val HOME_PREVIEW_LIMIT = 12
 internal fun <T, K> homePreviewItems(items: List<T>, key: (T) -> K): List<T> =
     items.distinctBy(key).take(HOME_PREVIEW_LIMIT)
 
+/** First-page titles kept for the source rows; only their covers are extra downloads. */
+internal const val HOME_SOURCE_POOL_LIMIT = 48
+internal const val HOME_SOURCE_CYCLE_MS = 10_000L
+internal const val HOME_SOURCE_PRELOAD_MS = 2_000L
+/** The visible slice of a source row, wrapping around; a short list stays as it is. */
+internal fun <T> homeCycleWindow(pool: List<T>, start: Int, size: Int): List<T> =
+    if (pool.size <= size) pool else List(size) { pool[(start + it) % pool.size] }
+internal fun homeCycleNext(count: Int, start: Int, size: Int): Int = if (count <= size) 0 else (start + size) % count
+
 /** Hero, optional recent heading/row, collection heading/row, two source rows and shortcuts. */
 internal fun homeGridFooterIndex(recentCount: Int, explorer: Boolean): Int =
     5 + (if (recentCount > 0) 2 else 0) + (if (explorer) 1 else 0)

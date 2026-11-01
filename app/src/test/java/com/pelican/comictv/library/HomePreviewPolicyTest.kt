@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class HomePreviewPolicyTest {
+    @Test fun sourceRowCycleWrapsAndLeavesShortListsAlone() {
+        val pool = (0 until 5).toList()
+        assertEquals(listOf(3, 4, 0), homeCycleWindow(pool, 3, 3))
+        assertEquals(3, homeCycleNext(5, 0, 3))
+        assertEquals(1, homeCycleNext(5, 3, 3))
+        assertEquals(pool, homeCycleWindow(pool, 2, 5))
+        assertEquals(0, homeCycleNext(5, 2, 5))
+    }
+
     @Test fun visibleHeroActionDoesNotScrollTitleAway() {
         assertEquals(0f, homeBringIntoViewDistance(380f, 52f, 540f), 0f)
         assertEquals(32f, homeBringIntoViewDistance(520f, 52f, 540f), 0f)

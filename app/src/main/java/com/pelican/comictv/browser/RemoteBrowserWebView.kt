@@ -115,6 +115,11 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
         when(action){
             "browser-pointer"->{if(!moveCompanionPointer(dx,dy))return false}
             "browser-scroll"->{endCompanionDrag(true);wheel((-dx*width).toInt(),(-dy*height).toInt())}
+            "browser-scroll-to"->{
+                val range=computeVerticalScrollRange()-computeVerticalScrollExtent()
+                if(range<=0)return false
+                endCompanionDrag(true);scrollTo(scrollX,(dy.coerceIn(0f,1f)*range).toInt())
+            }
             "browser-zoom"->{endCompanionDrag(true);zoomBy(zoom.coerceIn(.5f,2f))}
             "browser-press"->{
                 if(!companionDragging){endCompanionDrag(true);clickDownTime=SystemClock.uptimeMillis();pressed=true;companionDragging=true;touch(MotionEvent.ACTION_DOWN)}
@@ -128,6 +133,27 @@ internal class RemoteBrowserWebView(context: Context) : WebView(context) {
             }
             else->return false
         };showPointer();return true
+    }
+    /** The document's own vertical position; a site that scrolls an inner area has no range here. */
+    fun companionScrollPosition(): Float? {
+        val range = computeVerticalScrollRange() - computeVerticalScrollExtent()
+        return if (range > 0) (computeVerticalScrollOffset().toFloat() / range).coerceIn(0f, 1f) else null
+    }
+    /** Keeps the page point under the fingers and follows them; a site that refuses zoom still pans. */
+    fun companionPinch(zoom: Float, x: Float, y: Float, dx: Float, dy: Float): Boolean {
+        if (!hasFocus() || !isAttachedToWindow || !cursorEnabled) return false
+        onPageInteraction(); endCompanionDrag(true)
+        wheel((-dx * width).toInt(), (-dy * height).toInt())
+        @Suppress("DEPRECATION") val before = scale
+        zoomBy(zoom.coerceIn(.5f, 2f))
+        // zoomBy grows from the view's center and reports its real scale a little later.
+        handler.postDelayed({
+            if (isAttachedToWindow) {
+                @Suppress("DEPRECATION") val grown = scale / before - 1f
+                if (kotlin.math.abs(grown) > .001f) scrollBy(((x - .5f) * width * grown).toInt(), ((y - .5f) * height * grown).toInt())
+            }
+        }, 60)
+        return true
     }
     private fun move(dx: Float, dy: Float) {
         val next = moveBrowserCursor(cursorX, cursorY, dx, dy, width, height, 12f * density)

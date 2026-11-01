@@ -59,12 +59,18 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 Bitmap.createBitmap(IntArray(384*384){i->if(matrix[i%384,i/384])android.graphics.Color.BLACK else android.graphics.Color.WHITE},384,384,Bitmap.Config.ARGB_8888)
             }
             mutable.value=CompanionState(url,qr,message="Sessão ativa. Abra o QR no Safari do iPhone ou no navegador do Android.")
-            while(isActive){delay(1000);if(instance.expired()||manager.activeNetwork!=network||withContext(Dispatchers.IO){LocalAddressResolver.currentAddress(activity)}!=host){stop("Sessão encerrada por tempo ou mudança de rede.");break}}
+            // Phone commands do not count as user activity: without this the screen saver stops the app and ends the session.
+            activity.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            while(isActive){delay(1000)
+                if(instance.expired()){stop("Sessão encerrada: 30 minutos sem uso ou limite de 8 horas.");break}
+                if(manager.activeNetwork!=network||withContext(Dispatchers.IO){LocalAddressResolver.currentAddress(activity)}!=host){stop("Sessão encerrada: a rede da TV mudou.");break}
+            }
         }catch(cancelled:CancellationException){throw cancelled}catch(error:Exception){if(sessionJob===job)stop(error.message?:"Não foi possível iniciar.")}
         finally{owned?.close();if(server===owned)server=null}}
     }
     fun stop(message:String="Sessão encerrada.") {
         server?.close();server=null;sessionJob?.cancel();sessionJob=null
+        activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         mutable.value=CompanionState(message=message);pages.clear()
     }
     fun close(){stop();scope.cancel()}
@@ -81,7 +87,9 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         if(path=="/reader-state") {
             val snapshot=withContext(Dispatchers.Main.immediate){
                 val owner=reader?.takeIf{it.companionAvailable()&&dialogs.focused()==null}
-                (if(owner==null)CompanionReaderState(browser=dialogs.focused()==null&&activity.hasWindowFocus()&&activity.currentFocus is com.pelican.comictv.browser.RemoteBrowserWebView) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"))
+                val page=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)?.takeIf{dialogs.focused()==null&&activity.hasWindowFocus()}
+                val position=page?.companionScrollPosition()
+                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"))
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
         }
@@ -176,6 +184,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         if(c.action.startsWith("browser-")) {
             val browser=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)
                 ?:error("Selecione a página do navegador na TV.")
+            if(c.action=="browser-pinch"){check(browser.companionPinch(c.zoom,c.x.toFloat(),c.y.toFloat(),c.dx.toFloat(),c.dy.toFloat())){"A página não está disponível para este gesto."};return}
             check(browser.companionGesture(c.action,c.dx.toFloat(),c.dy.toFloat(),c.zoom)){"A página não está disponível para este gesto."};return
         }
         // The TV owns context: a delayed phone poll must never turn a page via a stale arrow.

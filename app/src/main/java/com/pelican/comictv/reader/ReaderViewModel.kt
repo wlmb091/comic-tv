@@ -177,6 +177,7 @@ class ReaderViewModel(
     }
 
     /** Explicit phone controls never reinterpret arrows through the physical remote's mode. */
+    internal val companionComicId get() = comicId
     internal fun companionAvailable() = initialized && !closing && !exited && !narrationActive && pages.isNotEmpty()
     internal fun companionPan(x:Float,y:Float) {
         check(companionAvailable()){ "Leitor indisponível para controle." }

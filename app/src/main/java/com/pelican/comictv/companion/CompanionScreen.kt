@@ -34,8 +34,8 @@ import com.pelican.comictv.ui.*
         state.qr?.let {qr->Image(qr.asImageBitmap(),"QR code da sessão privada do celular",Modifier.focusRequester(qrFocus).focusable().size(230.dp).background(Color.White).padding(8.dp))}
         state.url?.let {Text(it,fontSize=17.sp)}
         Text("Biblioteca e leitura independente · Controle e prévia da TV · Envio e importação · Download de originais locais",fontSize=18.sp)
-        Text("Celular e TV precisam estar na mesma rede. Quem receber este QR terá acesso à biblioteca e à tela durante a sessão. A conexão é local HTTP; use uma rede confiável. Não compartilhe o endereço. A sessão dura até 30 minutos e termina ao sair do Comic TV ou ao encerrá-la abaixo.",fontSize=16.sp,color=TvColors.Muted)
-        Text("A prévia da TV tem atualização moderada e pode não exibir vídeo ou conteúdo protegido. A leitura no celular não altera o progresso da TV.",fontSize=16.sp,color=TvColors.Muted)
-        Text("Voltar ao aplicativo mantém a conexão ativa enquanto o Comic TV estiver aberto.",fontSize=16.sp,color=TvColors.Muted)
+        Text("Celular e TV precisam estar na mesma rede. Quem receber este QR terá acesso à biblioteca e à tela durante a sessão. A conexão é local HTTP; use uma rede confiável. Não compartilhe o endereço. A sessão termina após 30 minutos sem uso, em até 8 horas, ao sair do Comic TV ou ao encerrá-la acima.",fontSize=16.sp,color=TvColors.Muted)
+        Text("A prévia da TV tem atualização moderada e pode não exibir vídeo ou conteúdo protegido. A leitura no celular não altera o progresso da TV, exceto com a sincronia ligada.",fontSize=16.sp,color=TvColors.Muted)
+        Text("Voltar ao aplicativo mantém a conexão ativa enquanto o Comic TV estiver aberto. Durante a sessão, a tela da TV não entra em descanso.",fontSize=16.sp,color=TvColors.Muted)
     }
 }

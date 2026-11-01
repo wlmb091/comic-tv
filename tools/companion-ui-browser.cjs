@@ -21,7 +21,7 @@ const output='docs/result/companion-147';mkdirSync(output,{recursive:true});
  });
  await page.goto('http://companion.test/s/demo');
  await page.locator('#books .book').waitFor();
- await page.locator('[data-tab=control]').click();await page.locator('#tvReaderTools').waitFor({state:'visible'});
+ await page.locator('[data-tab=control]').click();await page.locator('#pageSide').waitFor({state:'visible'});
  const checks=[];
  async function bounds(name){await page.waitForFunction(()=>document.querySelector('nav').getBoundingClientRect().bottom<=innerHeight+1);const sizes=await page.evaluate(()=>{const r=document.querySelector('nav').getBoundingClientRect(),c=document.querySelector('#control').getBoundingClientRect();return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,height:innerHeight,navBottom:r.bottom,controlBottom:c.bottom,navTop:r.top}});assert.equal(sizes.width,sizes.scrollWidth);assert.ok(sizes.navBottom<=sizes.height+1);assert.ok(sizes.controlBottom<=sizes.navTop+1);checks.push({name,...sizes});}
  await bounds('portrait-control');await page.screenshot({path:output+'/portrait-control.png'});

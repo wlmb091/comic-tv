@@ -75,9 +75,56 @@ test('every action the phone sends is on the server allowlist',()=>{
  for(const direction of ['up','down','left','right','ok'])used.push('browser-'+direction);
  for(const action of used)assert.ok(allowed.has(action),action);
 });
-test('mode tabs come first, with zoom and rotate right above the touchpad',()=>{
- const order=['id="modePad"','id="tvZoom"','id="rotateScreen"','id="touchpad"'].map(mark=>html.indexOf(mark));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
+test('mode tabs come first, Girar sits atop the side column and the sliders live in Ajustes de gestos',()=>{
+ const order=['id="modePad"','id="touchpad"','id="rotateScreen"','id="pageSide"','id="sensitivityExtras"','id="tvPage"','id="tvZoom"','id="sensitivity"'].map(mark=>html.indexOf(mark));assert.deepEqual(order,[...order].sort((a,b)=>a-b));
  assert.doesNotMatch(html,/Controle da TV/);
+});
+const flush=h=>h.run('(async()=>{for(let i=0;i<30;i++)await Promise.resolve()})()');
+test('each TV context opens in its mode and a manual choice holds for that context',()=>{
+ const h=harness();h.run("tvReader={active:false};renderTVState()");assert.equal(h.run('arrowsShown'),true);
+ h.run("tvReader={active:true,page:0,pageCount:3,zoom:1,minZoom:1,maxZoom:3};renderTVState()");assert.equal(h.run('arrowsShown'),false);
+ h.run("tvReader={active:false,browser:true};renderTVState()");assert.equal(h.run('arrowsShown'),false);
+ h.run("tvReader={active:false};renderTVState();$('modePad').onclick()");assert.equal(h.run('arrowsShown'),false);
+ h.run("tvReader={active:true,page:0,pageCount:3,zoom:1,minZoom:1,maxZoom:3};renderTVState();tvReader={active:false};renderTVState()");assert.equal(h.run('arrowsShown'),false);
+});
+test('zoom and page sliders act before release and a poll leaves a held slider alone',async()=>{
+ const h=harness();h.run("tvReader={active:true,page:1,pageCount:9,zoom:1,minZoom:1,maxZoom:3};$('tvZoom').value='2';$('tvZoom').oninput()");await flush(h);
+ assert.deepEqual(sent(h),[{action:'reader-zoom',zoom:2}]);
+ h.run("tvReader.zoom=1;renderTVState()");assert.equal(h.run("$('tvZoom').value"),'2');
+ h.run("liveAt=0;$('tvPage').value='4';$('tvPage').oninput()");await flush(h);assert.deepEqual(sent(h).at(-1),{action:'reader-page',page:4});
+});
+test('browser page slider scrolls while dragged, and only a page with its own scroll takes it',async()=>{
+ const h=harness();const drag="$('scrollTrack').onpointerdown({pointerId:1,clientY:150,preventDefault(){}})";
+ h.run("tvReader={active:false,browser:true,browserScrollable:false};"+drag);await flush(h);assert.deepEqual(sent(h),[]);
+ h.run("tvReader.browserScrollable=true;"+drag);await flush(h);assert.equal(sent(h)[0].action,'browser-scroll-to');assert.equal(sent(h)[0].dy,.5);
+});
+test('browser pinch zooms at the fingers and moves with them',()=>{
+ const h=harness();h.run("tvReader={active:false,browser:true}");pointer(h,'down',1,50,50);pointer(h,'down',2,100,50);pointer(h,'move',2,250,50);h.run('flushPad()');
+ const [pinch]=sent(h);assert.equal(pinch.action,'browser-pinch');assert.ok(pinch.zoom>1);assert.equal(pinch.x,.5);assert.equal(pinch.dy,0);
+});
+test('a brief connection failure stays silent, a sequence warns and any answer clears it',async()=>{
+ const h=harness();await flush(h);h.run("globalThis.online=fetch;fetch=async()=>{throw new TypeError('down')}");
+ await h.run("refreshReaderState()");await h.run("refreshReaderState()");assert.equal(h.run("$('notice').textContent")||'','');
+ await h.run("refreshReaderState()");assert.match(h.run("$('notice').textContent"),/Tentando de novo/);assert.match(h.run("$('connected').textContent"),/Sem conexão/);
+ h.run("fetch=online");await h.run("refreshReaderState()");assert.equal(h.run("$('notice').textContent"),'');assert.match(h.run("$('connected').textContent"),/TV conectada/);
+});
+test('sync follows the TV book and page, and a phone turn reaches the TV',async()=>{
+ const h=harness();h.run("globalThis.loads=0;loadPage=()=>{loads++};section='reader';syncOn=true;books=[{id:'b1',title:'HQ',pages:9}];tvReader={active:true,comicId:'b1',page:3,pageCount:9};syncFollow()");
+ assert.equal(h.run('current.title'),'HQ');assert.equal(h.run('page'),3);assert.equal(h.run('loads'),1);
+ h.run("turn(1)");await flush(h);assert.deepEqual(sent(h),[{action:'reader-page',page:4}]);
+ h.run("tvReader.page=3;syncFollow()");assert.equal(h.run('page'),4);
+ h.run("tvReader.page=4;syncQuietUntil=0;syncFollow();tvReader.page=7;syncFollow()");assert.equal(h.run('page'),7);
+});
+test('turning sync on with the TV outside the reader opens the phone book on the TV at its page',async()=>{
+ const h=harness();h.run("current={id:'b1',title:'HQ',pages:9};page=5");await h.run("setSync(true)");await flush(h);assert.deepEqual(sent(h),[{action:'open',id:'b1'}]);
+ h.run("tvReader={active:true,comicId:'b1',page:0,pageCount:9};syncFollow()");await flush(h);assert.deepEqual(sent(h).at(-1),{action:'reader-page',page:5});assert.equal(h.run('page'),5);
+});
+test('sync off leaves the phone reader independent',()=>{
+ const h=harness();h.run("current={id:'b1',title:'HQ',pages:9};page=2;tvReader={active:true,comicId:'b1',page:7,pageCount:9};syncFollow();loadPage=()=>{};turn(1)");assert.equal(h.run('page'),3);assert.deepEqual(sent(h),[]);
+});
+test('the server policy allows the inline anti-sleep clip',()=>{
+ const server=readFileSync(new URL('../core/src/main/kotlin/com/pelican/comictv/transfer/CompanionServer.kt',import.meta.url),'utf8');
+ assert.match(server,/media-src data:/);assert.match(script,/AWAKE_VIDEO='data:video\/mp4;base64,/);
 });
 
 test('browser two fingers scroll, not click or cursor movement',()=>{

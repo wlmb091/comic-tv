@@ -559,14 +559,14 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             contentPadding = PaddingValues(0.dp),
             shape = androidx.tv.material3.ButtonDefaults.shape(shape = RoundedCornerShape(8.dp)),
             scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = if (policy == ThemeNavigationPolicy.BottomDock) theme.navigation.dockFocusScale else 1f),
-            border = androidx.tv.material3.ButtonDefaults.border(focusedBorder = if (textOnlyTop) androidx.tv.material3.Border.None else androidx.tv.material3.Border(
+            border = androidx.tv.material3.ButtonDefaults.border(focusedBorder = androidx.tv.material3.Border(
                 androidx.compose.foundation.BorderStroke(if (TvColors.options.highContrast) 3.dp else 2.dp, TvColors.FocusAccent))),
             colors = androidx.tv.material3.ButtonDefaults.colors(
                 containerColor = if (active && !iconOnlySidebar && policy != ThemeNavigationPolicy.TopBar)
                     TvColors.Amber.copy(alpha = if (policy == ThemeNavigationPolicy.BottomDock) theme.navigation.dockActiveAlpha else .15f) else Color.Transparent,
                 contentColor = if (textOnlyTop && active) TvColors.FocusAccent else if (active) TvColors.Amber else Color.White,
-                focusedContainerColor = TvColors.FocusAccent,
-                focusedContentColor = TvColors.OnFocusAccent)) {
+                focusedContainerColor = if (textOnlyTop) TvColors.Background else TvColors.FocusAccent,
+                focusedContentColor = if (textOnlyTop) Color.White else TvColors.OnFocusAccent)) {
             if (policy == ThemeNavigationPolicy.TopBar) {
                 Row(Modifier.padding(horizontal = 5.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -761,7 +761,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             contentColor = Color.White, focusedContainerColor = Color(0xFF181818),
             focusedContentColor = Color.White),
         border = androidx.tv.material3.ButtonDefaults.border(border = androidx.tv.material3.Border.None,
-            focusedBorder = androidx.tv.material3.Border.None),
+            focusedBorder = androidx.tv.material3.Border(androidx.compose.foundation.BorderStroke(2.dp, Color.White))),
         scale = androidx.tv.material3.ButtonDefaults.scale(focusedScale = 1.05f)) {
         Text("Menu", fontSize = 17.sp)
     }

@@ -19,6 +19,38 @@ class CompanionServerTest {
             for(body in listOf("""{"action":"reader-pinch","zoom":3.1,"x":0.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":1.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":0.5,"y":0.5,"dx":2}"""))assertEquals(body,400,request(server.url+"/command",body).first)
         }finally{server.close();root.deleteRecursively()}
     }
+    @Test fun browserPageSliderAndPinchAreBounded() {
+        val root=Files.createTempDirectory("companion-browser").toFile();val commands=mutableListOf<CompanionCommand>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={commands+=it})
+        try {
+            server.open()
+            for(body in listOf("""{"action":"browser-scroll-to","dy":0.5}""","""{"action":"browser-pinch","zoom":1.2,"x":0.5,"y":0.25,"dx":-0.1,"dy":0.1}"""))assertEquals(body,200,request(server.url+"/command",body).first)
+            assertEquals(2,commands.size)
+            for(body in listOf("""{"action":"browser-scroll-to","dy":1.5}""","""{"action":"browser-pinch","zoom":2.5,"x":0.5,"y":0.5}""","""{"action":"browser-pinch","zoom":1.2,"x":1.5,"y":0.5}"""))assertEquals(body,400,request(server.url+"/command",body).first)
+        }finally{server.close();root.deleteRecursively()}
+    }
+    @Test fun useRenewsTheSessionUpToItsLimit() {
+        val root=Files.createTempDirectory("companion-idle").toFile();var now=1L
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={},clock={now},lifetimeMillis=100,maxLifetimeMillis=250)
+        try {
+            server.open()
+            now=91;assertEquals(200,request(server.url+"/reader-state").first)
+            now=181;assertEquals(200,request(server.url+"/reader-state").first);assertFalse(server.expired())
+            now=251;assertTrue(server.expired());assertEquals(410,request(server.url+"/reader-state").first)
+        }finally{server.close();root.deleteRecursively()}
+    }
+    @Test fun statePollKeepsAnsweringWhilePagesLoad() {
+        val root=Files.createTempDirectory("companion-busy").toFile();val release=java.util.concurrent.CountDownLatch(1);val loading=java.util.concurrent.CountDownLatch(2)
+        val server=CompanionServer("127.0.0.1",root,"panel",get={path->if(path!="/reader-state"){loading.countDown();release.await()};CompanionResource("application/json","{}".toByteArray())},command={})
+        try {
+            server.open()
+            val pages=List(2){index->kotlin.concurrent.thread{runCatching{request(server.url+"/page/book/$index")}}}
+            assertTrue(loading.await(5,java.util.concurrent.TimeUnit.SECONDS))
+            assertEquals(409,request(server.url+"/library").first)
+            assertEquals(200,request(server.url+"/reader-state").first)
+            release.countDown();pages.forEach{it.join(5000)}
+        }finally{release.countDown();server.close();root.deleteRecursively()}
+    }
     @Test fun contextualReaderAndPointerCommandsAreBoundedAndMirrorIsAbsent() {
         val root=Files.createTempDirectory("companion-reader").toFile();val commands=mutableListOf<CompanionCommand>()
         val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{\"active\":false}".toByteArray())},command={commands+=it})
