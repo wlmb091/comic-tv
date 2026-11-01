@@ -4,14 +4,17 @@ import android.app.Application
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.ComposeView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pelican.comictv.ui.LocalAppOrientation
+import com.pelican.comictv.ui.OrientedRootLayout
 import com.pelican.comictv.ui.ComicTvApp
 import com.pelican.comictv.ui.ComicTvTheme
 import com.pelican.comictv.ui.AppExitGuard
@@ -47,12 +50,20 @@ class MainActivity : ComponentActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
-        setContent {
+        val root = OrientedRootLayout(this)
+        // Applied before the first frame: a saved portrait must not flash a landscape layout.
+        root.degrees = (application as ComicTvApplication).container.orientation.state.value.degrees
+        val composeView = ComposeView(this)
+        root.addView(composeView)
+        setContentView(root)
+        composeView.setContent {
             val container = (application as ComicTvApplication).container
             val appearance by container.appearance.state.collectAsStateWithLifecycle()
+            val orientation by container.orientation.state.collectAsStateWithLifecycle()
+            SideEffect { root.degrees = orientation.degrees }
             // Above the exit guard: its confirmation window must reach the same phone control as the app's dialogs.
             val companionDialogs = remember { CompanionDialogs() }
-            CompositionLocalProvider(LocalCompanionDialogs provides companionDialogs) {
+            CompositionLocalProvider(LocalCompanionDialogs provides companionDialogs, LocalAppOrientation provides orientation) {
                 ComicTvTheme(appearance) { AppExitGuard(onExit = { finish() }) { ComicTvApp(container) } }
             }
         }

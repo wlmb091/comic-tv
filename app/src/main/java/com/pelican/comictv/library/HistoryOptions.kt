@@ -14,7 +14,6 @@ import androidx.compose.ui.focus.*
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
 import kotlinx.coroutines.Job
@@ -65,7 +64,7 @@ import kotlinx.coroutines.launch
     var saving by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { first.requestFocus() }
-    Dialog(onDismissRequest = onDismiss) {
+    com.pelican.comictv.ui.ComicDialog(onDismissRequest = onDismiss) {
         com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
         Column(Modifier.widthIn(max = 520.dp).heightIn(max = 460.dp).verticalScroll(rememberScrollState()).background(TvColors.Background).padding(24.dp)
             .onPreviewKeyEvent { event ->

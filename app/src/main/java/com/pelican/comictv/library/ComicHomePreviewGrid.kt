@@ -17,8 +17,9 @@ internal fun <T, K> comicHomePreviewItems(items: List<T>, key: (T) -> K): List<T
 @Composable internal fun <T, K> ComicHomePreviewGrid(items: List<T>, key: (T) -> K,
     onMore: () -> Unit, modifier: Modifier = Modifier, moreModifier: Modifier = Modifier,
     itemContent: @Composable (T) -> Unit) {
-    val columns = comicHomePreviewColumns(LocalDensity.current.fontScale)
-    val preview = comicHomePreviewItems(items, key)
+    val portrait = LocalAppOrientation.current.portrait
+    val columns = if (portrait) 3 else comicHomePreviewColumns(LocalDensity.current.fontScale)
+    val preview = comicHomePreviewItems(items, key).let { if (portrait) it.take(9) else it }
     val overflow = (LocalHomeFocusSafety.current?.overflowDp ?: 24).dp
     Column(modifier.fillMaxWidth().padding(vertical = overflow), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         preview.chunked(columns).forEach { row ->

@@ -58,7 +58,7 @@ internal fun transparentButtonSurface(options: AppearanceOptions): Color? {
         background = TvColors.Background, surface = TvColors.Panel,
         onBackground = Color(0xFFF5F3EF), onSurface = Color(0xFFF5F3EF),
     )) {
-        CompositionLocalProvider(LocalThemeSpec provides ThemeSpec.forPreset(options.preset),
+        CompositionLocalProvider(LocalThemeSpec provides ThemeSpec.forPreset(options.preset, LocalAppOrientation.current.portrait),
             LocalContentColor provides Color.White,
             LocalDensity provides Density(density.density, density.fontScale * options.textScale), content = content)
     }

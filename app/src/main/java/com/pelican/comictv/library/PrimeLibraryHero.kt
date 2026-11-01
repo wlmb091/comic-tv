@@ -28,6 +28,7 @@ import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
+import com.pelican.comictv.ui.LocalAppOrientation
 import com.pelican.comictv.ui.LocalThemeSpec
 import com.pelican.comictv.ui.ProgressTrack
 import com.pelican.comictv.ui.TvButton
@@ -52,24 +53,22 @@ import com.pelican.comictv.ui.homeFocusCard
     BoxWithConstraints(modifier.fillMaxWidth()
         .heightIn(min = (minimumHeightOverrideDp ?: theme.hero.minimumHeightDp.toFloat()).dp).testTag("library-hero")) {
         val fontScale = LocalDensity.current.fontScale
-        val compact = minimumHeightOverrideDp != null && minimumHeightOverrideDp < 300f
+        val portrait = LocalAppOrientation.current.portrait
+        val compact = !portrait && minimumHeightOverrideDp != null && minimumHeightOverrideDp < 300f
         val titleSize = homeHeroTitleSizeSp(theme.typography.titleSp.toFloat(), theme.typography.titleLineHeightSp.toFloat(),
-            theme.hero.titleMaxLines, fontScale, minimumHeightOverrideDp,
+            theme.hero.titleMaxLines, fontScale, if (portrait) null else minimumHeightOverrideDp,
             (if (compact) 4f else 48f) + 40f * fontScale + maxOf(48f, 32f * fontScale + 24f) + 4f +
                 (if (compact) 8f else 40f))
         val wide = maxWidth >= 720.dp * fontScale
-        val visibleChoices = choices.take(if (wide) 3 else 2)
-        val ordinaryCardWidth = (maxWidth * if (wide) .165f else .20f).coerceIn(82.dp, 136.dp)
+        val visibleChoices = choices.take(if (wide || portrait) 3 else 2)
+        val ordinaryCardWidth = if (portrait) (maxWidth - 24.dp) / 3 else (maxWidth * if (wide) .165f else .20f).coerceIn(82.dp, 136.dp)
         // Account for the caption and position markers as well as the image itself.
         val cardWidth = if (compact) minOf(ordinaryCardWidth,
             ((minimumHeightOverrideDp!! - 4f - 12f - (36f * fontScale + 16f)) * .68f).coerceAtLeast(52f).dp)
             else ordinaryCardWidth
         if (highContrast) Box(Modifier.matchParentSize().background(Color.Black))
-        Row(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = if (LocalHomeFocusSafety.current != null) 0.dp else 18.dp,
-            end = if (LocalHomeFocusSafety.current != null) 0.dp else 10.dp,
-            top = if (compact) 2.dp else 24.dp, bottom = if (compact) 2.dp else 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(if (wide) .43f else .51f), verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 10.dp)) {
+        @Composable fun Summary(modifier: Modifier) {
+            Column(modifier, verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 10.dp)) {
                 Text(if (comic?.lastRead?.let { it > 0 } == true) "CONTINUAR SUA LEITURA" else "NA SUA BIBLIOTECA",
                     color = TvColors.Amber, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Text(comic?.title ?: "Seu universo de quadrinhos", Modifier.testTag("library-hero-title"),
@@ -92,7 +91,9 @@ import com.pelican.comictv.ui.homeFocusCard
                     TvButton("Importar quadrinhos", onImport, readModifier)
                 }
             }
-            if (visibleChoices.isNotEmpty()) Column(Modifier.weight(if (wide) .57f else .49f),
+        }
+        @Composable fun Choices(modifier: Modifier) {
+            if (visibleChoices.isNotEmpty()) Column(modifier,
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 18.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
                     verticalAlignment = Alignment.Bottom) {
@@ -110,6 +111,16 @@ import com.pelican.comictv.ui.homeFocusCard
                     }
                 }
             }
+        }
+        val paddedHero = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(start = if (LocalHomeFocusSafety.current != null) 0.dp else 18.dp,
+            end = if (LocalHomeFocusSafety.current != null) 0.dp else 10.dp,
+            top = if (compact) 2.dp else 24.dp, bottom = if (compact) 2.dp else 24.dp)
+        if (portrait) Column(paddedHero, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Summary(Modifier.fillMaxWidth())
+            Choices(Modifier.fillMaxWidth())
+        } else Row(paddedHero, horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.Bottom) {
+            Summary(Modifier.weight(if (wide) .43f else .51f))
+            Choices(Modifier.weight(if (wide) .57f else .49f))
         }
     }
 }

@@ -37,9 +37,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable fun ReaderScreen(viewModel: ReaderViewModel, onExit: () -> Unit, onEditions: (() -> Unit)? = null, onChapterStep: ((Int) -> Unit)? = null, narrationOriginal: java.io.File? = null, onUsePageAsSagaCover: (suspend (java.io.File) -> Unit)? = null) {
-    var rotated by rememberSaveable { mutableStateOf(false) }
+    var rotatedChoice by rememberSaveable { mutableStateOf(false) }
+    // The app-wide portrait already turned this screen: turning the reader too would undo it.
+    val rotated = rotatedChoice && !com.pelican.comictv.ui.LocalAppOrientation.current.portrait
     ReaderSurface(rotated) {
-        ReaderContent(viewModel, onExit, onEditions, onChapterStep, narrationOriginal, rotated, onUsePageAsSagaCover) { rotated = !rotated }
+        ReaderContent(viewModel, onExit, onEditions, onChapterStep, narrationOriginal, rotated, onUsePageAsSagaCover) { rotatedChoice = !rotatedChoice }
     }
 }
 

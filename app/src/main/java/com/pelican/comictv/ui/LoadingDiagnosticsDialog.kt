@@ -14,7 +14,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Text
 import com.pelican.comictv.performance.*
@@ -31,7 +30,7 @@ import com.pelican.comictv.performance.*
     val reportFocus = remember { FocusRequester() }
     val refreshFocus = remember { FocusRequester() }
     var reportFocused by remember { mutableStateOf(false) }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    com.pelican.comictv.ui.ComicDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
         Column(Modifier.widthIn(max = 760.dp).fillMaxWidth(.92f).heightIn(max = 520.dp)
             .background(TvColors.Background, RoundedCornerShape(12.dp)).padding(20.dp),

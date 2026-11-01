@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.pelican.comictv.ui.*
 import androidx.tv.material3.Text
@@ -90,7 +89,7 @@ import kotlinx.coroutines.launch
             finally { busy = false }
         }
     }
-    Dialog(onDismissRequest = ::back, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
+    com.pelican.comictv.ui.ComicDialog(onDismissRequest = ::back, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
         com.pelican.comictv.companion.CompanionDialogWindow(::back)
         Box(Modifier.fillMaxSize().background(TvColors.Background).padding(horizontal = 24.dp, vertical = 18.dp)) {
             SagaEditionsPage(group.key, group.editions, grid, focusedId, chooseFocus, covers,

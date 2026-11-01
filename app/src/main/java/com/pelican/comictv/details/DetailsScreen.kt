@@ -240,12 +240,13 @@ import kotlinx.coroutines.CancellationException
         // The cover sets the shared height; both side panels remain independently scrollable.
         val coverWidth = minOf(maxHeight * (2f / 3f), maxWidth * .36f)
         val panelHeight = coverWidth * 1.5f
+        val portrait = com.pelican.comictv.ui.LocalAppOrientation.current.portrait
+        val portraitChapterHeight = maxHeight * .72f
         LazyColumn(Modifier.fillMaxSize(), state = pageScroll, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item(key = "overview") {
-        Row(Modifier.fillMaxWidth().height(panelHeight),
-            horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             // Returning from the chapter panel goes back to the last used action, never the nearest by height.
-            Column(Modifier.weight(1f).fillMaxHeight().focusRestorer().focusGroup().verticalScroll(overviewScroll).padding(8.dp),
+            @Composable fun Overview(modifier: Modifier) {
+            Column(modifier.focusRestorer().focusGroup().then(if (portrait) Modifier else Modifier.verticalScroll(overviewScroll)).padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(if (isOnline) "SUA BIBLIOTECA / EDIÇÃO ONLINE" else "SUA BIBLIOTECA / EDIÇÃO LOCAL",
                     fontSize = 13.sp, color = TvColors.Amber)
@@ -294,11 +295,15 @@ import kotlinx.coroutines.CancellationException
                     relatedFocus.requestFocus()
                 } })
             }
-            Column(Modifier.width(coverWidth).fillMaxHeight()) {
+            }
+            @Composable fun Cover(modifier: Modifier) {
+            Column(modifier) {
                 DetailCoverImage(largeCover, "Capa da edição", Modifier.weight(1f).fillMaxWidth())
                 if (largeCover == repository.cover(id)) Text("Capa fornecida pela fonte / biblioteca · resolução disponível",
                     fontSize = 12.sp, color = TvColors.Muted)
             }
+            }
+            @Composable fun Chapters(modifier: Modifier) {
             DetailsChapterPanel(id, chapterRows, chapters, isOnline, interacted, chapterReturn.restoreId,
                 onRestored = { chapterReturn = chapterReturn.consumed() }, onRetry = ::retryChapters,
                 onOrder = { order -> chapters.context?.let { context ->
@@ -315,8 +320,17 @@ import kotlinx.coroutines.CancellationException
                             navigateToReader(next) { onReadChapter(next) }
                         }
                     }
-                }, modifier = Modifier.weight(1f).fillMaxHeight())
-        }
+                }, modifier = modifier)
+            }
+            if (portrait) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Cover(Modifier.align(Alignment.CenterHorizontally).width(190.dp).height(300.dp))
+                Overview(Modifier.fillMaxWidth())
+                Chapters(Modifier.fillMaxWidth().height(portraitChapterHeight))
+            } else Row(Modifier.fillMaxWidth().height(panelHeight), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                Overview(Modifier.weight(1f).fillMaxHeight())
+                Cover(Modifier.width(coverWidth).fillMaxHeight())
+                Chapters(Modifier.weight(1f).fillMaxHeight())
+            }
         }
         if (showRelated) {
         item(key = "related-heading") {

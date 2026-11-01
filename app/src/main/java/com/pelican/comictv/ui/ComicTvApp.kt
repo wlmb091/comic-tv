@@ -324,7 +324,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             })
             TvShell("settings", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
                 focusContentOnEntry = navigationContentTarget == "settings", onSectionFocused = { navigationContentTarget = null }) {
-                SettingsScreen(container.appearance, storage, backup, onDownloads = {nav.navigate("downloads")}, updater = updater, installUpdate = installUpdate) { nav.popBackStack("library", false) }
+                SettingsScreen(container.appearance, storage, backup, onDownloads = {nav.navigate("downloads")}, updater = updater, installUpdate = installUpdate, orientation = container.orientation) { nav.popBackStack("library", false) }
             }
         }
         composable("details/{id}") { entry ->
@@ -525,7 +525,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     @Composable fun NavigationIcon(route: String, title: String, modifier: Modifier) {
         val drawable = icons[route]
         if (drawable != null) androidx.tv.material3.Icon(painterResource(drawable),
-            if (expanded || horizontal) null else title, modifier)
+            if ((expanded || horizontal) && !theme.navigation.dockIconsOnly) null else title, modifier)
         else {
             val tint = androidx.tv.material3.LocalContentColor.current
             androidx.compose.foundation.Canvas(modifier) {
@@ -572,6 +572,10 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (route == "search") NavigationIcon(route, title, Modifier.size(18.dp))
                     Text(title, fontSize = 14.sp, maxLines = 1, softWrap = false)
+                }
+            } else if (theme.navigation.dockIconsOnly) {
+                Box(Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
+                    NavigationIcon(route, title, Modifier.size(26.dp))
                 }
             } else if (policy == ThemeNavigationPolicy.BottomDock) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
@@ -632,7 +636,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         Box(Modifier.fillMaxSize()) {
             val contentPadding = when (policy) {
                 ThemeNavigationPolicy.Sidebar -> PaddingValues(start = railWidth)
-                ThemeNavigationPolicy.TopBar -> PaddingValues(top = 72.dp * fontScale)
+                ThemeNavigationPolicy.TopBar -> PaddingValues(top = (if (theme.navigation.topBarStacked) 104.dp else 72.dp) * fontScale)
                 // The dock is permanent: reserve its height so it never covers the last control.
                 ThemeNavigationPolicy.BottomDock -> PaddingValues(bottom = (if (dockHeightPx > 0) with(density) { dockHeightPx.toDp() } else 74.dp * fontScale) +
                     6.dp + if (selected == "library") theme.navigation.safeVerticalDp.dp else 0.dp)
@@ -681,14 +685,16 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                     Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().testTag("navigation-top")) {
                         if (TvColors.options.highContrast) Box(Modifier.matchParentSize()
                             .testTag("prime-navigation-panel").glassPanel(surface = TvColors.FrostedSidebar))
-                        Row(Modifier.align(Alignment.CenterStart).padding(end = brandWidth + 8.dp)
+                        val stacked = theme.navigation.topBarStacked
+                        Row(Modifier.align(if (stacked) Alignment.BottomStart else Alignment.CenterStart)
+                            .padding(end = if (stacked) 0.dp else brandWidth + 8.dp, top = if (stacked) 40.dp * fontScale else 0.dp)
                             .fillMaxWidth().testTag("prime-navigation-viewport")
                             .horizontalScroll(rememberScrollState()).then(navigationModifier),
                             horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
                             verticalAlignment = Alignment.CenterVertically) {
                             routes.indices.forEach { NavigationItem(it) }
                         }
-                        ComicWordmark(Modifier.align(Alignment.CenterEnd).width(brandWidth)
+                        ComicWordmark(Modifier.align(if (stacked) Alignment.TopEnd else Alignment.CenterEnd).width(brandWidth)
                             .testTag("prime-wordmark"))
                     }
                 } else if (policy == ThemeNavigationPolicy.BottomDock) {
@@ -697,7 +703,11 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                         .background(if (TvColors.options.highContrast) Color.Black else Color(theme.navigation.dockSurface ?: 0xD11E1440), RoundedCornerShape(10.dp))
                         .border(1.dp, if (TvColors.options.highContrast) Color.White else Color(theme.navigation.dockBorder ?: 0x739B6DFF), RoundedCornerShape(10.dp))
                         .padding(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Row(navigationModifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val scrollItemWidth = theme.navigation.dockScrollItemWidthDp
+                        if (scrollItemWidth != null) Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()).then(navigationModifier),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            routes.indices.forEach { NavigationItem(it, Modifier.width(scrollItemWidth.dp * fontScale)) }
+                        } else Row(navigationModifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             routes.indices.forEach { NavigationItem(it, Modifier.weight(1f)) }
                         }
                     }

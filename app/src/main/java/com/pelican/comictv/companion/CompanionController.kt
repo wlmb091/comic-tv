@@ -143,19 +143,27 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             dialog.window.currentFocus?.let{focused->activity.getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(focused.windowToken,0)};return
         }
         if(c.action=="tap"||c.action=="scroll"){
-            val root=dialog.window.decorView;val now=SystemClock.uptimeMillis();val x=(c.x*root.width).toFloat();val y=(c.y*root.height).toFloat()
-            fun touch(action:Int,at:Float,time:Long){val event=MotionEvent.obtain(now,time,action,x,at,0);try{dialog.window.callback?.dispatchTouchEvent(event)}finally{event.recycle()}}
-            touch(MotionEvent.ACTION_DOWN,y,now)
-            val end=if(c.action=="scroll")(y-c.delta).coerceIn(1f,(root.height-1).coerceAtLeast(1).toFloat()) else y
-            if(c.action=="scroll")touch(MotionEvent.ACTION_MOVE,end,now+20)
-            touch(MotionEvent.ACTION_UP,end,now+40);return
+            touchGesture(c,dialog.window.decorView){event->dialog.window.callback?.dispatchTouchEvent(event)};return
         }
         val code=when(c.action){"up"->KeyEvent.KEYCODE_DPAD_UP;"down"->KeyEvent.KEYCODE_DPAD_DOWN;"left"->KeyEvent.KEYCODE_DPAD_LEFT;"right"->KeyEvent.KEYCODE_DPAD_RIGHT;"ok"->KeyEvent.KEYCODE_DPAD_CENTER;"enter"->KeyEvent.KEYCODE_ENTER;"menu"->KeyEvent.KEYCODE_MENU;else->error("Feche o menu da TV para usar esse gesto.")}
         dialog.window.callback?.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code))
         dialog.window.callback?.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code))
     }
+    /** The phone sends what the viewer sees; a turned app receives it at the matching physical window point. */
+    private fun touchGesture(c:CompanionCommand,root:android.view.View,send:(MotionEvent)->Unit){
+        val orientation=container.orientation.state.value
+        val viewHeight=(if(orientation.portrait)root.width else root.height).coerceAtLeast(1).toFloat()
+        val startY=c.y.toFloat();val endY=if(c.action=="scroll")(startY-c.delta/viewHeight).coerceIn(0f,1f) else startY
+        fun point(y:Float)=orientation.windowPoint(c.x.toFloat(),y).let{(x,py)->(x*root.width) to (py*root.height)}
+        val now=SystemClock.uptimeMillis()
+        fun touch(action:Int,y:Float,time:Long){val (px,py)=point(y);val event=MotionEvent.obtain(now,time,action,px,py,0);try{send(event)}finally{event.recycle()}}
+        touch(MotionEvent.ACTION_DOWN,startY,now)
+        if(c.action=="scroll")touch(MotionEvent.ACTION_MOVE,endY,now+20)
+        touch(MotionEvent.ACTION_UP,endY,now+40)
+    }
     private fun control(c:CompanionCommand){
         active();val dialog=dialogs.focused();check(dialog!=null||activity.hasWindowFocus()){ "Volte ao Comic TV para controlar." }
+        if(c.action=="rotate"){container.orientation.cycle();return}
         if(c.action=="open") {dialogs.dismissAll();onOpen(c.id);return}
         if(c.action=="home") {dialogs.dismissAll();onHome();return}
         if(c.action=="settings") {
@@ -206,11 +214,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         }
         val view=activity.window.decorView
         if(c.action=="tap"||c.action=="scroll"){
-            val now=SystemClock.uptimeMillis();val x=(c.x*view.width).toFloat();val y=(c.y*view.height).toFloat()
-            fun touch(action:Int,py:Float,time:Long){val event=MotionEvent.obtain(now,time,action,x,py,0);try{activity.dispatchTouchEvent(event)}finally{event.recycle()}}
-            touch(MotionEvent.ACTION_DOWN,y,now)
-            if(c.action=="scroll")touch(MotionEvent.ACTION_MOVE,(y-c.delta).coerceIn(1f,(view.height-1).coerceAtLeast(1).toFloat()),now+20)
-            touch(MotionEvent.ACTION_UP,if(c.action=="scroll")(y-c.delta).coerceIn(1f,(view.height-1).coerceAtLeast(1).toFloat()) else y,now+40);return
+            touchGesture(c,view){event->activity.dispatchTouchEvent(event)};return
         }
         val code=when(c.action){"up"->KeyEvent.KEYCODE_DPAD_UP;"down"->KeyEvent.KEYCODE_DPAD_DOWN;"left"->KeyEvent.KEYCODE_DPAD_LEFT;"right"->KeyEvent.KEYCODE_DPAD_RIGHT;"ok"->KeyEvent.KEYCODE_DPAD_CENTER;"enter"->KeyEvent.KEYCODE_ENTER;"menu"->KeyEvent.KEYCODE_MENU;else->error("Comando inválido.")}
         view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,code));view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,code))

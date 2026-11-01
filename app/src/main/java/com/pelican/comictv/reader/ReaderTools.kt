@@ -38,6 +38,7 @@ import com.pelican.comictv.ui.*
     onUsePageCover: (() -> Unit)? = null, pageCoverBusy: Boolean = false,
     pageCoverReady: Boolean = true, pageCoverMessage: String? = null) {
     val rotated = LocalReaderRotated.current
+    val showRotation = !com.pelican.comictv.ui.LocalAppOrientation.current.portrait
     val first = remember { FocusRequester() }
     val more = remember { FocusRequester() }
     var settings by remember { mutableStateOf(false) }
@@ -49,7 +50,7 @@ import com.pelican.comictv.ui.*
         if (settings) {
             val settingsIds = buildList {
                 add("back"); if (onNarrate != null) add("narrate")
-                add("direction"); add("rotation"); if (onUsePageCover != null) add("cover")
+                add("direction"); if (showRotation) add("rotation"); if (onUsePageCover != null) add("cover")
                 add("filter"); if (imageOptions.preset != ImagePreset.Original) { add("intensity"); add("compare") }
                 add("automatic"); add("interval")
             }
@@ -74,8 +75,10 @@ import com.pelican.comictv.ui.*
                 Text("Página ${state.page + 1} · ${(state.zoom * 100).toInt()}%", color = TvColors.Muted, fontSize = 16.sp)
                 TvButton(if (state.rtl) "Direção: direita → esquerda" else "Direção: esquerda → direita", { onAction(ReaderAction.ToggleRtl) }, settingsItem("direction"))
                 Text("Direção salva nesta edição. Mangás podem usar direita → esquerda; sua escolha manual é preservada.", color = TvColors.Muted, fontSize = 16.sp)
-                TvButton(if (rotated) "Tela: 90° · voltar a 0°" else "Tela: 0° · girar 90°", onRotate, settingsItem("rotation"))
-                Text("Gira somente o leitor nesta sessão, incluindo seus controles. Para TV posicionada na vertical.", color = TvColors.Muted, fontSize = 16.sp)
+                if (showRotation) {
+                    TvButton(if (rotated) "Tela: 90° · voltar a 0°" else "Tela: 0° · girar 90°", onRotate, settingsItem("rotation"))
+                    Text("Gira somente o leitor nesta sessão, incluindo seus controles. Para TV posicionada na vertical.", color = TvColors.Muted, fontSize = 16.sp)
+                }
                 onUsePageCover?.let { save ->
                     TvButton(if (pageCoverBusy) "Salvando capa…" else "Usar página atual como capa da saga", {
                         if (!pageCoverBusy && pageCoverReady) save()

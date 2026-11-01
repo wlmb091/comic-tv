@@ -590,7 +590,7 @@ internal fun SourceDetails(details: OnlineDetails, busy: Boolean, open: (OnlineC
     val summary = details.title.description?.trim()?.takeIf { it.isNotEmpty() }
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         LazyColumn(
-            Modifier.width(280.dp).fillMaxHeight()
+            Modifier.width(if (com.pelican.comictv.ui.LocalAppOrientation.current.portrait) 210.dp else 280.dp).fillMaxHeight()
                 .border(if (summaryFocused) 2.dp else 0.dp, TvColors.Amber)
                 .onFocusChanged { summaryFocused = it.hasFocus }
                 .textPanelScroll(summaryScroll),

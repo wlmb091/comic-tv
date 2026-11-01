@@ -17,14 +17,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable internal fun LibraryDialog(title: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    Dialog(onDismissRequest = onDismiss) {
+    com.pelican.comictv.ui.ComicDialog(onDismissRequest = onDismiss) {
         com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
         Column(Modifier.widthIn(max = 600.dp).fillMaxWidth().heightIn(max = 520.dp)
             .background(TvColors.Background).padding(24.dp).verticalScroll(rememberScrollState()),

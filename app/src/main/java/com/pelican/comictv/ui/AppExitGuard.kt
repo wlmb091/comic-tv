@@ -14,7 +14,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Text
 
 /** Registered before navigation/reader handlers: only a Back that would exit reaches this fallback. */
@@ -24,7 +23,7 @@ import androidx.tv.material3.Text
     content()
     if (confirming) {
         val continueFocus = remember { FocusRequester() }
-        Dialog(onDismissRequest = { confirming = false }) {
+        com.pelican.comictv.ui.ComicDialog(onDismissRequest = { confirming = false }) {
             com.pelican.comictv.companion.CompanionDialogWindow { confirming = false }
             Column(Modifier.fillMaxWidth().widthIn(max = 600.dp).heightIn(max = 520.dp)
                 .background(TvColors.Background, RoundedCornerShape(8.dp))

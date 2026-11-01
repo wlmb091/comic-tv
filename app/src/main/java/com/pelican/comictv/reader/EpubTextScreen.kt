@@ -134,7 +134,8 @@ import kotlin.math.roundToInt
                     TvButton("Fonte +", { fontSize = (fontSize + 2).coerceAtMost(40); preferences.edit().putInt("font-size", fontSize).apply() })
                     TvButton("Sair da leitura", exit)
                 }
-                TvButton(if (rotated) "Tela: 90° · voltar a 0°" else "Tela: 0° · girar 90°", onRotate)
+                if (!com.pelican.comictv.ui.LocalAppOrientation.current.portrait)
+                    TvButton(if (rotated) "Tela: 90° · voltar a 0°" else "Tela: 0° · girar 90°", onRotate)
                 if (state.pageCount > 0) TvButton("Escolher seção", { viewModel.action(ReaderAction.StartTimeline) })
                 onNarrate?.let { narrate -> TvButton("Ouvir livro e traduzir", { savePosition(); narrate() }) }
                 AutomaticReadingControls(automatic, viewModel::startAutomaticReading, viewModel::cycleAutomaticInterval)

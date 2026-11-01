@@ -53,7 +53,9 @@ import kotlinx.coroutines.launch
     val textScale = LocalDensity.current.fontScale.coerceAtLeast(1f)
     val footerControls = theme.footerControls
     val topSearch = theme.topSearch
-    val maxLayout = theme.navigation.layout == ThemeNavigationPolicy.BottomDock
+    val portrait = LocalAppOrientation.current.portrait
+    // Comic also has a bottom dock in portrait; the Max home and its pages belong to Max alone.
+    val maxLayout = theme.navigation.layout == ThemeNavigationPolicy.BottomDock && !theme.navigation.dockIconsOnly
     var activeCollectionId by rememberSaveable { mutableStateOf<String?>(null) }
     var fullLibrary by rememberSaveable { mutableStateOf(false) }
     val streaming = theme.artwork
@@ -477,7 +479,7 @@ import kotlinx.coroutines.launch
     var brandHeightPx by remember { mutableIntStateOf(0) }
     var followingHeadingPx by remember { mutableIntStateOf(0) }
     var followingRowPx by remember { mutableIntStateOf(0) }
-    val focusSafety = remember { HomeFocusSafety() }
+    val focusSafety = remember(portrait) { if (portrait) HomeFocusSafety(baseHorizontalDp = 24) else HomeFocusSafety() }
     val gridTop = HomeSafeArea.verticalDp.toFloat()
     val gridBottom = HomeSafeArea.bottomInsetDp(focusSafety.overflowDp).toFloat()
     val requestedHeroHeight = when (theme.hero.heightPolicy) {
@@ -502,7 +504,7 @@ import kotlinx.coroutines.launch
     // Flix/Prime/Max share TvShell's full-viewport artwork, including navigation.
     if (cinema) CinemaBackdrop(featured?.id, repository, Modifier.matchParentSize(), dimmed = !heroVisible)
     // Max Home grows upward from its permanent dock; full pages keep normal reading order.
-    val invertedHome = maxLayout && homeRows
+    val invertedHome = maxLayout && homeRows && !portrait
     @Composable fun CollectionHeading() {
         Column(Modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             sagaError?.let { Text(it, color = TvColors.Amber) }

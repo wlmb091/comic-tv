@@ -13,6 +13,7 @@ class AppContainer(context: Context) {
         .addMigrations(LibraryDatabase.MIGRATION_1_2, LibraryDatabase.MIGRATION_2_3).build()
     val readerImages = com.pelican.comictv.reader.ReaderImagePreferences(app)
     val appearance = com.pelican.comictv.ui.AppearancePreferences(app)
+    val orientation = com.pelican.comictv.ui.AppOrientationPreferences(app)
     val pendingRestores = com.pelican.comictv.backup.RestorePendingStore(java.io.File(app.filesDir, "backup"))
     val library = LibraryRepository(app, database.comics(), collectionDao = database.collections(), pendingRestores = pendingRestores)
     val sourcePreferences = SourcePreferences(app)

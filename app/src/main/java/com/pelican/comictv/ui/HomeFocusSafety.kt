@@ -24,13 +24,13 @@ internal object HomeSafeArea {
     fun bottomInsetDp(overflowDp: Int) = verticalDp + overflowDp
 }
 
-@Stable internal class HomeFocusSafety {
+@Stable internal class HomeFocusSafety(private val baseHorizontalDp: Int = HomeSafeArea.horizontalDp) {
     var overflowDp by mutableIntStateOf(24)
         private set
     fun include(cardSizeDp: Float, scale: Float, borderWidthDp: Float, glowRadiusDp: Float = 0f) {
         overflowDp = maxOf(overflowDp, focusOverflowDp(cardSizeDp, scale, borderWidthDp, glowRadiusDp))
     }
-    val horizontalDp get() = HomeSafeArea.horizontalInsetDp(overflowDp)
+    val horizontalDp get() = maxOf(baseHorizontalDp, overflowDp)
     val rowPadding get() = PaddingValues(horizontal = horizontalDp.dp, vertical = overflowDp.dp)
 }
 

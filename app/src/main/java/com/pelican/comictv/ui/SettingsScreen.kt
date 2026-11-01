@@ -31,7 +31,8 @@ import kotlinx.coroutines.sync.withLock
 
 @Composable internal fun SettingsScreen(preferences: AppearancePreferences, storage: com.pelican.comictv.storage.StorageViewModel,
     backup: com.pelican.comictv.backup.BackupViewModel, onDownloads: (() -> Unit)? = null,
-    updater: com.pelican.comictv.updates.AppUpdateViewModel? = null, installUpdate: (java.io.File) -> Unit = {}, onBack: () -> Unit) {
+    updater: com.pelican.comictv.updates.AppUpdateViewModel? = null, installUpdate: (java.io.File) -> Unit = {},
+    orientation: AppOrientationPreferences? = null, onBack: () -> Unit) {
     val options by preferences.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var accessibility by rememberSaveable { mutableStateOf(true) }
@@ -86,6 +87,20 @@ import kotlinx.coroutines.sync.withLock
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             error?.let { message -> settingsRow("error") { Text(message, color = TvColors.Amber) } }
             if (accessibility) {
+                if (orientation != null) {
+                    settingsRow("orientation-title") { Text("Orientação da tela", fontSize = 23.sp) }
+                    settingsRow("orientation-choices") {
+                        val current = LocalAppOrientation.current
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            AppOrientation.entries.forEach { choice ->
+                                TvChoice(choice.label, current == choice, { orientation.update(choice) })
+                            }
+                        }
+                    }
+                    settingsRow("orientation-description") {
+                        Text("Vale para o app inteiro e fica salva ao reabrir. Escolha o sentido em que o projetor ou a TV está virado.", color = TvColors.Muted)
+                    }
+                }
                 settingsRow("themes-title") {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.heightIn(min = 48.dp), contentAlignment = androidx.compose.ui.Alignment.CenterStart) {

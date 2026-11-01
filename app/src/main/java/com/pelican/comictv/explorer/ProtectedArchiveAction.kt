@@ -18,7 +18,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.TvButton
 import com.pelican.comictv.ui.TvColors
@@ -35,7 +34,7 @@ import com.pelican.comictv.ui.TvColors
         if (!busy) try { picker.launch(arrayOf("*/*")) }
         catch (_: ActivityNotFoundException) { onMessage("O Android desta TV não oferece seleção de arquivos. Escolha um arquivo único sem senha ou use outra TV compatível.") }
     })
-    if (selection.isNotEmpty()) Dialog(onDismissRequest = { selection = emptyList(); password = "" }) {
+    if (selection.isNotEmpty()) com.pelican.comictv.ui.ComicDialog(onDismissRequest = { selection = emptyList(); password = "" }) {
         com.pelican.comictv.companion.CompanionDialogWindow { selection = emptyList(); password = "" }
         val first = remember { FocusRequester() }
         LaunchedEffect(Unit) { withFrameNanos { }; first.requestFocus() }

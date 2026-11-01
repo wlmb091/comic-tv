@@ -11,7 +11,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Text
 import com.pelican.comictv.ui.*
@@ -19,7 +18,7 @@ import com.pelican.comictv.ui.*
 @Composable internal fun FullSummaryDialog(summary: String, onDismiss: () -> Unit) {
     val close = remember { FocusRequester() }
     val scroll = rememberLazyListState()
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    com.pelican.comictv.ui.ComicDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         com.pelican.comictv.companion.CompanionDialogWindow(onDismiss)
         Column(Modifier.fillMaxWidth(.88f).fillMaxHeight(.88f).background(TvColors.Background).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {

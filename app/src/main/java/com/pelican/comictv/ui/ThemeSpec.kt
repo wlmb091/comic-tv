@@ -23,6 +23,12 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
     val sidebarLibraryStartDp: Int = safeHorizontalDp,
     val overlayDurationMs: Int = 220,
     val staticCollapsedRail: Boolean = false,
+    /** Portrait only: a dock with one icon per route, sized to fit every route at once. */
+    val dockIconsOnly: Boolean = false,
+    /** Portrait only: dock items keep this width and the dock scrolls with focus. */
+    val dockScrollItemWidthDp: Int? = null,
+    /** Portrait only: the Prime brand takes its own line above the categories. */
+    val topBarStacked: Boolean = false,
 )
 @Immutable internal data class ThemeHeroSpec(
     val variant: HeroVariant, val heightPolicy: HeroHeightPolicy = HeroHeightPolicy.Fraction,
@@ -178,6 +184,31 @@ internal enum class ThemeTitleFamily { Default, Serif, Bebas, Barlow }
             }
         }
         fun forPreset(preset: ColorPreset): ThemeSpec = specs.getValue(preset)
+        fun forPreset(preset: ColorPreset, portrait: Boolean): ThemeSpec =
+            if (portrait) portraitSpecs.getValue(preset) else specs.getValue(preset)
+
+        private val portraitSpecs by lazy { specs.mapValues { (preset, spec) -> spec.portrait(preset) } }
+    }
+
+    /** Same identity on a narrow, tall viewport: only menu placement and the hero's share of the screen change. */
+    private fun portrait(preset: ColorPreset): ThemeSpec {
+        val shared = navigation.copy(safeHorizontalDp = 12, safeVerticalDp = 14, sidebarInitiallyExpanded = false, sidebarLibraryStartDp = 12)
+        return when (preset) {
+            ColorPreset.Flix -> copy(navigation = shared,
+                hero = hero.copy(viewportFraction = .5f, textWidthFraction = 1f),
+                typography = typography.copy(titleSp = 46, titleLineHeightSp = 47))
+            ColorPreset.Prime -> copy(navigation = shared.copy(topBarStacked = true),
+                hero = hero.copy(viewportFraction = .55f, textWidthFraction = 1f, carouselChoices = 3))
+            ColorPreset.Max -> copy(navigation = shared.copy(dockScrollItemWidthDp = 92, dockLabelSp = 13),
+                hero = hero.copy(heightPolicy = HeroHeightPolicy.Fraction, viewportFraction = .42f, textWidthFraction = 1f))
+            ColorPreset.Cinema -> copy(navigation = shared,
+                hero = hero.copy(viewportInsetDp = 190, horizontalPaddingDp = 8, verticalPaddingDp = 20, textWidthFraction = 1f))
+            // Comic and the legacy editorial presets replace the side rail with an icon bar below.
+            else -> copy(navigation = shared.copy(layout = ThemeNavigationPolicy.BottomDock, dockIconsOnly = true,
+                    searchInNavigation = true, libraryBrand = true, dockFocusScale = 1f, dockActiveAlpha = .15f,
+                    dockSurface = 0xFF1E1E1E, dockBorder = 0xFF333333),
+                hero = hero.copy(viewportFraction = .3f, minimumHeightDp = 194, textWidthFraction = 1f, posterWidthDp = 180, posterHeightDp = 240))
+        }
     }
 }
 

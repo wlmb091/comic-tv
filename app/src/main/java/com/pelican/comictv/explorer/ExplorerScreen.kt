@@ -158,7 +158,7 @@ import kotlinx.coroutines.*
         }
     }
     selected?.let { entry ->
-        androidx.compose.ui.window.Dialog(onDismissRequest = { selected = null; model.restoreFocus() }) {
+        com.pelican.comictv.ui.ComicDialog(onDismissRequest = { selected = null; model.restoreFocus() }) {
             com.pelican.comictv.companion.CompanionDialogWindow { selected = null; model.restoreFocus() }
             val actionFocus = remember { FocusRequester() }
             LaunchedEffect(entry.key) { withFrameNanos { }; actionFocus.requestFocus() }
