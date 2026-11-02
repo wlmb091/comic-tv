@@ -54,15 +54,17 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; media-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
     }
     private fun valid(c:CompanionCommand):Boolean {
-        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
+        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","reader-arrow","open-chapter","ok-long","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
         if(c.text.length>1000||c.id.length>100||c.text.any {it=='\u0000'})return false
-        if(c.action=="open"&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
+        if((c.action=="open"||c.action=="open-chapter")&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
         if(!c.x.isFinite()||!c.y.isFinite()||!c.dx.isFinite()||!c.dy.isFinite()||!c.zoom.isFinite())return false
         return when(c.action){
             "settings"->listOf(c.readerSensitivity,c.pointerSensitivity,c.zoomSensitivity,c.scrollSensitivity).all{it.isFinite()&&it in .25f..3f}
             "cursor"->c.cursorSize in 50..300&&c.cursorStyle in 0..2
             "theme"->c.text in themeNames
             "reader-option"->c.text in readerOptions
+            "reader-arrow"->c.text in setOf("up","down","left","right")
+            "open-chapter"->c.page in 0..4999
             "browser-open"->c.text.isNotBlank()
             "browser-pointer","browser-scroll"->c.dx in -1.0..1.0&&c.dy in -1.0..1.0
             "browser-scroll-to","reader-scroll-to"->c.dy in 0.0..1.0
@@ -105,7 +107,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         try {
             if(session.method==Method.GET){
                 if(endpoint.isEmpty())return response(Response.Status.OK,html,"text/html; charset=utf-8")
-                if(!endpoint.matches(Regex("/(library|reader-state|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
+                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|source-cover/[lc][0-9]{1,3}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
                 // The state poll is light and must keep answering while pages and covers load.
                 val limited=endpoint!="/reader-state"
                 if(limited&&!resources.tryAcquire())return response(Response.Status.CONFLICT,"Aguarde a operação atual.")

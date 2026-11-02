@@ -470,6 +470,15 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         currentCoroutineContext().ensureActive()
         _state.update { it.copy(details = details) }
     }
+    /** The source chosen on the TV and its trusted repository, for the phone panel's copy of the home rows. */
+    internal fun companionSourcePin(): String? {
+        val old = _state.value
+        val source = old.activeSource ?: return null
+        val info = old.installed.firstOrNull { it.packageName == source.packageName } ?: return null
+        return old.repositories.firstOrNull { it.fingerprint in info.fingerprints }?.fingerprint
+    }
+    internal suspend fun companionCover(source: SourceHandle, title: OnlineTitle) =
+        (globalSearchCover(com.pelican.comictv.search.SearchHit(source, title), 0) as? com.pelican.comictv.search.SearchCoverResult.Ready)?.file
     fun openChapter(chapter: OnlineChapter, onRead: (String) -> Unit) = task {
         val old = _state.value
         val source = old.activeSource ?: error("Escolha uma fonte.")

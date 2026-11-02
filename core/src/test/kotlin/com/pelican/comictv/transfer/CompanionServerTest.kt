@@ -16,7 +16,7 @@ class CompanionServerTest {
             server.open()
             for(body in listOf("""{"action":"rotate"}""","""{"action":"browser-up"}""","""{"action":"browser-down"}""","""{"action":"browser-left"}""","""{"action":"browser-right"}""","""{"action":"browser-ok"}""","""{"action":"reader-pinch","zoom":2,"x":0.5,"y":0.25,"dx":-0.1,"dy":0.1}"""))assertEquals(body,200,request(server.url+"/command",body).first)
             assertEquals(7,commands.size)
-            for(body in listOf("""{"action":"reader-option","text":"apagar"}""","""{"action":"reader-option"}""","""{"action":"browser-open","text":"  "}""","""{"action":"reader-drag","x":1.5}""","""{"action":"reader-pinch","zoom":3.1,"x":0.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":1.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":0.5,"y":0.5,"dx":2}"""))assertEquals(body,400,request(server.url+"/command",body).first)
+            for(body in listOf("""{"action":"reader-drag","x":1.5}""","""{"action":"reader-pinch","zoom":3.1,"x":0.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":1.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":0.5,"y":0.5,"dx":2}"""))assertEquals(body,400,request(server.url+"/command",body).first)
         }finally{server.close();root.deleteRecursively()}
     }
     @Test fun themeCommandAcceptsOnlyTheFiveSelectableThemes() {
@@ -61,6 +61,19 @@ class CompanionServerTest {
             release.countDown();pages.forEach{it.join(5000)}
         }finally{release.countDown();server.close();root.deleteRecursively()}
     }
+    @Test fun readerMenuChapterAndBrowserCommandsAreBounded() {
+        val root=Files.createTempDirectory("companion-reader").toFile();val commands=mutableListOf<CompanionCommand>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{\"active\":false}".toByteArray())},command={commands+=it})
+        try {
+            server.open()
+            for(body in listOf("""{"action":"reader-arrow","text":"meio"}""","""{"action":"open-chapter","id":"../x","page":1}""","""{"action":"reader-option","text":"apagar"}""","""{"action":"reader-option"}""","""{"action":"browser-open","text":"  "}"""))assertEquals(body,400,request(server.url+"/command",body).first)
+            for(body in listOf("""{"action":"reader-arrow","text":"left"}""","""{"action":"open-chapter","id":"l3","page":1}""","""{"action":"ok-long"}""","""{"action":"reader-option","text":"fit"}""","""{"action":"reader-option","text":"exit"}""","""{"action":"browser-open","text":"google.com"}"""))assertEquals(body,200,request(server.url+"/command",body).first)
+            assertEquals(6,commands.size)
+            for(endpoint in listOf("/home-sources","/source-cover/l3","/chapters/online-a","/saga-cover/online-a"))assertEquals(endpoint,200,request(server.url+endpoint).first)
+            assertEquals(404,request(server.url+"/source-cover/x9").first)
+        } finally {server.close()}
+    }
+
     @Test fun contextualReaderAndPointerCommandsAreBoundedAndMirrorIsAbsent() {
         val root=Files.createTempDirectory("companion-reader").toFile();val commands=mutableListOf<CompanionCommand>()
         val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{\"active\":false}".toByteArray())},command={commands+=it})
@@ -68,9 +81,9 @@ class CompanionServerTest {
             server.open()
             assertEquals(200,request(server.url+"/reader-state").first)
             assertEquals(404,request(server.url+"/screen").first)
-            for(body in listOf("""{"action":"reader-option","text":"fit"}""","""{"action":"reader-option","text":"exit"}""","""{"action":"browser-open","text":"google.com"}""","""{"action":"reader-drag","x":-0.4}""","""{"action":"reader-pan","x":-0.12,"y":1}""","""{"action":"pointer","dx":-1,"dy":0.5}""","""{"action":"reader-page","page":4999}""","""{"action":"reader-turn","delta":-1}""","""{"action":"reader-zoom","zoom":2.25}"""))assertEquals(body,200,request(server.url+"/command",body).first)
+            for(body in listOf("""{"action":"reader-drag","x":-0.4}""","""{"action":"reader-pan","x":-0.12,"y":1}""","""{"action":"pointer","dx":-1,"dy":0.5}""","""{"action":"reader-page","page":4999}""","""{"action":"reader-turn","delta":-1}""","""{"action":"reader-zoom","zoom":2.25}"""))assertEquals(body,200,request(server.url+"/command",body).first)
             for(body in listOf("""{"action":"browser-pointer","dx":0,"dy":0.1}""","""{"action":"home"}""","""{"action":"settings","readerSensitivity":2,"pointerSensitivity":0.25}""","""{"action":"browser-scroll","dx":0,"dy":0.2}""","""{"action":"browser-zoom","zoom":1.5}""","""{"action":"browser-press"}""","""{"action":"browser-release"}""","""{"action":"browser-context"}"""))assertEquals(body,200,request(server.url+"/command",body).first)
-            assertEquals(17,commands.size)
+            assertEquals(14,commands.size)
             for(body in listOf("""{"action":"settings","readerSensitivity":0}""","""{"action":"settings","zoomSensitivity":4}""","""{"action":"browser-scroll","dy":2}""","""{"action":"browser-zoom","zoom":2.1}"""))assertEquals(body,400,request(server.url+"/command",body).first)
 
             for(body in listOf("""{"action":"reader-pan","x":-1.1}""","""{"action":"pointer","dx":2}""","""{"action":"reader-page","page":-1}""","""{"action":"reader-page","page":5000}""","""{"action":"reader-turn","delta":2}""","""{"action":"reader-zoom","zoom":0.9}""","""{"action":"reader-zoom","zoom":3.1}"""))assertEquals(body,400,request(server.url+"/command",body).first)

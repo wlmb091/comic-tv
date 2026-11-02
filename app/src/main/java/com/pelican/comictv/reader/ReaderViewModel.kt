@@ -276,6 +276,13 @@ class ReaderViewModel(
             else->_companionRequests.tryEmit(option)
         }
     }
+    /** A phone arrow the user switched on in the reader: the same as the physical remote's. */
+    internal fun companionArrow(direction:String) {
+        check(companionAvailable()){ "Leitor indisponível para controle." }
+        pauseAutomaticReading()
+        if(_image.value?.text!=null&&(direction=="up"||direction=="down")){_textScrollRequests.tryEmit(TextScrollRequest(delta=if(direction=="up")-.65f else .65f));return}
+        applyAction(when(direction){"left"->ReaderAction.Left;"right"->ReaderAction.Right;"up"->ReaderAction.Up;else->ReaderAction.Down})
+    }
     /** How much of the view the shown pages fill at zoom 1; published by the renderer that measures them. */
     @Volatile private var pageFill=1f to 1f
     internal fun reportPageFill(width:Float,height:Float){if(width>0f&&height>0f)pageFill=width to height}

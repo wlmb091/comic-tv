@@ -35,6 +35,10 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private val files=File(activity.cacheDir,"companion-pages")
     var onOpen:(String)->Unit={}
     var onHome:()->Unit={}
+    /** Set while the TV home exists; the phone's Novidades and Catálogo come from the same samples. */
+    var sources:com.pelican.comictv.sources.SourcesViewModel?=null
+    private val chapterContexts=LinkedHashMap<String,List<com.pelican.comictv.details.DetailChapter>>()
+    private val chapterEditions=LinkedHashMap<String,com.pelican.comictv.sources.OnlineEditions>()
     private val preferences=activity.getSharedPreferences("companion-gestures",android.content.Context.MODE_PRIVATE)
     private fun sensitivity(key:String)=preferences.getFloat(key,1f).takeIf{it.isFinite()&&it in .25f..3f}?:1f
     fun start(){
@@ -48,7 +52,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             val html=withContext(Dispatchers.IO){activity.assets.open("companion/index.html").bufferedReader().use{it.readText()}}
             fun <T> call(timeout:Long=30_000,block:suspend ()->T):T=runBlocking {withContext(job+Dispatchers.IO){withTimeout(timeout){block()}}}
             val instance=CompanionServer(host,File(activity.cacheDir,"companion-upload"),html,
-                get={path->call {resource(path)}},command={command->call {if(command.action=="open")container.library.getComic(command.id);withContext(Dispatchers.Main.immediate){control(command)}}},
+                get={path->call(if(path.startsWith("/chapters/"))95_000 else if(path.startsWith("/source-cover/"))45_000 else 30_000){resource(path)}},command={command->if(command.action=="open-chapter")call(95_000){prepareChapter(command)} else call {if(command.action=="open")container.library.getComic(command.id);withContext(Dispatchers.Main.immediate){control(command)}}},
                 received={file,name->call(300_000){container.library.importReceived(file,name){text->mutable.update{it.copy(message=text)}};Unit}},
                 clock=SystemClock::elapsedRealtime,status={text->if(sessionJob===job)mutable.update {it.copy(message=text)}})
             owned=instance
@@ -78,11 +82,44 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private suspend fun resource(path:String):CompanionResource {
         withContext(Dispatchers.Main.immediate){active()}
         if(path=="/library") {
-            val rows=container.library.observeComics().first().take(5000).map {comic->
+            val comics=container.library.observeComics().first().take(5000)
+            val rows=comics.map {comic->
                 mapOf("id" to comic.id,"title" to comic.title,"pages" to comic.pageCount,"current" to comic.currentPage,
-                    "lastRead" to comic.lastRead,"local" to !comic.id.startsWith("online-"),"favorite" to comic.favorite)
+                    "lastRead" to comic.lastRead,"local" to !comic.id.startsWith("online-"),"favorite" to comic.favorite,"status" to com.pelican.comictv.library.sagaEditionStatus(comic))
             }
-            return CompanionResource("application/json; charset=utf-8",Gson().toJson(mapOf("books" to rows,"message" to state.value.message)).toByteArray(Charsets.UTF_8))
+            // The same grouping as the TV: an edition without a saga stays a card of its own.
+            val sagas=container.library.sagaGroups(comics).filterNot{it.key.startsWith("edition:")}.map{mapOf("cover" to it.representative.id,"title" to it.title,"ids" to it.editions.map{edition->edition.id})}
+            return CompanionResource("application/json; charset=utf-8",Gson().toJson(mapOf("books" to rows,"sagas" to sagas,"message" to state.value.message)).toByteArray(Charsets.UTF_8))
+        }
+        if(path=="/home-sources") {
+            val previews=sources?.homePreviews?.value
+            fun rows(prefix:String,titles:List<com.pelican.comictv.sources.OnlineTitle>)=titles.take(12).mapIndexed{i,title->mapOf("ref" to "$prefix$i","title" to title.title)}
+            return CompanionResource("application/json; charset=utf-8",Gson().toJson(mapOf("source" to previews?.source?.name.orEmpty(),"latest" to rows("l",previews?.latest.orEmpty()),"catalog" to rows("c",previews?.catalog.orEmpty()))).toByteArray(Charsets.UTF_8))
+        }
+        if(path.startsWith("/source-cover/")) {
+            val (source,title)=sourceTitle(path.substringAfterLast('/'))
+            val file=checkNotNull(checkNotNull(sources).companionCover(source,title)){"Capa indisponível."}
+            return CompanionResource("image/jpeg",file=file)
+        }
+        if(path.startsWith("/chapters/")) {
+            val ref=path.substringAfterLast('/')
+            val editions=if(ref.startsWith("online-"))container.online.phoneChapters(ref) else {
+                val (source,title)=sourceTitle(ref)
+                container.online.phoneChapters(source,title,checkNotNull(checkNotNull(sources).companionSourcePin()){"A extensão desta fonte não é confiável."})
+            }
+            val rows=com.pelican.comictv.details.detailChapters(editions,com.pelican.comictv.sources.ChapterOrder.Ascending,container.library.observeComics().first())
+            withContext(Dispatchers.Main.immediate){
+                chapterContexts[ref]=rows;chapterEditions[ref]=editions
+                while(chapterContexts.size>8){val oldest=chapterContexts.keys.first();chapterContexts.remove(oldest);chapterEditions.remove(oldest)}
+            }
+            val shown=rows.take(2000).mapIndexed{i,row->mapOf("index" to i,"id" to row.id,"title" to row.title,"status" to com.pelican.comictv.details.chapterReadStatus(row.progress))}
+            return CompanionResource("application/json; charset=utf-8",Gson().toJson(mapOf("title" to editions.title.title,"chapters" to shown)).toByteArray(Charsets.UTF_8))
+        }
+        if(path.startsWith("/saga-cover/")) {
+            val id=path.substringAfterLast('/')
+            val group=container.library.sagaGroups(container.library.observeComics().first()).firstOrNull{it.editions.any{edition->edition.id==id}}
+            val file=(group?.cover as? File)?.takeIf{it.isFile}?:container.library.cover(id).also{check(it.isFile){"Capa indisponível."}}
+            return CompanionResource("image/jpeg",file=file)
         }
         if(path=="/reader-state") {
             val snapshot=withContext(Dispatchers.Main.immediate){
@@ -114,6 +151,18 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         check(parts[0]=="page")
         // Only one decoded page at a time; phone navigation never writes TV progress.
         return pageResource(id,parts[2].toInt())
+    }
+    private fun sourceTitle(ref:String):Pair<com.pelican.comictv.sources.SourceHandle,com.pelican.comictv.sources.OnlineTitle>{
+        val previews=checkNotNull(sources?.homePreviews?.value){"Abra a tela inicial na TV."}
+        val titles=if(ref.startsWith("l"))previews.latest else previews.catalog
+        return checkNotNull(previews.source){"Escolha uma fonte na TV."} to (titles.getOrNull(ref.drop(1).toInt())?:error("Título não encontrado. Atualize a Biblioteca."))
+    }
+    /** Creates the chapter's record like the TV does; the phone then reads it and, when synced, asks the TV to open it. */
+    private suspend fun prepareChapter(c:CompanionCommand){
+        withContext(Dispatchers.Main.immediate){active()}
+        val (rows,editions)=withContext(Dispatchers.Main.immediate){chapterContexts[c.id] to chapterEditions[c.id]}
+        val chapter=rows?.getOrNull(c.page)?.chapter?:error("Abra a lista de capítulos novamente.")
+        container.online.open(editions!!.source,editions.title,chapter,editions.pin)
     }
     private val pageMutex=kotlinx.coroutines.sync.Mutex()
     private suspend fun pageResource(id:String,index:Int):CompanionResource {
@@ -190,6 +239,12 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             handle.apply(c.cursorSize,c.cursorStyle);return
         }
         if(dialog!=null){controlDialog(c,dialog);return}
+        if(c.action=="ok-long"){
+            // The TV opens its options after OK stays down for a second.
+            val view=activity.window.decorView
+            view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN,KeyEvent.KEYCODE_DPAD_CENTER))
+            scope.launch{delay(1100);view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP,KeyEvent.KEYCODE_DPAD_CENTER))};return
+        }
         if(c.action=="browser-open"){(com.pelican.comictv.browser.BrowserCursorBridge.handle?:error("Abra o navegador na TV para abrir um site.")).open(c.text);return}
         if(c.action.startsWith("browser-")) {
             val browser=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)
@@ -213,6 +268,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 "reader-pan"->owner.companionPan(c.x.toFloat(),c.y.toFloat())
                 "reader-drag"->owner.companionDrag(c.x.toFloat())
                 "reader-option"->owner.companionOption(c.text)
+                "reader-arrow"->owner.companionArrow(c.text)
                 "reader-page"->owner.companionPage(c.page)
                 "reader-turn"->owner.companionTurn(c.delta)
                 "reader-zoom"->owner.companionZoom(c.zoom)

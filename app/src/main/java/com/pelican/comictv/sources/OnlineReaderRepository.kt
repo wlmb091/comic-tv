@@ -230,6 +230,23 @@ class OnlineReaderRepository(
         }
     }
 
+    /** Phone panel: the TV reader may be running, so its lock is not held while the source answers. */
+    suspend fun phoneChapters(id: String): OnlineEditions = withContext(Dispatchers.IO) {
+        require(OnlineIdentity.isOnline(id)) { "Identificador online inválido." }
+        val saved = mutex.withLock { read(id) }
+        trusted(saved.pin)
+        val source = loadSource(saved.source, saved.pin)
+        val details = sourceRequest(SourceRequest.Details) { engine.details(source, saved.title) }
+        OnlineEditions(source, details.title, saved.chapter, chapterSequence(details.chapters, saved.chapter.key).chapters, saved.pin)
+    }
+    suspend fun phoneChapters(source: SourceHandle, title: OnlineTitle, pin: String): OnlineEditions = withContext(Dispatchers.IO) {
+        trusted(pin)
+        val actual = loadSource(source, pin)
+        val details = sourceRequest(SourceRequest.Details) { engine.details(actual, title) }
+        val first = details.chapters.firstOrNull() ?: error("Este título não tem capítulos.")
+        OnlineEditions(actual, details.title, first, chapterSequence(details.chapters, first.key).chapters, pin)
+    }
+
     suspend fun open(source: SourceHandle, title: OnlineTitle, chapter: OnlineChapter, pin: String): String = withContext(Dispatchers.IO) {
         mutex.withLock {
             val id = OnlineIdentity.id(source, title, chapter)

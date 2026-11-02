@@ -23,6 +23,15 @@ class ReaderViewModelTest {
         vm.companionZoom(1f);assertEquals(0f,vm.state.value.panX);assertEquals(0f,vm.state.value.panY)
         vm.close{};advanceUntilIdle()
     }
+    @Test fun phoneArrowsWorkLikeThePhysicalRemote() = runTest(dispatcher) {
+        val repo=FakeRepository().apply{count=8}
+        val vm=ReaderViewModel(repo,"remote-arrow",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})
+        advanceUntilIdle();val start=vm.state.value.page
+        vm.companionArrow("right");assertEquals(start+1,vm.state.value.page);advanceUntilIdle()
+        vm.companionArrow("left");assertEquals(start,vm.state.value.page);advanceUntilIdle()
+        val zoom=vm.state.value.zoom;vm.companionArrow("up");assertNotEquals(zoom,vm.state.value.zoom)
+        vm.close{};advanceUntilIdle()
+    }
     @Test fun phoneScrollsTextInsteadOfMovingAnImage() = runTest(dispatcher) {
         val section=File.createTempFile("section",".txt").apply{writeText("texto");deleteOnExit()}
         val repo=FakeRepository().apply{textFile=section}
@@ -33,6 +42,7 @@ class ReaderViewModelTest {
         vm.companionScrollTo(.7f);vm.companionPan(0f,.2f)
         assertEquals(listOf(TextScrollRequest(position=.7f),TextScrollRequest(delta=.2f*1.5f)),requests)
         vm.companionZoom(2f);vm.companionPinch(2f,.5f,.5f,0f,0f);assertEquals(1f,vm.state.value.zoom)
+        requests.clear();vm.companionArrow("down");assertEquals(listOf(TextScrollRequest(delta=.65f)),requests)
         listener.cancel();vm.close{};advanceUntilIdle()
     }
     @Test fun companionDragPreparesTheNeighborAndKeepsTheOldPageAfterATurn() = runTest(dispatcher) {

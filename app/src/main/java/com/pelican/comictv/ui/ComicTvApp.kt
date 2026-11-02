@@ -211,6 +211,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 val previewSources: SourcesViewModel? = if (LocalThemeSpec.current.artwork || TvColors.options.preset == ColorPreset.Amber)
                     viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory) else null
                 val homePreviews = previewSources?.homePreviews?.collectAsStateWithLifecycle()?.value ?: HomeSourcePreviews()
+                SideEffect { if (previewSources != null) companion.sources = previewSources }
                 val lifecycle = LocalLifecycleOwner.current.lifecycle
                 LaunchedEffect(previewSources, lifecycle) {
                     if (previewSources != null) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { previewSources.collectHomePreviews() }
