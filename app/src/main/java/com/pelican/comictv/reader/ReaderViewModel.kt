@@ -40,7 +40,9 @@ class ReaderViewModel(
         BitmapFactory.decodeFile(file.path, options)
         options.outWidth to options.outHeight
     },
+    drawingStore: PageDrawingStore? = null,
 ) : ViewModel() {
+    internal val drawings = drawingStore?.let { PageDrawings(it, comicId, viewModelScope, ioDispatcher) }
     private val _state = MutableStateFlow(ReaderState())
     val state = _state.asStateFlow()
     private val _image = MutableStateFlow<PageImage?>(null)
@@ -256,7 +258,7 @@ class ReaderViewModel(
         com.pelican.comictv.transfer.CompanionReaderMenu(layout=_layout.value.label,fit=when(state.fit){FitMode.Page->"Página";FitMode.Width->"Largura";FitMode.Height->"Altura"},rtl=state.rtl,
             filter=options.preset.label,filterOn=options.preset!=ImagePreset.Original,intensity=options.intensity.coerceIn(0,2),compare=_compareOriginal.value,
             automatic=_automatic.value.enabled,interval=_automatic.value.secondsPerScreen,rotatable=flags.rotatable,rotated=flags.rotated,chapters=flags.chapters,editions=flags.editions,
-            cover=flags.cover,coverBusy=flags.coverBusy,coverMessage=flags.coverMessage,retry=error.value!=null,fontSize=if(_image.value?.text!=null)textFont else 0)
+            cover=flags.cover,coverBusy=flags.coverBusy,coverMessage=flags.coverMessage,retry=error.value!=null,fontSize=if(_image.value?.text!=null)textFont else 0,drawingsHidden=drawings?.hidden==true)
     }
     private val _companionRequests=MutableSharedFlow<String>(extraBufferCapacity=8,onBufferOverflow=kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
     /** Options whose action belongs to the screen: leaving the reader, turning it, saving the cover, the text font. */
@@ -273,6 +275,7 @@ class ReaderViewModel(
             "compare"->toggleOriginalComparison()
             "automatic"->if(_automatic.value.enabled)pauseAutomaticReading() else startAutomaticReading()
             "interval"->cycleAutomaticInterval()
+            "drawings"->drawings?.toggleHidden()
             else->_companionRequests.tryEmit(option)
         }
     }

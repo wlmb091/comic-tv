@@ -36,7 +36,7 @@ import com.pelican.comictv.ui.*
     imageOptions: ReaderImageOptions = ReaderImageOptions(), compareOriginal: Boolean = false,
     onCycleImagePreset: () -> Unit = {}, onCycleImageIntensity: () -> Unit = {}, onCompareOriginal: () -> Unit = {}, onNarrate: (() -> Unit)? = null, onRotate: () -> Unit = {},
     onUsePageCover: (() -> Unit)? = null, pageCoverBusy: Boolean = false,
-    pageCoverReady: Boolean = true, pageCoverMessage: String? = null) {
+    pageCoverReady: Boolean = true, pageCoverMessage: String? = null, drawingsHidden: Boolean? = null, onToggleDrawings: () -> Unit = {}) {
     val rotated = LocalReaderRotated.current
     val showRotation = !com.pelican.comictv.ui.LocalAppOrientation.current.portrait
     val first = remember { FocusRequester() }
@@ -52,6 +52,7 @@ import com.pelican.comictv.ui.*
                 add("back"); if (onNarrate != null) add("narrate")
                 add("direction"); if (showRotation) add("rotation"); if (onUsePageCover != null) add("cover")
                 add("filter"); if (imageOptions.preset != ImagePreset.Original) { add("intensity"); add("compare") }
+                if (drawingsHidden != null) add("drawings")
                 add("automatic"); add("interval")
             }
             val settingsRequesters = remember { mutableMapOf<String, FocusRequester>() }
@@ -93,6 +94,10 @@ import com.pelican.comictv.ui.*
                     TvButton(if (compareOriginal) "Voltar ao filtro" else "Comparar com original", onCompareOriginal, settingsItem("compare"))
                 }
                 Text("Filtro salvo nesta edição. O arquivo original é preservado.", color = TvColors.Muted, fontSize = 16.sp)
+                drawingsHidden?.let { hidden ->
+                    Text("Desenhos", fontSize = 20.sp)
+                    TvButton(if (hidden) "Mostrar desenhos" else "Ocultar desenhos", onToggleDrawings, settingsItem("drawings"))
+                }
                 Text("Leitura automática", fontSize = 20.sp)
                 TvButton("Iniciar leitura automática", onStartAutomatic, settingsItem("automatic"))
                 TvButton("Intervalo: ${automatic.secondsPerScreen}s", onAutomaticInterval, settingsItem("interval"))

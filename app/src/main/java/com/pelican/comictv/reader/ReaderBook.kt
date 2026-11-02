@@ -13,7 +13,8 @@ import java.io.File
     if (current == null) return
     val ordered = if (!partnerExpected) listOf(current) else if (state.rtl) listOf(partner, current) else listOf(current, partner)
     val gap = with(LocalDensity.current) { 2.dp.toPx() }
-    HighResolutionPages(state, ordered, cache, options, modifier.padding(12.dp), gap,
+    val indices = if (!partnerExpected) listOf(state.page) else if (state.rtl) listOf(state.page + 1, state.page) else listOf(state.page, state.page + 1)
+    HighResolutionPages(state, ordered, cache, options, modifier.padding(12.dp), gap, indices = indices,
         onDisplayed = { file -> if (file == current.file) onDisplayed(file) else onPartnerDisplayed(file) },
         onFailed = { file -> if (file == current.file) onFailed(file) else onPartnerFailed(file) })
 }

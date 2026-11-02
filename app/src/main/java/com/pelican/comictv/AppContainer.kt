@@ -12,6 +12,7 @@ class AppContainer(context: Context) {
     private val database = Room.databaseBuilder(app, LibraryDatabase::class.java, "comic-tv.db")
         .addMigrations(LibraryDatabase.MIGRATION_1_2, LibraryDatabase.MIGRATION_2_3).build()
     val readerImages = com.pelican.comictv.reader.ReaderImagePreferences(app)
+    val pageDrawings = com.pelican.comictv.reader.PageDrawingStore(java.io.File(app.filesDir, "page-drawings"))
     val appearance = com.pelican.comictv.ui.AppearancePreferences(app)
     val orientation = com.pelican.comictv.ui.AppOrientationPreferences(app)
     val pendingRestores = com.pelican.comictv.backup.RestorePendingStore(java.io.File(app.filesDir, "backup"))

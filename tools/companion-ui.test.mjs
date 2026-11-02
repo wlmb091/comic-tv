@@ -12,17 +12,68 @@ function harness() {
   vm.runInContext(script,context);
   return {elements, requests, run: code=>vm.runInContext(code,context)};
 }
-test('reader side arrows belong to sync and stay until pulled back',()=>{
- const h=harness();h.run("globalThis.log=[];document.body.classList.toggle=(n,on)=>log.push(n+':'+on);syncOn=true;connectedUI();readerSide('left',true);readerSide('right',true)");
- const log=JSON.parse(h.run('JSON.stringify(log)'));for(const name of ['syncActive:true','leftOpen:true','rightOpen:true'])assert.ok(log.includes(name),name);
- h.run("view={s:1,x:0,y:0};paintTrack(false)");assert.equal(h.run('sideOpen.left&&sideOpen.right'),true);
- assert.equal(h.run("$('slidersHandle').textContent"),'‹');assert.equal(h.run("$('menuHandle').textContent"),'›');
- h.run("$('slidersHandle').onclick()");assert.equal(h.run('sideOpen.left'),false);assert.equal(h.run("$('slidersHandle').textContent"),'›');
+test('expanding one reader side hides the other, and the edit arrow does not need sync',()=>{
+ const h=harness();h.run("globalThis.log=[];document.body.classList.toggle=(n,on)=>log.push(n+':'+on);syncOn=true;connectedUI();readerSide('right',true);readerSide('left',true)");
+ const log=JSON.parse(h.run('JSON.stringify(log)'));for(const name of ['syncActive:true','rightOpen:true','rightOpen:false','leftOpen:true'])assert.ok(log.includes(name),name);
+ assert.equal(h.run('sideOpen.left'),true);assert.equal(h.run('sideOpen.right'),false);assert.equal(h.run('ed.open'),true);
+ assert.equal(h.run("$('editHandle').textContent"),'‹');assert.equal(h.run("$('menuHandle').textContent"),'‹');
+ h.run("$('editHandle').onclick()");assert.equal(h.run('sideOpen.left'),false);assert.equal(h.run("$('editHandle').textContent"),'›');
+ h.run("readerSide('left',true);readerSide('right',true)");assert.equal(h.run('sideOpen.left'),false);assert.equal(h.run('ed.open'),false);
+ assert.match(html,/body\.leftOpen #menuHandle,body\.leftOpen \.readerSide\.right,body\.leftOpen \.readerSide\.sliders,body\.rightOpen #editHandle,body\.rightOpen \.readerSide\.left\{display:none\}/);
+ assert.doesNotMatch(html,/body:not\(\.syncActive\) \.readerHandle,/);assert.match(html,/body:not\(\.syncActive\) \.readerHandle\.right/);
+});
+test('zoom and scroll sliders moved to the right bar behind one icon',async()=>{
+ assert.match(html,/id="readerSliders" class="readerSide sliders"/);assert.doesNotMatch(html,/slidersHandle/);
+ const h=harness();await h.run("current={id:'c'};syncOn=true;tvReader={active:true,comicId:'c',page:1,pageCount:5,readerMenu:{layout:'Normal',fit:'Página'}};readerSide('right',true)");
+ const icon="$('menuRows').children.find(c=>c.dataset.label==='Zoom e rolagem')";
+ await h.run(icon+".onclick()");assert.equal(h.run('slidersOpen'),true);
+ await h.run("toggleMore('more')");assert.equal(h.run('slidersOpen'),false);
+ await h.run(icon+".onclick()");assert.equal(h.run('slidersOpen'),true);assert.equal(h.run('menuMore'),null);
+ h.run("readerSide('right',false)");assert.equal(h.run('slidersOpen'),false);
+});
+test('the drawing math stays inside the layer limits',()=>{
+ const h=harness(),size=(w,h2)=>JSON.parse(h.run('JSON.stringify(drawLayerSize('+w+','+h2+'))'));
+ assert.deepEqual(size(800,1200),{w:800,h:1200});
+ const big=size(4000,6000);assert.ok(Math.max(big.w,big.h)<=2048);assert.ok(big.w*big.h<=4000000);assert.ok(Math.abs(big.w/big.h-4000/6000)<.01);
+ const fit=JSON.parse(h.run('JSON.stringify(drawPageFit(100,200,300,300))'));assert.deepEqual(fit,{left:75,top:0,width:150,height:300});
+ assert.deepEqual(JSON.parse(h.run('JSON.stringify(drawSteps(10,4,0))')),{steps:[4,8],carry:2});
+ assert.deepEqual(JSON.parse(h.run('JSON.stringify(drawSteps(10,4,2))')),{steps:[2,6,10],carry:0});
+ assert.deepEqual(JSON.parse(h.run('JSON.stringify(drawSteps(1,4,0))')),{steps:[],carry:1});
+ assert.equal(h.run('drawTaper(0,10,.9)'),.09999999999999998);assert.equal(h.run('drawTaper(10,10,.9)'),1);assert.equal(h.run('drawTaper(5,0,.9)'),1);assert.equal(h.run('drawTaper(5,10,0)'),1);
+ assert.equal(h.run('Math.round(drawSliderToSize(drawSizeToSlider(.02))*1000)'),20);
+ for(const color of ['#e02020','#000000','#ffffff','#1f6fe0'])assert.equal(h.run("(()=>{const c=drawHsbFromHex('"+color+"');return drawHexFromHsb(c.h,c.s,c.b)})()"),color);
+});
+test('the editor tree only enables the first stage',()=>{
+ const h=harness(),tree=JSON.parse(h.run('JSON.stringify(DRAW_TOOLS)'));
+ assert.deepEqual(tree.filter(t=>!t.stage).map(t=>t.id),['hand','zoom','brush','eraser']);
+ assert.deepEqual(tree.find(t=>t.id==='brush').subs.map(s=>s.id),['round','ink','pencil']);assert.deepEqual(tree.find(t=>t.id==='eraser').subs.map(s=>s.id),['eraseHard','eraseSoft']);
+ for(const name of ['Animação','Inteligência','Nuvem','Assinatura'])assert.ok(!JSON.stringify(tree).includes(name),name);
+ h.run("drawEditor(true)");const rail=JSON.parse(h.run("JSON.stringify($('drawRail').children.map(c=>c.id))"));for(const id of ['drawTool-brush','drawTool-filter','drawUndo','drawRedo','drawSwatch','drawSaveNow','drawPanelsToggle'])assert.ok(rail.includes(id),id);
+ h.run("drawSelect('ink','brush')");assert.equal(h.run('ed.tool'),'ink');assert.equal(h.run('ed.mode'),'draw');assert.equal(h.run('ed.lastSub.brush'),'ink');
+ h.run("drawSelect('hand','hand')");assert.equal(h.run('ed.mode'),'hand');h.run("drawSelect('zoomOut','zoom')");assert.equal(h.run('ed.mode'),'zoom');
+ h.run("drawSetting('ink','size',.05);drawSelect('round','brush')");assert.equal(h.run("drawTool('ink').size"),.05);assert.equal(h.run("drawTool('round').size"),.012);
+});
+test('leaving the editor asks only when there is something to save',async()=>{
+ const h=harness();h.run("globalThis.went=0;const go=()=>went++;globalThis.go=go;sideOpen.left=true;ed.at=-1;ed.savedAt=-1;drawGuard(go)");assert.equal(h.run('went'),1);
+ h.run("globalThis.shown=null;$('drawDialog').classList.remove=n=>shown=n;$('drawDialog').classList.add=()=>shown='closed';ed.at=0;drawGuard(go)");assert.equal(h.run('went'),1);assert.equal(h.run('shown'),'hidden');
+ h.run("$('drawDialogKeep').onclick()");assert.equal(h.run('went'),1);assert.equal(h.run('shown'),'closed');assert.equal(h.run('ed.pending'),null);
+ h.run("ed.savedAt=0;drawGuard(go)");assert.equal(h.run('went'),2);
+ h.run("sideOpen.left=false;ed.at=5;drawGuard(go)");assert.equal(h.run('went'),3);
+ assert.match(html,/id="drawDialogSave"[^>]*>Salvar</);assert.match(html,/id="drawDialogDiscard"[^>]*>Descartar</);assert.match(html,/id="drawDialogKeep"[^>]*>Continuar editando</);
+});
+test('history keeps order and forgets what is ahead after a new stroke',()=>{
+ const h=harness();h.run("drawHistoryPush({name:'a',x:0,y:0,w:1,h:1});drawHistoryPush({name:'b',x:0,y:0,w:1,h:1});ed.savedAt=1;ed.at=0;drawHistoryPush({name:'c',x:0,y:0,w:1,h:1})");
+ assert.deepEqual(JSON.parse(h.run('JSON.stringify(ed.hist.map(i=>i.name))')),['a','c']);assert.equal(h.run('ed.at'),1);assert.equal(h.run('ed.savedAt'),-2);assert.equal(h.run('drawDirty()'),true);
+ assert.deepEqual(JSON.parse(h.run("JSON.stringify($('drawHistory').children.map(c=>c.textContent))")),['Abrir','a','c']);
+});
+test('stroke messages keep their order and join the points still waiting',()=>{
+ const h=harness();h.run("ed.book={id:'c'};ed.page=2;drawOut.busy=true;drawSend({stroke:{kind:'begin',points:[.1,.1]}});drawSend({stroke:{kind:'move',points:[.2,.2]}});drawSend({stroke:{kind:'move',points:[.3,.3]}});drawSend({stroke:{kind:'end',points:[]}})");
+ const q=JSON.parse(h.run('JSON.stringify(drawOut.queue.map(i=>i.stroke))'));assert.deepEqual(q.map(i=>i.kind),['begin','move','end']);assert.deepEqual(q[1].points,[.2,.2,.3,.3]);assert.equal(q[0].id,'c');assert.equal(q[0].page,2);
 });
 test('reader menu offers the TV options and sends only known ones',async()=>{
  const h=harness();await h.run("current={id:'c'};syncOn=true;tvReader={active:true,comicId:'c',page:1,pageCount:5,readerMenu:{layout:'Normal',fit:'Página',filter:'Original',interval:10,chapters:true,editions:true,cover:true,rotatable:true}};readerSide('right',true)");
  const labels=JSON.parse(h.run("JSON.stringify($('menuRows').children.map(c=>c.dataset.label))"));
- assert.deepEqual(labels,['Continuar','Escolher página','Capítulo anterior','Próximo capítulo','Capítulos / edições','Visualização: Normal','Ajuste: Página','Imagem e mais opções','Sair da leitura']);
+ assert.deepEqual(labels,['Continuar','Escolher página','Capítulo anterior','Próximo capítulo','Capítulos / edições','Visualização: Normal','Ajuste: Página','Zoom e rolagem','Imagem e mais opções','Sair da leitura']);
  h.run("toggleMore('more')");const more=JSON.parse(h.run("JSON.stringify($('menuMore').children.map(c=>c.textContent))"));for(const label of ['Usar página atual como capa da saga','Filtro: Original','Iniciar leitura automática','Intervalo: 10s'])assert.ok(more.includes(label),label);
  await h.run("$('menuRows').children.find(c=>c.dataset.label==='Sair da leitura').onclick()");assert.deepEqual(JSON.parse(h.requests.find(r=>r.url.endsWith('/command')).options.body),{action:'reader-option',text:'exit'});
 });

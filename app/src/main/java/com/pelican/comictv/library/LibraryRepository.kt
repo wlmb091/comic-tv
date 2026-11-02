@@ -310,6 +310,7 @@ class LibraryRepository(private val context: Context, private val dao: ComicDao,
     }
     private fun cleanupEditionAssets(id: String): Boolean = runCatching {
         var cleaned = true
+        if (runCatching { com.pelican.comictv.reader.PageDrawingStore(java.io.File(context.filesDir, "page-drawings")).deleteEdition(id) }.isFailure) cleaned = false
         if (cinemaDirectory.exists()) {
             if (!runCatching { cinemaStore.remove(id); true }.getOrDefault(false)) cleaned = false
             _cinemaRevision.value++

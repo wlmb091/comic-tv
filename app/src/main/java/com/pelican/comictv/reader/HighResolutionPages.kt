@@ -33,7 +33,7 @@ internal val LocalReaderPageFill = staticCompositionLocalOf<(Float, Float) -> Un
 /** Display coordinates change immediately; visible source pixels are decoded asynchronously. */
 @Composable internal fun HighResolutionPages(state: ReaderState, pages: List<PageImage?>,
     cache: ReaderTileCache, options: ReaderImageOptions, modifier: Modifier = Modifier, gap: Float = 0f,
-    displayKey: Any? = null, onDisplayed: (File) -> Unit, onFailed: (File) -> Unit) {
+    displayKey: Any? = null, indices: List<Int> = listOf(state.page), onDisplayed: (File) -> Unit, onFailed: (File) -> Unit) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val extents = pages.map { ImageExtent(it?.width ?: pages.filterNotNull().firstOrNull()?.width ?: 1,
         it?.height ?: pages.filterNotNull().firstOrNull()?.height ?: 1) }
@@ -98,6 +98,7 @@ internal val LocalReaderPageFill = staticCompositionLocalOf<(Float, Float) -> Un
             overview.forEach(::paint)
             visible.filterNot { it in overview }.forEach(::paint)
         }
+        LocalPageDrawings.current?.let { drawings -> PageDrawingOverlay(drawings, pages, indices, placements) }
         if (tiles.isEmpty() && !failed) Text("Preparando detalhes da imagem…", fontSize = 16.sp)
     }
 }

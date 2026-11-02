@@ -46,7 +46,7 @@ import kotlinx.coroutines.launch
     val rotated = rotatedChoice && !com.pelican.comictv.ui.LocalAppOrientation.current.portrait
     val reportPageFill = remember(viewModel) { viewModel::reportPageFill }
     ReaderSurface(rotated) {
-        CompositionLocalProvider(LocalReaderPageFill provides reportPageFill) {
+        CompositionLocalProvider(LocalReaderPageFill provides reportPageFill, LocalPageDrawings provides viewModel.drawings) {
             ReaderContent(viewModel, onExit, onEditions, onChapterStep, narrationOriginal, rotated, onUsePageAsSagaCover) { rotatedChoice = !rotatedChoice }
         }
     }
@@ -232,7 +232,7 @@ import kotlinx.coroutines.launch
             CompositionLocalProvider(LocalReaderPageFill provides { _, _ -> }) {
                 HighResolutionPages(state.copy(zoom = 1f, panX = 0f, panY = 0f), listOf(page), tileCache, effectiveImageOptions,
                     Modifier.fillMaxSize().graphicsLayer { translationX = (dragOffset.value + if (next) 1f else -1f) * size.width }.padding(bottom = timelineHeight),
-                    onDisplayed = {}, onFailed = {})
+                    indices = listOf(state.page + if (next) 1 else -1), onDisplayed = {}, onFailed = {})
             }
         }
         if (layout == ReaderLayout.Gallery) ReaderGallery(state, image, previews, tileCache, effectiveImageOptions, dragged,
@@ -279,7 +279,8 @@ import kotlinx.coroutines.launch
                 onCycleImageIntensity = viewModel::cycleImageIntensity, onCompareOriginal = viewModel::toggleOriginalComparison,
                 onNarrate = if (viewModel.canNarrateBook()) narrate else null, onRotate = onRotate,
                 onUsePageCover = onUsePageAsSagaCover?.let { { saveCover(displayedError != null) } }, pageCoverBusy = coverBusy,
-                pageCoverReady = canUseSagaPageCover(image, loading, displayedError != null), pageCoverMessage = coverMessage)
+                pageCoverReady = canUseSagaPageCover(image, loading, displayedError != null), pageCoverMessage = coverMessage,
+                drawingsHidden = viewModel.drawings?.hidden, onToggleDrawings = { viewModel.drawings?.toggleHidden() })
         }
     }
 }

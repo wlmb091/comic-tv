@@ -19,6 +19,36 @@ class CompanionServerTest {
             for(body in listOf("""{"action":"reader-drag","x":1.5}""","""{"action":"reader-pinch","zoom":3.1,"x":0.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":1.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":0.5,"y":0.5,"dx":2}"""))assertEquals(body,400,request(server.url+"/command",body).first)
         }finally{server.close();root.deleteRecursively()}
     }
+    @Test fun strokesAreBoundedAndReachTheApp() {
+        val root=Files.createTempDirectory("companion-stroke").toFile();val strokes=mutableListOf<CompanionStroke>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={},stroke={strokes+=it})
+        try {
+            server.open()
+            assertEquals(200,request(server.url+"/stroke","""{"id":"a-1","page":2,"kind":"begin","color":"#ff0000","size":0.02,"opacity":0.5,"points":[0.1,0.2]}""").first)
+            assertEquals(listOf(.1f,.2f),strokes.single().points)
+            for(body in listOf("""{"id":"../a","page":2,"kind":"begin"}""","""{"id":"a","page":2,"kind":"other"}""","""{"id":"a","kind":"move","color":"red"}""","""{"id":"a","kind":"move","points":[0.1]}""","""{"id":"a","kind":"move","points":[9,0]}""","""{"id":"a","kind":"move","size":2}"""))assertEquals(body,400,request(server.url+"/stroke",body).first)
+            assertEquals(1,strokes.size)
+        }finally{server.close();root.deleteRecursively()}
+    }
+    @Test fun drawingsAcceptOnlyAPngInsideTheLayer() {
+        val root=Files.createTempDirectory("companion-drawing").toFile();val seen=mutableListOf<Pair<CompanionDrawing,ByteArray>>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("image/png",ByteArray(0),headers=mapOf("X-Drawing-Page" to "10x20"))},command={},drawing={d,b->seen+=d to b})
+        fun post(path:String,bytes:ByteArray):Int{val c=URL(server.url+path).openConnection() as HttpURLConnection;c.requestMethod="POST";c.doOutput=true;c.setRequestProperty("Content-Type","image/png");c.outputStream.use{it.write(bytes)};return c.responseCode}
+        val png=byteArrayOf(0x89.toByte(),0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,1,2)
+        try {
+            server.open()
+            assertEquals(200,post("/drawing/patch/a-1/2?x=1&y=2&w=3&h=4&lw=100&lh=200",png))
+            assertEquals(CompanionDrawing("patch","a-1",2,1,2,3,4,100,200),seen.single().first);assertArrayEquals(png,seen.single().second)
+            assertEquals(200,post("/drawing/save/a-1/2?lw=100&lh=200&pw=800&ph=1600",png))
+            assertEquals(400,post("/drawing/patch/a-1/2?x=99&y=2&w=3&h=4&lw=100&lh=200",png))
+            assertEquals(400,post("/drawing/patch/a-1/2?x=1&y=2&w=3&h=4&lw=100&lh=200",byteArrayOf(1,2,3,4,5,6,7,8,9,10)))
+            assertEquals(400,post("/drawing/save/a-1/2?lw=5000&lh=5000&pw=800&ph=1600",png))
+            assertEquals(400,post("/drawing/other/a-1/2",png))
+            assertEquals(2,seen.size)
+            val c=URL(server.url+"/drawing/a-1/2").openConnection() as HttpURLConnection
+            assertEquals(200,c.responseCode);assertEquals("10x20",c.getHeaderField("X-Drawing-Page"))
+        }finally{server.close();root.deleteRecursively()}
+    }
     @Test fun themeCommandAcceptsOnlyTheFiveSelectableThemes() {
         val root=Files.createTempDirectory("companion-theme").toFile();val commands=mutableListOf<CompanionCommand>()
         val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={commands+=it})

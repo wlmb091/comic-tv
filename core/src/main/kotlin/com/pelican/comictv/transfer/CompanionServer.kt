@@ -16,17 +16,23 @@ import java.util.concurrent.atomic.AtomicInteger
 data class CompanionCommand(val action:String="",val text:String="",val id:String="",val x:Double=0.0,val y:Double=0.0,val delta:Int=0,val dx:Double=0.0,val dy:Double=0.0,val page:Int=0,val zoom:Float=1f,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorSize:Int=100,val cursorStyle:Int=0)
 data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f,val browser:Boolean=false,val comicId:String="",val browserScroll:Float=0f,val browserScrollable:Boolean=false,val readerScroll:Float=0f,val readerScrollable:Boolean=false,val browserCanBack:Boolean=false,val browserCanForward:Boolean=false,val readerText:Boolean=false,val readerMenu:CompanionReaderMenu=CompanionReaderMenu(),val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorAvailable:Boolean=false,val cursorSize:Int=100,val cursorStyle:Int=0,val theme:String="")
 /** What the TV reader's own tools show now, so the phone panel can offer the same options. */
-data class CompanionReaderMenu(val layout:String="",val fit:String="",val rtl:Boolean=false,val filter:String="",val filterOn:Boolean=false,val intensity:Int=1,val compare:Boolean=false,val automatic:Boolean=false,val interval:Int=10,val rotatable:Boolean=false,val rotated:Boolean=false,val chapters:Boolean=false,val editions:Boolean=false,val cover:Boolean=false,val coverBusy:Boolean=false,val coverMessage:String="",val retry:Boolean=false,val fontSize:Int=0)
-val readerOptions=setOf("layout","fit","direction","rotate","cover","filter","intensity","compare","automatic","interval","chapter-prev","chapter-next","editions","retry","exit","font-down","font-up")
+data class CompanionReaderMenu(val layout:String="",val fit:String="",val rtl:Boolean=false,val filter:String="",val filterOn:Boolean=false,val intensity:Int=1,val compare:Boolean=false,val automatic:Boolean=false,val interval:Int=10,val rotatable:Boolean=false,val rotated:Boolean=false,val chapters:Boolean=false,val editions:Boolean=false,val cover:Boolean=false,val coverBusy:Boolean=false,val coverMessage:String="",val retry:Boolean=false,val fontSize:Int=0,val drawingsHidden:Boolean=false)
+val readerOptions=setOf("layout","fit","direction","rotate","cover","filter","intensity","compare","automatic","interval","chapter-prev","chapter-next","editions","retry","exit","font-down","font-up","drawings")
 /** The five selectable TV themes, by their persisted preset names. */
 val themeNames=setOf("Amber","Flix","Prime","Max","Cinema")
-data class CompanionResource(val mime:String,val bytes:ByteArray?=null,val file:File?=null,val filename:String?=null)
+private val PNG_SIGNATURE=byteArrayOf(0x89.toByte(),0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A)
+data class CompanionResource(val mime:String,val bytes:ByteArray?=null,val file:File?=null,val filename:String?=null,val headers:Map<String,String> =emptyMap())
+/** A stroke while the finger is down: points are page fractions and [size] a fraction of the page width. The TV draws it as a preview. */
+data class CompanionStroke(val id:String="",val page:Int=0,val kind:String="",val eraser:Boolean=false,val color:String="#000000",val size:Float=0f,val opacity:Float=1f,val points:List<Float> =emptyList())
+/** A change to the drawing of one page. A patch replaces one rectangle of the layer; save and delete reach the stored file. */
+data class CompanionDrawing(val kind:String,val id:String,val page:Int,val x:Int=0,val y:Int=0,val width:Int=0,val height:Int=0,val layerWidth:Int=0,val layerHeight:Int=0,val pageWidth:Int=0,val pageHeight:Int=0)
 
 /** An explicitly opened LAN session that ends when idle or at its absolute limit. No arbitrary URL/path/OS commands. */
 class CompanionServer(private val host:String,private val temporaryDirectory:File,private val html:String,
     private val get:(String)->CompanionResource,private val command:(CompanionCommand)->Unit,
     private val received:(File,String)->Unit={_,_->},private val clock:()->Long=System::currentTimeMillis,
-    private val lifetimeMillis:Long=30*60*1000L,private val status:(String)->Unit={},private val maxLifetimeMillis:Long=8*60*60*1000L) : Closeable {
+    private val lifetimeMillis:Long=30*60*1000L,private val status:(String)->Unit={},private val maxLifetimeMillis:Long=8*60*60*1000L,
+    private val stroke:(CompanionStroke)->Unit={},private val drawing:(CompanionDrawing,ByteArray)->Unit={_,_->}) : Closeable {
     private val token=ByteArray(24).also {SecureRandom().nextBytes(it)}.joinToString(""){"%02x".format(it.toInt() and 255)}
     private val root="/s/$token"
     private var openedAt=0L
@@ -36,7 +42,9 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
     private val transfers=Semaphore(1);private val resources=Semaphore(2)
     // Covers are small and local: their own slots keep them from queuing behind pages, files and slow source covers.
     private val covers=Semaphore(4)
+    private val drawings=Semaphore(1)
     private var bucket=0L;private var commands=0
+    private var strokeBucket=0L;private var strokes=0
     val url get()="http://$host:${server.listeningPort}$root"
     private val server=object:NanoHTTPD(host,0){override fun serve(session:IHTTPSession):Response=handle(session)}.apply {
         val delegate=DefaultAsyncRunner();val count=AtomicInteger()
@@ -82,6 +90,13 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
             else->c.x in 0.0..1.0&&c.y in 0.0..1.0&&c.delta in -600..600
         }
     }
+    private fun validStroke(s:CompanionStroke)=s.id.matches(Regex("[A-Za-z0-9-]{1,100}"))&&s.page in 0..99_999&&s.kind in setOf("begin","move","end","cancel")&&s.color.matches(Regex("#[0-9a-fA-F]{6}"))&&
+        s.size.isFinite()&&s.size in 0f..1f&&s.opacity.isFinite()&&s.opacity in 0f..1f&&s.points.size<=1200&&s.points.size%2==0&&s.points.all{it.isFinite()&&it in -.5f..1.5f}
+    private fun validDrawing(d:CompanionDrawing):Boolean {
+        if(d.layerWidth !in 1..4096||d.layerHeight !in 1..4096||d.layerWidth.toLong()*d.layerHeight>16_000_000L)return false
+        if(d.kind=="save")return d.pageWidth in 1..30000&&d.pageHeight in 1..30000
+        return d.x>=0&&d.y>=0&&d.width>0&&d.height>0&&d.x+d.width<=d.layerWidth&&d.y+d.height<=d.layerHeight
+    }
     private fun body(session:IHTTPSession,max:Long):InputStream {
         require(!session.headers.containsKey("transfer-encoding")){"Envie conteúdo de tamanho conhecido."}
         val length=session.headers["content-length"]?.toLongOrNull()?:error("Tamanho obrigatório.")
@@ -109,7 +124,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         try {
             if(session.method==Method.GET){
                 if(endpoint.isEmpty())return response(Response.Status.OK,html,"text/html; charset=utf-8")
-                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
+                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
                 // The state poll is light and must keep answering while pages and covers load.
                 val limited=endpoint!="/reader-state"
                 val cover=endpoint.startsWith("/cover/")||endpoint.startsWith("/saga-cover/")
@@ -123,6 +138,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
                         else newFixedLengthResponse(Response.Status.OK,resource.mime,resource.bytes!!.inputStream(),resource.bytes.size.toLong())
                     if(resource.filename!=null){val encoded=java.net.URLEncoder.encode(resource.filename.take(180),"UTF-8").replace("+","%20");out.addHeader("Content-Disposition","attachment; filename=\"Comic-TV\"; filename*=UTF-8''$encoded")}
                     secure(out)
+                    resource.headers.forEach{(name,value)->out.addHeader(name,value)}
                     // Local covers do not change while a session lasts; the phone may keep them for a few minutes.
                     if(cover)out.addHeader("Cache-Control","private, max-age=300")
                     return out
@@ -134,6 +150,26 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
                 synchronized(this){val second=clock()/1000;if(bucket!=second){bucket=second;commands=0};if(++commands>30)return response(Response.Status.TOO_MANY_REQUESTS,"Aguarde um instante.")}
                 val c=Gson().fromJson(body(session,8192).reader(Charsets.UTF_8),CompanionCommand::class.java)
                 require(c!=null&&valid(c)){"Comando inválido."};command(c);return response(Response.Status.OK,"OK")
+            }
+            if(endpoint=="/stroke") {
+                if(!session.headers["content-type"].orEmpty().startsWith("application/json"))return response(Response.Status.UNSUPPORTED_MEDIA_TYPE,"Envie JSON.")
+                synchronized(this){val second=clock()/1000;if(strokeBucket!=second){strokeBucket=second;strokes=0};if(++strokes>60)return response(Response.Status.TOO_MANY_REQUESTS,"Aguarde um instante.")}
+                val s=Gson().fromJson(body(session,16384).reader(Charsets.UTF_8),CompanionStroke::class.java)
+                require(s!=null&&validStroke(s)){"Traço inválido."};stroke(s);return response(Response.Status.OK,"OK")
+            }
+            if(endpoint.startsWith("/drawing/")) {
+                val parts=endpoint.removePrefix("/drawing/").split('/')
+                require(parts.size==3&&parts[0] in setOf("save","patch","delete","reset")&&parts[1].matches(Regex("[A-Za-z0-9-]{1,100}"))&&parts[2].matches(Regex("[0-9]{1,5}"))){"Desenho inválido."}
+                fun number(name:String)=session.parameters[name]?.singleOrNull()?.toIntOrNull()?:0
+                val request=CompanionDrawing(parts[0],parts[1],parts[2].toInt(),number("x"),number("y"),number("w"),number("h"),number("lw"),number("lh"),number("pw"),number("ph"))
+                val image=request.kind=="save"||request.kind=="patch"
+                if(image)require(validDrawing(request)){"Desenho inválido."}
+                if(!drawings.tryAcquire(3000L,java.util.concurrent.TimeUnit.MILLISECONDS))return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
+                try {
+                    val bytes=if(image)body(session,16L*1024*1024).readBytes() else ByteArray(0)
+                    if(image)require(bytes.size>8&&PNG_SIGNATURE.indices.all{bytes[it]==PNG_SIGNATURE[it]}){"Envie uma imagem PNG."}
+                    drawing(request,bytes);return response(Response.Status.OK,"OK")
+                } finally {drawings.release()}
             }
             if(endpoint!="/upload")return response(Response.Status.NOT_FOUND,"Ação não encontrada.")
             if(!session.headers["content-type"].orEmpty().startsWith("application/octet-stream"))return response(Response.Status.UNSUPPORTED_MEDIA_TYPE,"Envie um arquivo.")

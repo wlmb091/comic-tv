@@ -54,7 +54,9 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             val instance=CompanionServer(host,File(activity.cacheDir,"companion-upload"),html,
                 get={path->call(if(path.startsWith("/chapters/"))95_000 else if(path.startsWith("/source-cover/"))45_000 else 30_000){resource(path)}},command={command->if(command.action=="open-chapter")call(95_000){prepareChapter(command)} else call {if(command.action=="open")container.library.getComic(command.id);withContext(Dispatchers.Main.immediate){control(command)}}},
                 received={file,name->call(300_000){container.library.importReceived(file,name){text->mutable.update{it.copy(message=text)}};Unit}},
-                clock=SystemClock::elapsedRealtime,status={text->if(sessionJob===job)mutable.update {it.copy(message=text)}})
+                clock=SystemClock::elapsedRealtime,status={text->if(sessionJob===job)mutable.update {it.copy(message=text)}},
+                stroke={live->call{withContext(Dispatchers.Main.immediate){active();drawingsOf(live.id)?.stroke(live)}}},
+                drawing={request,bytes->call{applyDrawing(request,bytes)}})
             owned=instance
             val url=withContext(Dispatchers.IO){instance.open();instance.url}
             ensureActive();check(sessionJob===job);server=instance
@@ -146,6 +148,11 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         }
         val parts=path.trim('/').split('/');val id=parts[1]
         val comic=container.library.getComic(id) // Existence and identity always come from the library.
+        if(parts[0]=="drawing"){
+            val page=parts[2].toInt()
+            val file=container.pageDrawings.file(id,page)?:return CompanionResource("image/png",ByteArray(0))
+            return CompanionResource("image/png",file=file,headers=container.pageDrawings.pageSize(id,page)?.let{mapOf("X-Drawing-Page" to "${it.first}x${it.second}")}.orEmpty())
+        }
         if(parts[0]=="cover")return CompanionResource("image/jpeg",file=container.library.cover(id).also{check(it.isFile){"Capa indisponível."}})
         if(parts[0]=="file"){
             check(!id.startsWith("online-")){"Baixar original disponível apenas para arquivos importados."}
@@ -164,6 +171,20 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         check(parts[0]=="page")
         // Only one decoded page at a time; phone navigation never writes TV progress.
         return pageResource(id,parts[2].toInt())
+    }
+    /** The open reader's drawings, when the phone edits the edition it shows. */
+    private fun drawingsOf(id:String)=reader?.takeIf{it.companionAvailable()&&it.companionComicId==id}?.drawings
+    private suspend fun applyDrawing(d:CompanionDrawing,bytes:ByteArray){
+        withContext(Dispatchers.Main.immediate){active()}
+        container.library.getComic(d.id)
+        when(d.kind){
+            "save"->container.pageDrawings.save(d.id,d.page,d.pageWidth,d.pageHeight,bytes)
+            "delete"->container.pageDrawings.delete(d.id,d.page)
+        }
+        val patch=if(d.kind=="patch")checkNotNull(BitmapFactory.decodeByteArray(bytes,0,bytes.size)){"Imagem não reconhecida."} else null
+        val owner=withContext(Dispatchers.Main.immediate){drawingsOf(d.id)}?:return
+        if(patch!=null)owner.patch(d.page,patch,d.x,d.y,d.width,d.height,d.layerWidth,d.layerHeight)
+        else withContext(Dispatchers.Main.immediate){owner.reload(d.page)}
     }
     private fun sourceTitle(ref:String):Pair<com.pelican.comictv.sources.SourceHandle,com.pelican.comictv.sources.OnlineTitle>{
         val previews=checkNotNull(sources?.homePreviews?.value){"Abra a tela inicial na TV."}
