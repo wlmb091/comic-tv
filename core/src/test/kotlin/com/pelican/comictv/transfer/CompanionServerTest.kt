@@ -19,6 +19,16 @@ class CompanionServerTest {
             for(body in listOf("""{"action":"reader-pinch","zoom":3.1,"x":0.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":1.5,"y":0.5}""","""{"action":"reader-pinch","zoom":2,"x":0.5,"y":0.5,"dx":2}"""))assertEquals(body,400,request(server.url+"/command",body).first)
         }finally{server.close();root.deleteRecursively()}
     }
+    @Test fun themeCommandAcceptsOnlyTheFiveSelectableThemes() {
+        val root=Files.createTempDirectory("companion-theme").toFile();val commands=mutableListOf<CompanionCommand>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={commands+=it})
+        try {
+            server.open()
+            for(name in listOf("Amber","Flix","Prime","Max","Cinema"))assertEquals(name,200,request(server.url+"/command","""{"action":"theme","text":"$name"}""").first)
+            assertEquals(listOf("Amber","Flix","Prime","Max","Cinema"),commands.map{it.text})
+            for(body in listOf("""{"action":"theme","text":"Green"}""","""{"action":"theme","text":""}""","""{"action":"theme"}"""))assertEquals(body,400,request(server.url+"/command",body).first)
+        }finally{server.close();root.deleteRecursively()}
+    }
     @Test fun browserPageSliderAndPinchAreBounded() {
         val root=Files.createTempDirectory("companion-browser").toFile();val commands=mutableListOf<CompanionCommand>()
         val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={commands+=it})

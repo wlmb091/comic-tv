@@ -139,7 +139,7 @@ test('browser two fingers scroll, not click or cursor movement',()=>{
 });
 test('reader and cursor sensitivity are independent and bounded',()=>{
  const h=harness();h.run("sensitivities={reader:2,pointer:.5,zoom:1,scroll:1};tvReader={active:true};movePad(.2,-.2);tvReader={active:false};movePad(.2,-.2)");
- assert.deepEqual(sent(h),[{action:'reader-pan',x:.4,y:-.4},{action:'pointer',dx:.1,dy:-.1}]);
+ assert.deepEqual(sent(h),[{action:'reader-pan',x:-.4,y:.4},{action:'pointer',dx:.1,dy:-.1}]);
 });
 test('Menu is explicit app Home, not an Android menu key',()=>{assert.match(html,/data-command="home"/);assert.doesNotMatch(html,/data-command="menu"/)});
 test('keyboard viewport follows visible top without affecting reader pinch',()=>{
@@ -149,7 +149,7 @@ test('keyboard viewport follows visible top without affecting reader pinch',()=>
 
 test('zero axis stays zero and a pinch can resume a one-finger pan',async()=>{
  const h=harness();h.run("tvReader={active:true,zoom:1,minZoom:1,maxZoom:3}");pointer(h,'down',1,20,20);pointer(h,'down',2,120,20);pointer(h,'move',2,220,20);h.run('flushPad()');await h.run('(async()=>{for(let i=0;i<20;i++)await Promise.resolve()})()');pointer(h,'up',2,220,20);pointer(h,'move',1,50,20);h.run('flushPad()');await h.run('(async()=>{for(let i=0;i<20;i++)await Promise.resolve()})()');
- const pan=sent(h).find(c=>c.action==='reader-pan');assert.ok(pan);assert.equal(pan.y,0);assert.equal(pan.x,.1);
+ const pan=sent(h).find(c=>c.action==='reader-pan');assert.ok(pan);assert.equal(pan.y,0);assert.equal(pan.x,-.1);
 });
 test('pointer cancellation never confirms a click',()=>{
  const h=harness();h.run("tvReader={active:false,browser:true}");pointer(h,'down',1,20,20);pointer(h,'cancel',1,20,20);pointer(h,'up',1,20,20);assert.deepEqual(sent(h),[]);
@@ -225,10 +225,10 @@ test('zoom slider grows from the bottom, from 100% to 300%',()=>{
 });
 test('the bottom bar folds in every tab',()=>{
  for(const name of ['library','reader','control','files']){const h=harness();h.run("globalThis.log=[];document.body.classList.toggle=(n,on)=>log.push(n+':'+on);tab('"+name+"')");assert.ok(JSON.parse(h.run('JSON.stringify(log)')).includes('tabsFolded:true'),name)}
- assert.doesNotMatch(html,/#navToggle\{display:none\}/);
+ assert.doesNotMatch(html,/(^|\n)#navToggle\{display:none\}/);assert.doesNotMatch(html,/body\.controlMode[^{]*#navToggle\{display:none/);
 });
-test('the TV state is read every 300 ms on the Controle tab, so the sliders follow the page',()=>{
- assert.match(script,/section==='control'\|\|ticks%48===0\)refreshReaderState\(\)\},300\)/);
+test('the TV state is read every 300 ms on the Controle tab, so the sliders follow the page, and every 2 s elsewhere so the theme follows the TV',()=>{
+ assert.match(script,/section==='control'\|\|ticks%7===0\)refreshReaderState\(\)\},300\)/);
 });
 test('in app navigation the scroll slider and the touchpad send nothing',()=>{
  const h=harness();h.run("tvReader={active:false,browser:false}");
@@ -240,4 +240,27 @@ test('Inverter mirrors only the side of the thumb column and never the commands'
  const h=harness();h.run("globalThis.log=[];$('control').classList.toggle=(name,on)=>log.push(name+':'+on)");
  h.run("$('mirrorSide').onclick()");assert.equal(h.run('mirrored'),true);h.run("$('mirrorSide').onclick()");assert.equal(h.run('mirrored'),false);
  assert.deepEqual(JSON.parse(h.run('JSON.stringify(log)')),['mirrored:true','mirrored:false']);assert.equal(sent(h).length,0);
+});
+test('the phone always shows the TV theme, and choosing one here changes the TV',async()=>{
+ const h=harness();
+ assert.equal(h.run("document.body.dataset.theme"),'amber');
+ h.run("tvReader={theme:'Prime'};applyTheme(tvReader.theme)");assert.equal(h.run("document.body.dataset.theme"),'prime');
+ h.run("chooseTheme('Max')");assert.equal(h.run("document.body.dataset.theme"),'max');
+ assert.deepEqual(sent(h),[{action:'theme',text:'Max'}]);
+ // A poll that still carries the old theme must not undo the choice before the TV has applied it.
+ h.run("themeHold=Date.now()+4000");h.run("globalThis.polled=false");
+ assert.ok(html.includes("Date.now()>themeHold)applyTheme(tvReader.theme)"));
+ assert.equal(h.run("THEMES.map(t=>t[0]).join()"),'Amber,Flix,Prime,Max,Cinema');
+});
+test('settings opens from the gear in Arquivos only and keeps Arquivos highlighted',()=>{
+ const h=harness();h.run("globalThis.log=[];$('gear').classList.toggle=(n,on)=>log.push('gear:'+n+':'+on);tab('files')");
+ assert.ok(JSON.parse(h.run('JSON.stringify(log)')).includes('gear:hidden:false'));
+ h.run("log.length=0;tab('library')");assert.ok(JSON.parse(h.run('JSON.stringify(log)')).includes('gear:hidden:true'));
+ assert.match(html,/id="gear"[^>]*aria-label="Configurações"/);assert.match(html,/\$\('gear'\)\.onclick=\(\)=>tab\('settings'\)/);
+});
+test('themes change colors only in Controle: no layout rule targets the control while it is open',()=>{
+ const css=html.slice(html.indexOf('/* ===== Temas do painel'),html.indexOf('</style>'));
+ assert.doesNotMatch(css,/\.completeGrid|\.dpad|#arrows|#touchpad|#clickButtons|#sliderColumn|\.vslider|\.thumb|\.track|\.bottomActions/);
+ for(const line of css.split('\n').filter(l=>/^body\[data-theme=\w+\][^{]*\{/.test(l)&&/(nav|header|main|#navTabs|#books|\.continue|\.cover|\.readerTools)/.test(l.split('{')[0])))
+  assert.ok(/:not\(\.controlMode\)/.test(line.split('{')[0])||/\.continue|#books|\.cover|\.readerTools|\.menuOpen/.test(line.split('{')[0]),line.slice(0,80));
 });

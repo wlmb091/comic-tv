@@ -92,7 +92,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 val cursor=com.pelican.comictv.browser.BrowserCursorBridge.handle?.read?.invoke()
                 (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null,browserCanBack=page?.canGoBack()==true,browserCanForward=page?.canGoForward()==true) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId,readerScroll=((it.panY+1f)/2f).coerceIn(0f,1f),readerScrollable=it.zoom>1.001f)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"),cursorAvailable=cursor!=null&&owner==null,cursorSize=cursor?.first?:100,cursorStyle=cursor?.second?:0)
             }
-            return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
+            return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot.copy(theme=container.appearance.state.value.preset.name)).toByteArray(Charsets.UTF_8))
         }
         val parts=path.trim('/').split('/');val id=parts[1]
         val comic=container.library.getComic(id) // Existence and identity always come from the library.
@@ -173,6 +173,10 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private fun control(c:CompanionCommand){
         active();val dialog=dialogs.focused();check(dialog!=null||activity.hasWindowFocus()){ "Volte ao Comic TV para controlar." }
         if(c.action=="rotate"){container.orientation.cycle();return}
+        if(c.action=="theme") {
+            val preset=com.pelican.comictv.ui.ColorPreset.entries.firstOrNull{it.name==c.text&&it.selectable}?:error("Tema inválido.")
+            scope.launch{container.appearance.update(container.appearance.state.value.copy(preset=preset))};return
+        }
         if(c.action=="open") {dialogs.dismissAll();onOpen(c.id);return}
         if(c.action=="home") {dialogs.dismissAll();onHome();return}
         if(c.action=="settings") {
