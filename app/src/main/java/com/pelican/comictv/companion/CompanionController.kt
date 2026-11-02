@@ -93,8 +93,21 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         }
         if(path=="/home-sources") {
             val previews=sources?.homePreviews?.value
-            fun rows(prefix:String,titles:List<com.pelican.comictv.sources.OnlineTitle>)=titles.take(12).mapIndexed{i,title->mapOf("ref" to "$prefix$i","title" to title.title)}
-            return CompanionResource("application/json; charset=utf-8",Gson().toJson(mapOf("source" to previews?.source?.name.orEmpty(),"latest" to rows("l",previews?.latest.orEmpty()),"catalog" to rows("c",previews?.catalog.orEmpty()))).toByteArray(Charsets.UTF_8))
+            // The whole home sample goes out; the panel shows the first few and lists the rest under "Ver mais".
+            fun rows(prefix:String,titles:List<com.pelican.comictv.sources.OnlineTitle>)=titles.mapIndexed{i,title->mapOf("ref" to "$prefix$i","title" to title.title)}
+            return CompanionResource("application/json; charset=utf-8",Gson().toJson(mapOf("source" to previews?.source?.name.orEmpty(),"latest" to rows("l",previews?.latest.orEmpty()),"catalog" to rows("c",previews?.catalog.orEmpty()),
+                "latestMore" to (sources?.companionHasMore(true)==true),"catalogMore" to (sources?.companionHasMore(false)==true))).toByteArray(Charsets.UTF_8))
+        }
+        if(path.startsWith("/home-more/")) {
+            val vm=checkNotNull(sources){"Abra a tela inicial na TV."}
+            val parts=path.removePrefix("/home-more/").split('/')
+            val latest=parts[0]=="l"
+            val from=parts[1].toInt()
+            val name=vm.homePreviews.value.source?.name.orEmpty()
+            val (start,loaded)=vm.companionLoadMore(latest,from)
+            val prefix=if(latest)"l" else "c"
+            val rows=loaded.mapIndexed{i,title->mapOf("ref" to "$prefix${start+i}","title" to title.title)}
+            return CompanionResource("application/json; charset=utf-8",Gson().toJson(mapOf("source" to name,"items" to rows,"more" to vm.companionHasMore(latest))).toByteArray(Charsets.UTF_8))
         }
         if(path.startsWith("/source-cover/")) {
             val (source,title)=sourceTitle(path.substringAfterLast('/'))
@@ -154,7 +167,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     }
     private fun sourceTitle(ref:String):Pair<com.pelican.comictv.sources.SourceHandle,com.pelican.comictv.sources.OnlineTitle>{
         val previews=checkNotNull(sources?.homePreviews?.value){"Abra a tela inicial na TV."}
-        val titles=if(ref.startsWith("l"))previews.latest else previews.catalog
+        val titles=checkNotNull(sources).companionTitles(ref.startsWith("l"))
         return checkNotNull(previews.source){"Escolha uma fonte na TV."} to (titles.getOrNull(ref.drop(1).toInt())?:error("Título não encontrado. Atualize a Biblioteca."))
     }
     /** Creates the chapter's record like the TV does; the phone then reads it and, when synced, asks the TV to open it. */

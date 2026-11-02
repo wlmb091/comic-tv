@@ -61,6 +61,26 @@ class CompanionServerTest {
             release.countDown();pages.forEach{it.join(5000)}
         }finally{release.countDown();server.close();root.deleteRecursively()}
     }
+    @Test fun coversHaveTheirOwnSlotsAndAreCachedBrieflyOnThePhone() {
+        val root=Files.createTempDirectory("companion-covers").toFile();val release=java.util.concurrent.CountDownLatch(1);val loading=java.util.concurrent.CountDownLatch(2)
+        val server=CompanionServer("127.0.0.1",root,"panel",get={path->if(path.startsWith("/page/")){loading.countDown();release.await()};CompanionResource("image/jpeg",byteArrayOf(1,2,3))},command={})
+        try {
+            server.open()
+            // Two slow pages take every general slot; covers still answer, and more than two at once.
+            val pages=List(2){index->kotlin.concurrent.thread{runCatching{request(server.url+"/page/book/$index")}}}
+            assertTrue(loading.await(5,java.util.concurrent.TimeUnit.SECONDS))
+            val answers=java.util.Collections.synchronizedList(mutableListOf<Int>())
+            val covers=List(4){index->kotlin.concurrent.thread{answers+=request(server.url+(if(index%2==0)"/cover/book-$index" else "/saga-cover/book-$index")).first}}
+            covers.forEach{it.join(8000)}
+            assertEquals(List(4){200},answers.toList())
+            assertEquals(409,request(server.url+"/file/book").first)
+            val connection=URL(server.url+"/cover/book-1").openConnection() as HttpURLConnection
+            try{assertEquals("private, max-age=300",connection.getHeaderField("Cache-Control"))}finally{connection.disconnect()}
+            val other=URL(server.url+"/library").openConnection() as HttpURLConnection
+            try{assertEquals("no-store",other.getHeaderField("Cache-Control"))}finally{other.disconnect()}
+            release.countDown();pages.forEach{it.join(5000)}
+        }finally{release.countDown();server.close();root.deleteRecursively()}
+    }
     @Test fun readerMenuChapterAndBrowserCommandsAreBounded() {
         val root=Files.createTempDirectory("companion-reader").toFile();val commands=mutableListOf<CompanionCommand>()
         val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{\"active\":false}".toByteArray())},command={commands+=it})
@@ -69,8 +89,8 @@ class CompanionServerTest {
             for(body in listOf("""{"action":"reader-arrow","text":"meio"}""","""{"action":"open-chapter","id":"../x","page":1}""","""{"action":"reader-option","text":"apagar"}""","""{"action":"reader-option"}""","""{"action":"browser-open","text":"  "}"""))assertEquals(body,400,request(server.url+"/command",body).first)
             for(body in listOf("""{"action":"reader-arrow","text":"left"}""","""{"action":"open-chapter","id":"l3","page":1}""","""{"action":"ok-long"}""","""{"action":"reader-option","text":"fit"}""","""{"action":"reader-option","text":"exit"}""","""{"action":"browser-open","text":"google.com"}"""))assertEquals(body,200,request(server.url+"/command",body).first)
             assertEquals(6,commands.size)
-            for(endpoint in listOf("/home-sources","/source-cover/l3","/chapters/online-a","/saga-cover/online-a"))assertEquals(endpoint,200,request(server.url+endpoint).first)
-            assertEquals(404,request(server.url+"/source-cover/x9").first)
+            for(endpoint in listOf("/home-sources","/source-cover/l3","/source-cover/c120","/home-more/l/48","/home-more/c/0","/chapters/online-a","/saga-cover/online-a"))assertEquals(endpoint,200,request(server.url+endpoint).first)
+            for(endpoint in listOf("/source-cover/x9","/home-more/x/1","/home-more/l/","/home-more/l/12345","/home-more/l/-1"))assertEquals(endpoint,404,request(server.url+endpoint).first)
         } finally {server.close()}
     }
 

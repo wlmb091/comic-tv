@@ -89,6 +89,24 @@ class EpubImportTest {
         } finally { root.deleteRecursively() }
     }
 
+    @Test fun `EPUB accepts obfuscated fonts declared with legacy x-font types or only by extension`() {
+        val root = Files.createTempDirectory("epub-legacy-fonts").toFile()
+        try {
+            val opf = "<package><manifest><item id='a' href='a.xhtml' media-type='application/xhtml+xml'/>" +
+                "<item id='f1' href='fonts/00001.ttf' media-type='application/x-font-truetype'/>" +
+                "<item id='f2' href='fonts/00002.ttf' media-type='application/octet-stream'/>" +
+                "<item id='f3' href='fonts/00005.otf' media-type='application/vnd.ms-opentype'/></manifest><spine><itemref idref='a'/></spine></package>"
+            fun entry(path: String) = "<enc:EncryptedData xmlns:enc='urn:xmlenc'><enc:EncryptionMethod Algorithm='http://ns.adobe.com/pdf/enc#RC'/><enc:CipherData><enc:CipherReference URI='$path'/></enc:CipherData></enc:EncryptedData>"
+            val encryption = "<encryption>" + listOf("OPS/fonts/00001.ttf", "OPS/fonts/00002.ttf", "OPS/fonts/00005.otf").joinToString("") { entry(it) } + "</encryption>"
+            val file = book(root, extra = mapOf("OPS/book.opf" to opf.toByteArray(), "OPS/fonts/00001.ttf" to byteArrayOf(1), "OPS/fonts/00002.ttf" to byteArrayOf(2), "OPS/fonts/00005.otf" to byteArrayOf(3), "META-INF/encryption.xml" to encryption.toByteArray()))
+            val archive = ComicArchive(); val pages = archive.index(file)
+            assertEquals(1, pages.size)
+            // An encrypted page that merely lives next to the fonts is still refused as DRM.
+            val drm = book(root, extra = mapOf("OPS/book.opf" to opf.toByteArray(), "META-INF/encryption.xml" to "<encryption>${entry("OPS/a.xhtml")}</encryption>".toByteArray()))
+            assertThrows(ComicArchiveException::class.java) { ComicArchive().index(drm) }
+        } finally { root.deleteRecursively() }
+    }
+
     @Test fun `EPUB text tables preserve cell boundaries without interactive content`() {
         val root = Files.createTempDirectory("epub-table").toFile()
         try {

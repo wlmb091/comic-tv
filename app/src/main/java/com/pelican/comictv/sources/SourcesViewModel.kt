@@ -7,6 +7,7 @@ import com.pelican.comictv.mihon.MihonEngine
 import com.pelican.comictv.search.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import com.pelican.comictv.performance.AppTimings
 import com.pelican.comictv.performance.LoadStage
@@ -476,6 +477,44 @@ class SourcesViewModel(private val preferences: SourcePreferences, private val e
         val source = old.activeSource ?: return null
         val info = old.installed.firstOrNull { it.packageName == source.packageName } ?: return null
         return old.repositories.firstOrNull { it.fingerprint in info.fingerprints }?.fingerprint
+    }
+    /** Extra source pages the phone panel asked for with "Ver mais"; kept apart so the TV's own lists never change. */
+    private class CompanionMore { val titles = mutableListOf<OnlineTitle>(); var nextPage = 2; var more: Boolean? = null }
+    private var companionScope: Pair<String?, Long>? = null
+    private val companionMore = mutableMapOf<Boolean, CompanionMore>()
+    private val companionLock = kotlinx.coroutines.sync.Mutex()
+    private fun companionMoreFor(latest: Boolean): CompanionMore = synchronized(companionMore) {
+        val scope = _state.value.activeSource?.packageName to sourceGeneration
+        if (companionScope != scope) { companionScope = scope; companionMore.clear() }
+        companionMore.getOrPut(latest) { CompanionMore() }
+    }
+    /** The home sample followed by the pages loaded by "Ver mais": a phone ref's index points into this list. */
+    internal fun companionTitles(latest: Boolean): List<OnlineTitle> {
+        val previews = _homePreviews.value
+        val extra = companionMoreFor(latest)
+        return synchronized(companionMore) { (if (latest) previews.latest else previews.catalog) + extra.titles }
+    }
+    /** Whether the source reported another page after the home sample, or after the last page loaded here. */
+    internal fun companionHasMore(latest: Boolean): Boolean {
+        val source = _state.value.activeSource ?: return false
+        val extra = companionMoreFor(latest)
+        return extra.more ?: (snapshots.get(CatalogSearchQuery(source, "", latest))?.snapshot?.hasNextPage ?: false)
+    }
+    /** Titles from index [from] on, with the index of the first one. Titles already loaded answer again without asking the source, so a retry is safe. */
+    internal suspend fun companionLoadMore(latest: Boolean, from: Int): Pair<Int, List<OnlineTitle>> = companionLock.withLock {
+        val source = _state.value.activeSource ?: error("Escolha uma fonte na TV.")
+        val extra = companionMoreFor(latest)
+        val scope = companionScope
+        val all = companionTitles(latest)
+        if (from < all.size) return@withLock from to all.drop(from)
+        if (!companionHasMore(latest) || all.size >= COMPANION_MORE_LIMIT) { synchronized(companionMore) { extra.more = false }; return@withLock all.size to emptyList() }
+        val result = fetchCatalog(CatalogSearchQuery(source, "", latest), extra.nextPage)
+        currentCoroutineContext().ensureActive()
+        if (_state.value.activeSource?.packageName != source.packageName || companionScope != scope || companionMore[latest] !== extra) error("A fonte mudou na TV.")
+        val known = all.mapTo(HashSet()) { it.key }
+        val fresh = result.titles.filter { known.add(it.key) }.take(COMPANION_MORE_LIMIT - all.size)
+        synchronized(companionMore) { extra.titles += fresh; extra.nextPage++; extra.more = result.hasNextPage && fresh.isNotEmpty() }
+        all.size to fresh
     }
     internal suspend fun companionCover(source: SourceHandle, title: OnlineTitle) =
         (globalSearchCover(com.pelican.comictv.search.SearchHit(source, title), 0) as? com.pelican.comictv.search.SearchCoverResult.Ready)?.file

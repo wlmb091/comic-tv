@@ -320,3 +320,49 @@ test('themes change colors only in Controle: no layout rule targets the control 
  for(const line of css.split('\n').filter(l=>/^body\[data-theme=\w+\][^{]*\{/.test(l)&&/(nav|header|main|#navTabs|#books|\.continue|\.cover|\.readerTools)/.test(l.split('{')[0])))
   assert.ok(/:not\(\.controlMode\)/.test(line.split('{')[0])||/\.continue|#books|\.cover|\.readerTools|\.menuOpen/.test(line.split('{')[0]),line.slice(0,80));
 });
+
+test('the phone no longer sets a theme-color, so the iPhone bars follow the page instead of a stale tint',()=>{
+ assert.ok(!html.includes('theme-color'));assert.ok(!html.includes('themeColor'));
+ const h=harness();h.run("applyTheme('Prime')");assert.equal(h.run("document.body.dataset.theme"),'prime');
+});
+test('images load through a small queue, retry with growing waits, can be reloaded by a tap and are kept for the next render',async()=>{
+ const h=harness(),tick=()=>new Promise(resolve=>setImmediate(resolve));
+ h.run("globalThis.calls=[];globalThis.gate=[];globalThis.timers=[];setTimeout=fn=>{timers.push(fn);return 1};clearTimeout=()=>{};URL.createObjectURL=()=>'blob:ok';fetch=url=>{if(!url.includes('/cover/'))return new Promise(()=>{});calls.push(url);return new Promise(resolve=>gate.push(ok=>resolve(ok?{ok:true,blob:async()=>({})}:{ok:false})))}");
+ h.run("globalThis.imgs=[1,2,3,4,5].map(i=>{const img={dataset:{title:'T'+i},addEventListener(type,fn){this.click=fn},removeAttribute(){}};fillImage(img,'/cover/b'+i);return img})");
+ await tick();assert.equal(h.run('calls.length'),3,'three local images at a time');
+ h.run("gate.splice(0).forEach(g=>g(true))");await tick();await tick();assert.equal(h.run('calls.length'),5);
+ assert.equal(h.run("imgs[0].src"),'blob:ok');
+ h.run("gate.splice(0).forEach(g=>g(true))");await tick();await tick();
+ // the same cover on the next render needs no request
+ h.run("globalThis.again={dataset:{},addEventListener(){}};fillImage(again,'/cover/b1')");assert.equal(h.run('again.src'),'blob:ok');assert.equal(h.run('calls.length'),5);
+ // refused six times: the last wait ends in a tap-to-reload message, and the tap asks again
+ h.run("globalThis.bad={dataset:{title:'Capa'},addEventListener(type,fn){this.click=fn},removeAttribute(){}};fillImage(bad,'/cover/bad')");
+ for(let i=0;i<6;i++){await tick();h.run("gate.splice(0).forEach(g=>g(false))");await tick();await tick();h.run("timers.splice(0).forEach(fn=>fn())")}
+ await tick();assert.match(h.run('bad.alt'),/toque para recarregar/);
+ const before=h.run('calls.length');let stopped=false;h.run("bad.click({stopImmediatePropagation(){globalThis.stopped=true},preventDefault(){}})");await tick();
+ assert.equal(h.run('stopped'),true);assert.equal(h.run('calls.length'),before+1);
+});
+test('source covers load one at a time and never stay in the local lane',()=>{
+ assert.match(script,/net:\{queue:\[\],active:0,max:1\}/);assert.match(script,/fillImage\(img,'\/source-cover\/'\+ref,key,'net'\)/);
+});
+test('Novidades and Catálogo show six titles and a Ver mais card, and Ver mais lists the sample then asks the TV for more',async()=>{
+ const h=harness(),titles=n=>Array.from({length:n},(_,i)=>({ref:'l'+i,title:'T'+i}));
+ const reply=data=>h.run(`fetch=async url=>{(globalThis.urls??=[]).push(url);return {ok:true,json:async()=>(${JSON.stringify(data)})}}`);
+ reply({source:'S',latest:titles(10),catalog:titles(5).map(t=>({...t,ref:'c'+t.ref.slice(1)})),latestMore:false,catalogMore:false});
+ await h.run('loadSources(true)');
+ assert.equal(h.run("$('latestRow').children.length"),7,'six titles plus the Ver mais card');
+ assert.equal(h.run("$('catalogRow').children.length"),5,'a short row with nothing more has no card');
+ reply({source:'S',latest:titles(3),catalog:titles(5),latestMore:true,catalogMore:false});
+ await h.run('loadSources(true)');assert.equal(h.run("$('latestRow').children.length"),4,'the source says there is another page');
+ reply({source:'S',latest:titles(10),catalog:[],latestMore:true,catalogMore:false});await h.run('loadSources(true)');
+ h.run("openMore('l')");assert.equal(h.run('libView'),'more');assert.equal(h.run('moreItems.length'),10);assert.equal(h.run('moreHas'),true);
+ assert.equal(h.run("$('moreTitle').textContent"),'Novidades');
+ reply({source:'S',items:[{ref:'l10',title:'T10'},{ref:'l9',title:'T9'}],more:false});
+ await h.run('loadMore()');
+ assert.ok(h.run('urls').some(u=>u.endsWith('/token/home-more/l/10')));
+ assert.equal(h.run('moreItems.length'),11,'a title already listed is not repeated');assert.equal(h.run('moreHas'),false);
+ assert.equal(h.run("$('moreNote').textContent"),'Não há mais títulos.');
+ // the TV changed source while Ver mais was open: back to the library with a notice
+ h.run("moreHas=true;libView='more'");reply({source:'Outra',items:[],more:false});await h.run('loadMore()');
+ assert.equal(h.run('libView'),'home');
+});

@@ -45,8 +45,12 @@ class EpubComicArchive(private val limits: ArchiveLimits = ArchiveLimits()) : Co
         if (zip.getEntry("META-INF/encryption.xml") != null) {
             val encrypted = markup("META-INF/encryption.xml").getAllElements().filter { it.normalName().substringAfter(':').equals("EncryptedData", true) }
             if (encrypted.isEmpty()) fail("O EPUB contém informações de criptografia inválidas.")
+            // Older toolchains declare fonts as application/x-font-*, so the file extension counts too.
+            val fontTypes = setOf("application/vnd.ms-opentype", "application/font-sfnt", "application/font-woff", "application/font-woff2", "application/vnd.ms-fontobject",
+                "application/x-font-truetype", "application/x-font-ttf", "application/x-font-opentype", "application/x-font-otf", "application/x-font-woff", "font/ttf", "font/otf", "font/woff", "font/woff2")
+            val fontExtensions = setOf("ttf", "otf", "woff", "woff2", "eot")
             val fonts = manifest.values.filter {
-                it.attr("media-type") in setOf("application/vnd.ms-opentype", "application/font-sfnt", "application/font-woff", "application/vnd.ms-fontobject", "font/ttf", "font/otf", "font/woff", "font/woff2")
+                it.attr("media-type").lowercase() in fontTypes || it.attr("href").substringBefore('?').substringAfterLast('.', "").lowercase() in fontExtensions
             }.map { resolve(opf, it.attr("href")) }.toSet()
             for (resource in encrypted) {
                 val methods = resource.getAllElements().filter { it.normalName().substringAfter(':').equals("EncryptionMethod", true) }

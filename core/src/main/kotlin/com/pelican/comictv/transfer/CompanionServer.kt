@@ -34,6 +34,8 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
     @Volatile private var active=false
     private var closed=false
     private val transfers=Semaphore(1);private val resources=Semaphore(2)
+    // Covers are small and local: their own slots keep them from queuing behind pages, files and slow source covers.
+    private val covers=Semaphore(4)
     private var bucket=0L;private var commands=0
     val url get()="http://$host:${server.listeningPort}$root"
     private val server=object:NanoHTTPD(host,0){override fun serve(session:IHTTPSession):Response=handle(session)}.apply {
@@ -107,18 +109,24 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         try {
             if(session.method==Method.GET){
                 if(endpoint.isEmpty())return response(Response.Status.OK,html,"text/html; charset=utf-8")
-                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|source-cover/[lc][0-9]{1,3}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
+                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
                 // The state poll is light and must keep answering while pages and covers load.
                 val limited=endpoint!="/reader-state"
-                if(limited&&!resources.tryAcquire())return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
+                val cover=endpoint.startsWith("/cover/")||endpoint.startsWith("/saga-cover/")
+                val slots=if(cover)covers else resources
+                // A short wait absorbs the burst of images a page asks for at once instead of refusing the extra ones.
+                if(limited&&!slots.tryAcquire(if(cover)2500L else 800L,java.util.concurrent.TimeUnit.MILLISECONDS))return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
                 try {
                     val resource=get(endpoint)
                     val file=resource.file
                     val out=if(file!=null)newFixedLengthResponse(Response.Status.OK,resource.mime,file.inputStream(),file.length())
                         else newFixedLengthResponse(Response.Status.OK,resource.mime,resource.bytes!!.inputStream(),resource.bytes.size.toLong())
                     if(resource.filename!=null){val encoded=java.net.URLEncoder.encode(resource.filename.take(180),"UTF-8").replace("+","%20");out.addHeader("Content-Disposition","attachment; filename=\"Comic-TV\"; filename*=UTF-8''$encoded")}
-                    return secure(out)
-                } finally {if(limited)resources.release()}
+                    secure(out)
+                    // Local covers do not change while a session lasts; the phone may keep them for a few minutes.
+                    if(cover)out.addHeader("Cache-Control","private, max-age=300")
+                    return out
+                } finally {if(limited)slots.release()}
             }
             if(session.method!=Method.POST)return response(Response.Status.METHOD_NOT_ALLOWED,"Método não permitido.")
             if(endpoint=="/command") {
