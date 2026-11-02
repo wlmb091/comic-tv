@@ -10,6 +10,8 @@ data class ReaderState(
     val zoom: Float = 1f,
     val panX: Float = 0f,
     val panY: Float = 0f,
+    /** Horizontal shift of the shown page while the phone drags it, as a fraction of the view width. */
+    val dragX: Float = 0f,
     val mode: ReaderMode = ReaderMode.Reading,
     val fit: FitMode = FitMode.Page,
     val rtl: Boolean = false,
@@ -17,7 +19,7 @@ data class ReaderState(
 ) {
     /** Keep the reading scale between pages, but never carry the previous page's bottom offset. */
     fun turnPage(target: Int): ReaderState = if (target == page || target !in 0 until pageCount) this
-        else copy(page = target, panX = 0f, panY = if (zoom > 1f) -1f else 0f)
+        else copy(page = target, panX = 0f, panY = if (zoom > 1f) -1f else 0f, dragX = 0f)
 
     fun reduce(action: ReaderAction): ReaderState {
         if (action == ReaderAction.OpenTools) return copy(mode = ReaderMode.Tools, timelinePage = null)

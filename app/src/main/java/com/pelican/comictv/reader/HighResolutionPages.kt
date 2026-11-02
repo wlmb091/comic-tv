@@ -90,7 +90,7 @@ internal val LocalReaderPageFill = staticCompositionLocalOf<(Float, Float) -> Un
                 val placement = placements.getOrNull(index) ?: return
                 val scale = placement.width / placement.source.width
                 val r = tile.region
-                drawImage(tile.bitmap.asImageBitmap(), dstOffset = IntOffset((placement.left + r.left * scale).roundToInt(),
+                drawImage(tile.bitmap.asImageBitmap(), dstOffset = IntOffset((placement.left + r.left * scale + state.dragX * size.width).roundToInt(),
                     (placement.top + r.top * scale).roundToInt()),
                     dstSize = IntSize(((r.right-r.left) * scale).roundToInt().coerceAtLeast(1), ((r.bottom-r.top) * scale).roundToInt().coerceAtLeast(1)),
                     filterQuality = FilterQuality.High)

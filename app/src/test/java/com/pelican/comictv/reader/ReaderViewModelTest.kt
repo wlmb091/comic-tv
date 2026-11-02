@@ -23,6 +23,16 @@ class ReaderViewModelTest {
         vm.companionZoom(1f);assertEquals(0f,vm.state.value.panX);assertEquals(0f,vm.state.value.panY)
         vm.close{};advanceUntilIdle()
     }
+    @Test fun companionDragShiftsThePageAndNeverStaysStuck() = runTest(dispatcher) {
+        val repo=FakeRepository().apply{count=8}
+        val vm=ReaderViewModel(repo,"remote-drag",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})
+        advanceUntilIdle();val start=vm.state.value.page
+        vm.companionDrag(-.4f);assertEquals(-.4f,vm.state.value.dragX);assertEquals(start,vm.state.value.page)
+        vm.companionDrag(0f);assertEquals(0f,vm.state.value.dragX)
+        vm.companionDrag(.5f);advanceTimeBy(1600);assertEquals(0f,vm.state.value.dragX)
+        vm.companionDrag(-1f);vm.companionPage(start+1);advanceUntilIdle();assertEquals(0f,vm.state.value.dragX)
+        vm.close{};advanceUntilIdle()
+    }
     @Test fun companionPagesKeepZoomAndStartAtTopInRtlAndBookLayouts() = runTest(dispatcher) {
         val repo=FakeRepository().apply{count=8;rtl=true}
         val vm=ReaderViewModel(repo,"remote-pages",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})

@@ -210,6 +210,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             val owner=reader?.takeIf{it.companionAvailable()}?:error("Abra primeiro o leitor na TV.")
             when(c.action){
                 "reader-pan"->owner.companionPan(c.x.toFloat(),c.y.toFloat())
+                "reader-drag"->owner.companionDrag(c.x.toFloat())
                 "reader-page"->owner.companionPage(c.page)
                 "reader-turn"->owner.companionTurn(c.delta)
                 "reader-zoom"->owner.companionZoom(c.zoom)

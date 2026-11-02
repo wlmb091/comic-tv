@@ -200,6 +200,15 @@ class ReaderViewModel(
         val old=_state.value;val value=zoom.coerceIn(1f,3f)
         _state.value=old.copy(zoom=value,panX=if(value==1f)0f else old.panX,panY=if(value==1f)0f else old.panY)
     }
+    private var dragReset:Job?=null
+    /** The page follows the phone finger; a lost phone must not leave it shifted. */
+    internal fun companionDrag(fraction:Float) {
+        check(companionAvailable()){ "Leitor indisponível para controle." };require(fraction.isFinite())
+        pauseAutomaticReading()
+        _state.value=_state.value.copy(dragX=fraction.coerceIn(-1f,1f))
+        dragReset?.cancel()
+        dragReset=if(fraction==0f)null else viewModelScope.launch{delay(1500);_state.value=_state.value.copy(dragX=0f)}
+    }
     /** How much of the view the shown pages fill at zoom 1; published by the renderer that measures them. */
     @Volatile private var pageFill=1f to 1f
     internal fun reportPageFill(width:Float,height:Float){if(width>0f&&height>0f)pageFill=width to height}

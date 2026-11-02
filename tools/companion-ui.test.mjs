@@ -34,7 +34,7 @@ test('reader-only sliders do nothing outside the TV reader',async()=>{
 test('pinch does not resize the reading layout under the fingers',()=>{
  const h=harness();h.run("window.visualViewport={scale:2,height:200}; document.documentElement.style.setProperty=()=>{throw Error('pinch resized layout')}; viewport()");
 });
-test('reader is minimal and pinch stays available',()=>{assert.doesNotMatch(html,/id="(?:openTV|fit|zoom|pageRange)"/);assert.match(html,/touch-action:pan-x pan-y pinch-zoom/);assert.match(html,/100dvh/);assert.match(html,/id="tvZoom"/);assert.match(html,/id="tvPage"/)});
+test('reader is minimal and its own pinch replaces the browser one',()=>{assert.doesNotMatch(html,/id="(?:openTV|fit|zoom|pageRange)"/);assert.match(html,/#pager\{[^}]*touch-action:none/);assert.match(html,/100dvh/);assert.match(html,/id="tvZoom"/);assert.match(html,/id="tvPage"/)});
 
 
 
@@ -63,6 +63,24 @@ test('a horizontal flick turns the phone page, unless pinched or mostly vertical
  const h=harness();const delta=code=>h.run('swipeTurn('+code+')');
  assert.equal(delta('-120,5,200,1'),1);assert.equal(delta('120,5,200,1'),-1);
  assert.equal(delta('-120,5,200,2'),0);assert.equal(delta('-120,100,200,1'),0);assert.equal(delta('-30,0,200,1'),0);assert.equal(delta('-120,5,1500,1'),0);
+});
+test('a slow drag past a third of the page turns it, and a short one does not',()=>{
+ const h=harness();const delta=code=>h.run('swipeTurn('+code+')');
+ assert.equal(delta('-120,5,3000,1,300'),1);assert.equal(delta('120,5,3000,1,300'),-1);assert.equal(delta('-50,5,3000,1,300'),0);assert.equal(delta('-120,5,3000,2,300'),0);
+});
+test('the panel opens with every bar folded, keeps only the gear on top, and Sincronizado is a text button in the page bar',()=>{
+ assert.match(html,/<body class="tabsFolded">/);assert.doesNotMatch(html,/COMIC <span>TV/);assert.doesNotMatch(html,/menuBtn/);
+ assert.match(html,/<div class="readerTools">.*id="pageLabel".*id="connected" class="syncText".*id="next"/);assert.match(html,/id="readerTitle" class="srOnly"/);
+ for(const name of ['Flix','Prime','Cinema']){const h=harness();h.run("applyTheme('"+name+"')");assert.ok(['›','⌄','‹'].includes(h.run("$('navToggle').textContent")),name)}
+ const c=harness();c.run("applyTheme('Flix');tab('control')");assert.equal(c.run("$('navToggle').textContent"),'⌃');
+});
+test('library titles stop at two lines so the buttons line up',()=>{assert.match(html,/\.book h3\{[^}]*-webkit-line-clamp:2[^}]*min-height:2\.8em/);assert.match(html,/\.book \.actions\{margin-top:auto\}/)});
+test('with sync on, a drag and a pinch on the phone reach the TV while the fingers move',async()=>{
+ const h=harness();h.run("globalThis.setTimeout=()=>1;syncOn=true;current={id:'b1',pages:9};page=2;tvReader={active:true,comicId:'b1',page:2,pageCount:9};liveAt=0;mirrorDrag(-.4)");await flush(h);
+ assert.deepEqual(sent(h),[{action:'reader-drag',x:-.4}]);
+ const off=harness();off.run("syncOn=false;current={id:'b1',pages:9};tvReader={active:true,comicId:'b1'};liveAt=0;mirrorDrag(-.4)");await flush(off);assert.equal(sent(off).length,0);
+ const p=harness();p.run("syncOn=true;current={id:'b1',pages:9};tvReader={active:true,comicId:'b1'};liveAt=0;startPinch([{clientX:100,clientY:100},{clientX:200,clientY:100}]);pinchMove([{clientX:50,clientY:100},{clientX:250,clientY:100}])");await flush(p);
+ const [pinch]=sent(p);assert.equal(pinch.action,'reader-pinch');assert.equal(pinch.zoom,2);assert.equal(p.run('view.s'),2);
 });
 test('turning past the last phone page does not reload it',()=>{
  const h=harness();h.run("current={id:'book',pages:3};page=2;globalThis.loads=0;loadPage=()=>{loads++};turn(1)");assert.equal(h.run('loads+page'),2);
@@ -111,7 +129,7 @@ test('a brief connection failure stays silent, a sequence warns and any answer c
  const h=harness();await flush(h);h.run("globalThis.online=fetch;fetch=async()=>{throw new TypeError('down')}");
  await h.run("refreshReaderState()");await h.run("refreshReaderState()");assert.equal(h.run("$('notice').textContent")||'','');
  await h.run("refreshReaderState()");assert.match(h.run("$('notice').textContent"),/Tentando de novo/);assert.match(h.run("$('connected').textContent"),/Sem conexão/);
- h.run("fetch=online");await h.run("refreshReaderState()");assert.equal(h.run("$('notice').textContent"),'');assert.match(h.run("$('connected').textContent"),/TV conectada/);
+ h.run("fetch=online");await h.run("refreshReaderState()");assert.equal(h.run("$('notice').textContent"),'');assert.match(h.run("$('connected').textContent"),/Sincronizar/);
 });
 test('sync follows the TV book and page, and a phone turn reaches the TV',async()=>{
  const h=harness();h.run("globalThis.loads=0;loadPage=()=>{loads++};section='reader';syncOn=true;books=[{id:'b1',title:'HQ',pages:9}];tvReader={active:true,comicId:'b1',page:3,pageCount:9};syncFollow()");
