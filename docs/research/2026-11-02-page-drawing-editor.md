@@ -1,6 +1,6 @@
 # Edição de desenho na página: pesquisa e proposta (02/11/2026)
 
-Status: etapa 1 implementada na 1.4.23 (`docs/validation/1.4.23.md`). As etapas 2 a 4 aguardam o aviso do usuário.
+Status: etapa 1 na 1.4.23 e etapas 2 a 4 na 1.4.24 (`docs/validation/1.4.24.md`). Páginas de texto e backup seguem pendentes.
 
 ## O que foi examinado
 

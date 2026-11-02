@@ -43,15 +43,62 @@ test('the drawing math stays inside the layer limits',()=>{
  assert.equal(h.run('Math.round(drawSliderToSize(drawSizeToSlider(.02))*1000)'),20);
  for(const color of ['#e02020','#000000','#ffffff','#1f6fe0'])assert.equal(h.run("(()=>{const c=drawHsbFromHex('"+color+"');return drawHexFromHsb(c.h,c.s,c.b)})()"),color);
 });
-test('the editor tree only enables the first stage',()=>{
+test('the editor tree has every approved branch and leaves out what was excluded',()=>{
  const h=harness(),tree=JSON.parse(h.run('JSON.stringify(DRAW_TOOLS)'));
- assert.deepEqual(tree.filter(t=>!t.stage).map(t=>t.id),['hand','zoom','brush','eraser']);
- assert.deepEqual(tree.find(t=>t.id==='brush').subs.map(s=>s.id),['round','ink','pencil']);assert.deepEqual(tree.find(t=>t.id==='eraser').subs.map(s=>s.id),['eraseHard','eraseSoft']);
- for(const name of ['Animação','Inteligência','Nuvem','Assinatura'])assert.ok(!JSON.stringify(tree).includes(name),name);
+ assert.deepEqual(tree.map(t=>t.id),['hand','zoom','brush','eraser','picker','fill','shape','select','transform','text','frame','smudge','special','ruler','filter']);
+ assert.deepEqual(tree.find(t=>t.id==='shape').subs.map(s=>s.name),['Linha','Retângulo','Círculo','Elipse','Polígono','Curva','Polilinha']);
+ for(const name of ['Animação','Inteligência','Nuvem','Assinatura','Aparar','Redimensionar'])assert.ok(!JSON.stringify(tree).includes(name),name);
+ const missing=h.run("DRAW_TOOLS.flatMap(t=>t.subs).filter(s=>!DRAW_PRESETS[s.id]&&!DRAW_MODES[s.id]&&!['tScale','tPersp','tMesh'].includes(s.id)).map(s=>s.id).join()");assert.equal(missing,'');
  h.run("drawEditor(true)");const rail=JSON.parse(h.run("JSON.stringify($('drawRail').children.map(c=>c.id))"));for(const id of ['drawTool-brush','drawTool-filter','drawUndo','drawRedo','drawSwatch','drawSaveNow','drawPanelsToggle'])assert.ok(rail.includes(id),id);
+ assert.ok(rail.indexOf('drawSaveNow')<rail.indexOf('drawTool-picker'));
  h.run("drawSelect('ink','brush')");assert.equal(h.run('ed.tool'),'ink');assert.equal(h.run('ed.mode'),'draw');assert.equal(h.run('ed.lastSub.brush'),'ink');
  h.run("drawSelect('hand','hand')");assert.equal(h.run('ed.mode'),'hand');h.run("drawSelect('zoomOut','zoom')");assert.equal(h.run('ed.mode'),'zoom');
+ for(const [id,group,mode] of [['fillBucket','fill','fill'],['selWand','select','wand'],['shapeRect','shape','shape'],['textBalloon','text','text'],['rRadial','ruler','ruler'],['frameSplit','frame','split'],['mosaic','special','draw']]){h.run("drawSelect('"+id+"','"+group+"')");assert.equal(h.run('ed.mode'),mode,id)}
  h.run("drawSetting('ink','size',.05);drawSelect('round','brush')");assert.equal(h.run("drawTool('ink').size"),.05);assert.equal(h.run("drawTool('round').size"),.012);
+});
+test('flood fill stops at lines, crosses small gaps and expands',()=>{
+ const h=harness();h.run(`globalThis.grid=(w,h2,wall)=>{const d=new Uint8Array(w*h2*4);for(let y=0;y<h2;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,v=wall(x,y)?0:255;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}return d};globalThis.count=m=>m.reduce((a,b)=>a+b,0)`);
+ h.run("globalThis.closed=grid(10,10,(x,y)=>x===5)");assert.equal(h.run("count(drawFloodMask(closed,10,10,1,1,{tolerance:10}))"),50);assert.equal(h.run("count(drawFloodMask(closed,10,10,5,5,{tolerance:10}))"),10);
+ h.run("globalThis.gap=grid(21,21,(x,y)=>x===10&&y!==10)");assert.equal(h.run("count(drawFloodMask(gap,21,21,1,1,{tolerance:10}))"),421);
+ const stopped=h.run("(()=>{const m=drawFloodMask(gap,21,21,1,1,{tolerance:10,gap:1});return [m[10*21+15],m[1*21+15],m[1*21+5]].join()})()");assert.equal(stopped,'0,0,1');
+ assert.equal(h.run("count(drawFloodMask(closed,10,10,1,1,{tolerance:10,expand:1}))"),60);
+ assert.equal(h.run("JSON.stringify(drawMaskBounds(drawFloodMask(closed,10,10,1,1,{tolerance:10}),10,10))"),'{"x":0,"y":0,"w":5,"h":10}');
+});
+test('filters change only what they promise',()=>{
+ const h=harness(),run=(id,pixels,params,w=pixels.length/4,h2=1)=>JSON.parse(h.run("(()=>{const d=new Uint8ClampedArray("+JSON.stringify(pixels)+");DRAW_FILTERS."+id+".run(d,"+w+","+h2+","+JSON.stringify(params)+");return JSON.stringify([...d])})()"));
+ assert.deepEqual(run('invert',[10,20,30,200],{}),[245,235,225,200]);
+ assert.deepEqual(run('gray',[100,100,100,255],{}),[100,100,100,255]);
+ assert.deepEqual(run('blackWhite',[250,250,250,255,5,5,5,255],{limit:128}),[255,255,255,255,0,0,0,255]);
+ assert.deepEqual(run('brightness',[100,100,100,255],{bri:20,con:0}),[120,120,120,255]);
+ assert.deepEqual(run('balance',[100,100,100,255],{r:10,g:-10,b:0}),[110,90,100,255]);
+ assert.deepEqual(run('hsl',[200,50,50,255],{h:0,s:0,l:0}),[200,50,50,255]);
+ assert.deepEqual(run('lines',[255,255,255,255,0,0,0,255],{strength:100}),[0,0,0,0,0,0,0,255]);
+ assert.deepEqual(run('pixelate',[0,0,0,255,100,100,100,255],{block:2},2,1),[50,50,50,255,50,50,50,255]);
+ assert.deepEqual(run('posterize',[100,100,100,255],{levels:2}),[0,0,0,255]);
+ assert.deepEqual(run('gaussian',[80,80,80,255,80,80,80,255,80,80,80,255],{radius:1}),[80,80,80,255,80,80,80,255,80,80,80,255]);
+ assert.equal(h.run("drawFilterScale('pixelate',{block:10},.5).block"),5);assert.equal(h.run("drawFilterScale('gaussian',{radius:1},.25).radius"),1);
+});
+test('rulers keep the stroke on their guide',()=>{
+ const h=harness(),project=(type,a,b,start,p)=>JSON.parse(h.run("JSON.stringify(drawRulerProject("+JSON.stringify({type,a,b})+","+JSON.stringify(start)+","+JSON.stringify(p)+"))"));
+ assert.deepEqual(project('rStraight',{x:0,y:0},{x:10,y:0},{x:5,y:5},{x:9,y:30}),{x:9,y:5});
+ assert.deepEqual(project('rRadial',{x:0,y:0},{x:1,y:1},{x:10,y:0},{x:20,y:9}),{x:20,y:0});
+ const round=project('rCircle',{x:0,y:0},{x:10,y:0},{x:10,y:0},{x:0,y:30});assert.ok(Math.abs(round.x)<1e-6);assert.ok(Math.abs(round.y-10)<1e-6);
+ assert.deepEqual(project('rSymmetry',{x:0,y:0},{x:0,y:1},{x:1,y:1},{x:3,y:4}),{x:3,y:4});
+ assert.equal(h.run("JSON.stringify(drawMirror({x:10,y:0},{x:10,y:5},3,4))"),'{"x":17,"y":4}');
+});
+test('perspective and mesh maps reach their control points',()=>{
+ const h=harness();h.run("globalThis.q=[{x:0,y:0},{x:10,y:1},{x:12,y:9},{x:-1,y:8}];globalThis.map=drawHomography(q)");
+ for(const [u,v,i] of [[0,0,0],[1,0,1],[1,1,2],[0,1,3]]){assert.ok(h.run("Math.hypot(map("+u+","+v+").x-q["+i+"].x,map("+u+","+v+").y-q["+i+"].y)")<1e-6)}
+ h.run("globalThis.points=[];for(let j=0;j<=3;j++)for(let i=0;i<=3;i++)points.push({x:i*10,y:j*10});globalThis.mesh=drawMeshMap(points,3)");assert.equal(h.run("JSON.stringify(mesh(.5,.5))"),'{"x":15,"y":15}');assert.equal(h.run("JSON.stringify(mesh(1,1))"),'{"x":30,"y":30}');
+});
+test('white can become transparent and baked pixels become opaque',()=>{
+ const h=harness();assert.equal(h.run("(()=>{const d=new Uint8ClampedArray([255,255,255,255,0,0,0,255]);drawClearWhiteData(d);return [d[3],d[7],d[4]].join()})()"),'0,255,0');
+ assert.equal(h.run("(()=>{const d=new Uint8ClampedArray([1,2,3,9,4,5,6,9]);drawCoverAlpha(d,[0,0,0,0,0,0,0,7]);return [d[3],d[7]].join()})()"),'0,255');
+});
+test('a layer stack undoes structure without losing its pixels',()=>{
+ const h=harness();h.run("ed.lw=2;ed.lh=2;drawEditor(true);const make=n=>({name:n,visible:true,opacity:1,blend:'source-over',alphaLock:false,clip:false,locked:false});globalThis.a=make('a');globalThis.b=make('b');ed.layers=[a,b];ed.active=1;globalThis.before=drawStateTake();b.opacity=.5;ed.layers=[b];ed.active=0;drawStateRestore(before)");
+ assert.equal(h.run('ed.layers.length'),2);assert.equal(h.run('ed.layers[1]===b'),true);assert.equal(h.run('b.opacity'),1);assert.equal(h.run('ed.active'),1);
+ assert.equal(h.run("(()=>{ed.layers=[];return drawLayer()===undefined})()"),true);
 });
 test('leaving the editor asks only when there is something to save',async()=>{
  const h=harness();h.run("globalThis.went=0;const go=()=>went++;globalThis.go=go;sideOpen.left=true;ed.at=-1;ed.savedAt=-1;drawGuard(go)");assert.equal(h.run('went'),1);

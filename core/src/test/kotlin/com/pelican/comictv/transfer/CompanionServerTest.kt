@@ -49,6 +49,17 @@ class CompanionServerTest {
             assertEquals(200,c.responseCode);assertEquals("10x20",c.getHeaderField("X-Drawing-Page"))
         }finally{server.close();root.deleteRecursively()}
     }
+    @Test fun layerFilesNeedTheirSignature() {
+        val root=Files.createTempDirectory("companion-layers").toFile();val seen=mutableListOf<ByteArray>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/octet-stream",ByteArray(0))},command={},drawingLayers={_,_,input->seen+=input.readBytes()})
+        fun post(bytes:ByteArray):Int{val c=URL(server.url+"/drawing/layers/a-1/2").openConnection() as HttpURLConnection;c.requestMethod="POST";c.doOutput=true;c.setRequestProperty("Content-Type","application/octet-stream");c.outputStream.use{it.write(bytes)};return c.responseCode}
+        try {
+            server.open()
+            assertEquals(200,post("CTVLdata".toByteArray()));assertArrayEquals("CTVLdata".toByteArray(),seen.single())
+            assertEquals(400,post("nope".toByteArray()));assertEquals(1,seen.size)
+            assertEquals(200,(URL(server.url+"/drawing-layers/a-1/2").openConnection() as HttpURLConnection).responseCode)
+        }finally{server.close();root.deleteRecursively()}
+    }
     @Test fun themeCommandAcceptsOnlyTheFiveSelectableThemes() {
         val root=Files.createTempDirectory("companion-theme").toFile();val commands=mutableListOf<CompanionCommand>()
         val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={commands+=it})

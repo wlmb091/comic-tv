@@ -32,7 +32,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
     private val get:(String)->CompanionResource,private val command:(CompanionCommand)->Unit,
     private val received:(File,String)->Unit={_,_->},private val clock:()->Long=System::currentTimeMillis,
     private val lifetimeMillis:Long=30*60*1000L,private val status:(String)->Unit={},private val maxLifetimeMillis:Long=8*60*60*1000L,
-    private val stroke:(CompanionStroke)->Unit={},private val drawing:(CompanionDrawing,ByteArray)->Unit={_,_->}) : Closeable {
+    private val stroke:(CompanionStroke)->Unit={},private val drawing:(CompanionDrawing,ByteArray)->Unit={_,_->},private val drawingLayers:(String,Int,InputStream)->Unit={_,_,_->}) : Closeable {
     private val token=ByteArray(24).also {SecureRandom().nextBytes(it)}.joinToString(""){"%02x".format(it.toInt() and 255)}
     private val root="/s/$token"
     private var openedAt=0L
@@ -124,7 +124,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         try {
             if(session.method==Method.GET){
                 if(endpoint.isEmpty())return response(Response.Status.OK,html,"text/html; charset=utf-8")
-                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
+                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing-layers/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
                 // The state poll is light and must keep answering while pages and covers load.
                 val limited=endpoint!="/reader-state"
                 val cover=endpoint.startsWith("/cover/")||endpoint.startsWith("/saga-cover/")
@@ -159,9 +159,19 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
             }
             if(endpoint.startsWith("/drawing/")) {
                 val parts=endpoint.removePrefix("/drawing/").split('/')
-                require(parts.size==3&&parts[0] in setOf("save","patch","delete","reset")&&parts[1].matches(Regex("[A-Za-z0-9-]{1,100}"))&&parts[2].matches(Regex("[0-9]{1,5}"))){"Desenho inválido."}
+                require(parts.size==3&&parts[0] in setOf("save","patch","delete","reset","layers")&&parts[1].matches(Regex("[A-Za-z0-9-]{1,100}"))&&parts[2].matches(Regex("[0-9]{1,5}"))){"Desenho inválido."}
                 fun number(name:String)=session.parameters[name]?.singleOrNull()?.toIntOrNull()?:0
                 val request=CompanionDrawing(parts[0],parts[1],parts[2].toInt(),number("x"),number("y"),number("w"),number("h"),number("lw"),number("lh"),number("pw"),number("ph"))
+                if(request.kind=="layers") {
+                    if(!drawings.tryAcquire(3000L,java.util.concurrent.TimeUnit.MILLISECONDS))return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
+                    try {
+                        val input=java.io.PushbackInputStream(body(session,64L*1024*1024),4)
+                        val magic=ByteArray(4);var read=0
+                        while(read<4){val n=input.read(magic,read,4-read);if(n<0)break;read+=n}
+                        require(read==4&&String(magic,Charsets.US_ASCII)=="CTVL"){"Formato de camadas inválido."}
+                        input.unread(magic);drawingLayers(request.id,request.page,input);return response(Response.Status.OK,"OK")
+                    } finally {drawings.release()}
+                }
                 val image=request.kind=="save"||request.kind=="patch"
                 if(image)require(validDrawing(request)){"Desenho inválido."}
                 if(!drawings.tryAcquire(3000L,java.util.concurrent.TimeUnit.MILLISECONDS))return response(Response.Status.CONFLICT,"Aguarde a operação atual.")

@@ -17,6 +17,7 @@ class PageDrawingStore(private val root: File) {
         return File(folder(id), "$page.png")
     }
     private fun sizeFile(id: String, page: Int) = File(folder(id), "$page.size")
+    private fun layersFile(id: String, page: Int) = File(folder(id), "$page.layers")
 
     fun file(id: String, page: Int): File? = png(id, page).takeIf { it.isFile }
     /** The page the drawing was made on, so a page the source replaced is not drawn over. */
@@ -35,8 +36,19 @@ class PageDrawingStore(private val root: File) {
             check(staged.renameTo(target) || (target.delete() && staged.renameTo(target))) { "Não foi possível salvar o desenho." }
         } finally { staged.delete() }
     }
+    /** The layers as the phone left them, so reopening the page edits them again. Only the phone reads this file. */
+    fun layers(id: String, page: Int): File? = layersFile(id, page).takeIf { it.isFile }
+    fun saveLayers(id: String, page: Int, input: java.io.InputStream) {
+        val target = layersFile(id, page)
+        target.parentFile!!.mkdirs()
+        val staged = File(target.parentFile, "$page.layers.tmp")
+        try {
+            staged.outputStream().use { input.copyTo(it); it.fd.sync() }
+            check(staged.renameTo(target) || (target.delete() && staged.renameTo(target))) { "Não foi possível salvar as camadas." }
+        } finally { staged.delete() }
+    }
     fun delete(id: String, page: Int) {
-        png(id, page).delete(); sizeFile(id, page).delete()
+        png(id, page).delete(); sizeFile(id, page).delete(); layersFile(id, page).delete()
         folder(id).takeIf { it.list()?.isEmpty() == true }?.delete()
     }
     fun deleteEdition(id: String) { folder(id).deleteRecursively() }

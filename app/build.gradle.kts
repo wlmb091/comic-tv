@@ -13,8 +13,8 @@ android {
         applicationId = "com.pelican.comictv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 97
-        versionName = "1.4.23"
+        versionCode = 98
+        versionName = "1.4.24"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {

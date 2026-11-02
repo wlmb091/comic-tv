@@ -22,6 +22,18 @@ class PageDrawingStoreTest {
             assertNull(store.file("a-1", 4))
         } finally { root.deleteRecursively() }
     }
+    @Test fun layersFollowThePage() {
+        val root = Files.createTempDirectory("drawings").toFile()
+        try {
+            val store = PageDrawingStore(root)
+            assertNull(store.layers("a", 1))
+            store.saveLayers("a", 1, byteArrayOf(7, 8).inputStream())
+            store.saveLayers("a", 1, byteArrayOf(9).inputStream())
+            assertArrayEquals(byteArrayOf(9), store.layers("a", 1)!!.readBytes())
+            store.delete("a", 1)
+            assertNull(store.layers("a", 1))
+        } finally { root.deleteRecursively() }
+    }
     @Test fun refusesAPathOutsideTheFolder() {
         val root = Files.createTempDirectory("drawings").toFile()
         try {

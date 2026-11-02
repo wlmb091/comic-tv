@@ -56,7 +56,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 received={file,name->call(300_000){container.library.importReceived(file,name){text->mutable.update{it.copy(message=text)}};Unit}},
                 clock=SystemClock::elapsedRealtime,status={text->if(sessionJob===job)mutable.update {it.copy(message=text)}},
                 stroke={live->call{withContext(Dispatchers.Main.immediate){active();drawingsOf(live.id)?.stroke(live)}}},
-                drawing={request,bytes->call{applyDrawing(request,bytes)}})
+                drawing={request,bytes->call{applyDrawing(request,bytes)}},
+                drawingLayers={id,page,input->call(120_000){withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);container.pageDrawings.saveLayers(id,page,input)}})
             owned=instance
             val url=withContext(Dispatchers.IO){instance.open();instance.url}
             ensureActive();check(sessionJob===job);server=instance
@@ -153,6 +154,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             val file=container.pageDrawings.file(id,page)?:return CompanionResource("image/png",ByteArray(0))
             return CompanionResource("image/png",file=file,headers=container.pageDrawings.pageSize(id,page)?.let{mapOf("X-Drawing-Page" to "${it.first}x${it.second}")}.orEmpty())
         }
+        if(parts[0]=="drawing-layers")return container.pageDrawings.layers(id,parts[2].toInt())?.let{CompanionResource("application/octet-stream",file=it)}?:CompanionResource("application/octet-stream",ByteArray(0))
         if(parts[0]=="cover")return CompanionResource("image/jpeg",file=container.library.cover(id).also{check(it.isFile){"Capa indisponível."}})
         if(parts[0]=="file"){
             check(!id.startsWith("online-")){"Baixar original disponível apenas para arquivos importados."}
