@@ -18,7 +18,7 @@ data class RestoreResult(val added: Int, val updated: Int, val pending: Int)
 class BackupRepository(private val context: Context, private val db: LibraryDatabase,
     private val library: LibraryRepository, private val online: OnlineReaderRepository,
     private val appearance: AppearancePreferences, private val images: ReaderImageStore,
-    private val pending: RestorePendingStore) {
+    private val pending: RestorePendingStore, private val drawings: PageDrawingStore) {
     private val directory = File(context.filesDir, "backup").apply { mkdirs() }
     private val journal = AtomicFile(File(directory, "restore-journal.json"))
     private val flags = context.getSharedPreferences("backup", Context.MODE_PRIVATE)
@@ -50,19 +50,29 @@ class BackupRepository(private val context: Context, private val db: LibraryData
             val date = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date())
             val target = File.createTempFile("Comic-TV-${com.pelican.comictv.BuildConfig.VERSION_NAME}-$date-", ".ctvbackup",exportDirectory)
             val bytes = BackupCodec.encode(document)
-            try { target.outputStream().use { it.write(bytes); it.fd.sync() }; target }
+            val drawn = drawings.backupFiles()
+            try {
+                target.outputStream().use { out ->
+                    if (drawn.isEmpty()) out.write(bytes) else BackupArchive.write(out.buffered(), bytes, drawn)
+                }
+                target
+            }
             catch (e: Exception) { target.delete(); throw e }
         } }
     }
-    suspend fun preview(file: File): BackupDocument = withContext(Dispatchers.IO) { file.inputStream().use(BackupCodec::decode) }
-    suspend fun restore(document: BackupDocument, restoreAppearance: Boolean): RestoreResult = withContext(Dispatchers.IO) {
+    suspend fun preview(file: File): BackupDocument = withContext(Dispatchers.IO) { BackupArchive.document(file) }
+    suspend fun restore(document: BackupDocument, restoreAppearance: Boolean, archive: File? = null): RestoreResult = withContext(Dispatchers.IO) {
         mutex.withLock { library.exclusiveStorage {
             recoverLocked(); BackupCodec.validate(document)
             val resolved = resolve(document)
             check(flags.edit().putBoolean("restore-appearance", restoreAppearance).commit())
             val bytes = BackupCodec.encode(resolved); val out = journal.startWrite()
             try { out.write(bytes); journal.finishWrite(out) } catch (e: Throwable) { journal.failWrite(out); throw e }
-            withContext(NonCancellable) { val result = apply(resolved, restoreAppearance); journal.delete(); result }
+            withContext(NonCancellable) {
+                val result = apply(resolved, restoreAppearance); journal.delete()
+                archive?.let { BackupArchive.restoreDrawings(it, drawings) }
+                result
+            }
         } }
     }
     suspend fun recover() = withContext(Dispatchers.IO) { mutex.withLock { library.exclusiveStorage { recoverLocked() } } }
@@ -131,7 +141,7 @@ class BackupRepository(private val context: Context, private val db: LibraryData
         pending.write(BackupDocument(createdAt = document.createdAt, comics = deferred.values.toList(), collections = collections, links = deferredLinks))
         // Resolved journal choices survive date ties on replay; commit preferences in
         // one batch rather than thousands of disk commits for a large collection.
-        images.saveAll(document.comics.associate { it.id to ReaderImageOptions.restore(it.imagePreset,it.imageIntensity) })
+        images.saveAll(document.comics.associate { it.id to ReaderImageOptions.restore(it.imagePreset,it.imageIntensity,it.imageAdjustments) })
         if (restoreAppearance) {
             val a = document.appearance
             appearance.update(AppearanceOptions.restore(a.preset, a.textSize, a.highContrast, a.coverBackground,
@@ -150,5 +160,6 @@ class BackupRepository(private val context: Context, private val db: LibraryData
 }
 
 internal fun ComicEntity.backup(options: ReaderImageOptions) = BackupComic(id, title, pageCount, currentPage, lastRead, importedAt,
-    fit, rtl, hiddenFromHistory, favorite, imagePreset = options.preset.name, imageIntensity = options.intensity)
+    fit, rtl, hiddenFromHistory, favorite, imagePreset = options.preset.name, imageIntensity = options.intensity,
+    imageAdjustments = options.adjustments.takeUnless { it.identity }?.encode())
 internal fun BackupComic.entity() = ComicEntity(id, title, pageCount, currentPage, lastRead, importedAt, fit, rtl, hiddenFromHistory, favorite)

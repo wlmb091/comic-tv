@@ -12,7 +12,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.io.File
 
-data class BackupUiState(val busy: Boolean = false, val file: File? = null, val preview: BackupDocument? = null,
+data class BackupUiState(val busy: Boolean = false, val file: File? = null, val preview: BackupDocument? = null, val archive: File? = null, val previewDrawings: Int = 0,
     val restoreAppearance: Boolean = true, val pending: Int = 0, val url: String? = null, val qr: Bitmap? = null, val message: String? = null,
     val restoreFeedback: RestoreResult? = null, val restoreFailed: Boolean = false)
 
@@ -41,14 +41,19 @@ class BackupViewModel(private val context: Context, private val repository: Back
     }
     fun prepare() = run {
         val file = repository.prepare(); val old = _state.value.file
-        _state.update { it.copy(file = file, message = "Backup preparado. Salve uma cópia fora da TV; quadrinhos e downloads não estão incluídos.") }
+        _state.update { it.copy(file = file, message = "Backup preparado, com os desenhos. Salve uma cópia fora da TV; quadrinhos e downloads não estão incluídos.") }
         old?.takeIf { it != file }?.delete()
     }
     fun preview(uri: Uri) = run {
-        val document = withContext(Dispatchers.IO) {
-            context.contentResolver.openInputStream(uri)?.use(BackupCodec::decode) ?: error("Arquivo indisponível")
+        // A copy on the TV: the drawings inside it are read again only when the restore is confirmed.
+        val copy = withContext(Dispatchers.IO) {
+            File.createTempFile("backup-", ".preview", File(context.cacheDir, "backup-transfers").apply { mkdirs() }).also { target ->
+                try {
+                    (context.contentResolver.openInputStream(uri) ?: error("Arquivo indisponível")).use { input -> target.outputStream().use { input.copyTo(it) } }
+                } catch (e: Exception) { target.delete(); throw e }
+            }
         }
-        _state.update { it.copy(preview = document) }
+        adoptPreview(copy)
     }
     fun save(uri: Uri) = run {
         val source = checkNotNull(_state.value.file)
@@ -58,13 +63,21 @@ class BackupViewModel(private val context: Context, private val repository: Back
         }
         notice("Backup salvo. Guarde uma cópia fora da TV.")
     }
-    fun dismissPreview() { if (!_state.value.busy) _state.update { it.copy(preview = null) } }
+    private suspend fun adoptPreview(copy: File, message: String? = null) {
+        val (document, drawn) = try { withContext(Dispatchers.IO) { BackupArchive.document(copy) to BackupArchive.drawingCount(copy) } }
+            catch (e: Exception) { copy.delete(); throw e }
+        _state.value.archive?.delete()
+        _state.update { it.copy(preview = document, archive = copy, previewDrawings = drawn, message = message ?: it.message) }
+    }
+    private fun dropPreview() { _state.value.archive?.delete(); _state.update { it.copy(preview = null, archive = null, previewDrawings = 0) } }
+    fun dismissPreview() { if (!_state.value.busy) dropPreview() }
     fun toggleAppearance() { _state.update { it.copy(restoreAppearance = !it.restoreAppearance) } }
     fun dismissRestoreFeedback() {if (!_state.value.busy) _state.update {it.copy(restoreFeedback = null,restoreFailed = false)}}
     fun restore() = run(isRestore = true) {
         val document = checkNotNull(_state.value.preview)
-        val result = repository.restore(document, _state.value.restoreAppearance)
-        _state.update { it.copy(preview = null, pending = result.pending,restoreFeedback = result,
+        val result = repository.restore(document, _state.value.restoreAppearance, _state.value.archive)
+        dropPreview()
+        _state.update { it.copy(pending = result.pending,restoreFeedback = result,
             message = "Restaurado: ${result.added} adicionados, ${result.updated} mesclados. ${result.pending} locais aguardam reimportação do original.") }
     }
     fun startSession() = run {
@@ -74,9 +87,11 @@ class BackupViewModel(private val context: Context, private val repository: Back
         val job = SupervisorJob(viewModelScope.coroutineContext[Job]); sessionJob = job
         val instance = BackupTransferServer(host, File(context.cacheDir,"backup-transfers"), { _state.value.file }, { file ->
             runBlocking { withContext(job) {
-                val preview = repository.preview(file); ensureActive()
+                ensureActive()
                 check(generation == expected && !_state.value.busy && _state.value.preview == null && _state.value.restoreFeedback == null && !_state.value.restoreFailed) { "TV ocupada" }
-                _state.update { it.copy(preview = preview, message = "Backup recebido. Confira a prévia antes de confirmar.") }
+                // The server removes its upload when this returns.
+                val copy = withContext(Dispatchers.IO) { File.createTempFile("backup-", ".preview", file.parentFile).also { file.copyTo(it, overwrite = true) } }
+                adoptPreview(copy, "Backup recebido. Confira a prévia antes de confirmar.")
             } }
         })
         try {
@@ -98,5 +113,5 @@ class BackupViewModel(private val context: Context, private val repository: Back
         sessionJob?.cancel(); sessionJob = null; server?.close(); server = null
         _state.update { it.copy(url = null, qr = null) }
     }
-    override fun onCleared() { stopSession(); _state.value.file?.delete() }
+    override fun onCleared() { stopSession(); _state.value.file?.delete(); _state.value.archive?.delete() }
 }

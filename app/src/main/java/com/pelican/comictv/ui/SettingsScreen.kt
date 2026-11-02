@@ -114,6 +114,18 @@ import kotlinx.coroutines.sync.withLock
                 } }
                 settingsRow("cinema-title") { Text("Arte cinematográfica", fontSize = 23.sp) }
                 settingsRow("cinema-description") { Text("Flix, Prime, Max e Cinema mostram automaticamente o fundo da edição em foco. A arte horizontal escolhida em Detalhes → Mais opções tem prioridade; quando não houver, será usada a própria capa, ampliada com proporção preservada e recorte para preencher a área. Alto contraste mantém o fundo preto. O Comic TV original mantém sua estante.", color = TvColors.Muted) }
+                settingsRow("sounds-title") { Text("Sons de navegação", fontSize = 23.sp) }
+                settingsRow("sounds") {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    val sounds = remember { NavigationSounds.of(context) }
+                    var soundsOn by remember { mutableStateOf(sounds.enabled) }
+                    var soundsVolume by remember { mutableIntStateOf(sounds.volumePercent) }
+                    androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
+                        TvChoice("Sons: " + if (soundsOn) "ligados" else "desligados", soundsOn, { soundsOn = !soundsOn; sounds.enabled = soundsOn })
+                        if (soundsOn) TvChoice("Volume: $soundsVolume%", false, { soundsVolume = NavigationSounds.nextVolume(soundsVolume); sounds.volumePercent = soundsVolume; sounds.preview() })
+                    }
+                }
+                settingsRow("sounds-description") { Text("Um clique ao mover o foco, e um som diferente no OK.", color = TvColors.Muted, fontSize = 16.sp) }
                 settingsRow("carousel-motion-title") { Text("Carrossel", fontSize = 23.sp) }
                 settingsRow("carousel-autoplay") {
                     TvChoice("Troca automática: " + if (options.carouselAutoplay) "ligada" else "desligada",

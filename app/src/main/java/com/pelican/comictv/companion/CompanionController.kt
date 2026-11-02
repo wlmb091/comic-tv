@@ -57,7 +57,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 clock=SystemClock::elapsedRealtime,status={text->if(sessionJob===job)mutable.update {it.copy(message=text)}},
                 stroke={live->call{withContext(Dispatchers.Main.immediate){active();drawingsOf(live.id)?.stroke(live)}}},
                 drawing={request,bytes->call{applyDrawing(request,bytes)}},
-                drawingLayers={id,page,input->call(120_000){withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);container.pageDrawings.saveLayers(id,page,input)}})
+                drawingLayers={id,page,input->call(120_000){withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);container.pageDrawings.saveLayers(id,page,input)}},
+                excerpt={id,section,start,end,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);withContext(Dispatchers.IO){container.pageDrawings.addExcerpt(id,section,start,end,bytes).page}}})
             owned=instance
             val url=withContext(Dispatchers.IO){instance.open();instance.url}
             ensureActive();check(sessionJob===job);server=instance
@@ -154,6 +155,9 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             val file=container.pageDrawings.file(id,page)?:return CompanionResource("image/png",ByteArray(0))
             return CompanionResource("image/png",file=file,headers=container.pageDrawings.pageSize(id,page)?.let{mapOf("X-Drawing-Page" to "${it.first}x${it.second}")}.orEmpty())
         }
+        if(parts[0]=="image-adjust")return CompanionResource("text/plain; charset=utf-8",container.readerImages.read(id).adjustments.encode().toByteArray())
+        if(parts[0]=="text-excerpts")return CompanionResource("application/json; charset=utf-8",Gson().toJson(container.pageDrawings.excerpts(id,parts[2].toInt()).map{mapOf("start" to it.start,"end" to it.end,"page" to it.page,"drawn" to (container.pageDrawings.file(id,it.page)!=null))}).toByteArray(Charsets.UTF_8))
+        if(parts[0]=="excerpt-base")return CompanionResource("image/png",file=checkNotNull(container.pageDrawings.excerptBase(id,parts[2].toInt())){"Trecho não encontrado."})
         if(parts[0]=="drawing-layers")return container.pageDrawings.layers(id,parts[2].toInt())?.let{CompanionResource("application/octet-stream",file=it)}?:CompanionResource("application/octet-stream",ByteArray(0))
         if(parts[0]=="cover")return CompanionResource("image/jpeg",file=container.library.cover(id).also{check(it.isFile){"Capa indisponível."}})
         if(parts[0]=="file"){
@@ -258,6 +262,11 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private fun control(c:CompanionCommand){
         active();val dialog=dialogs.focused();check(dialog!=null||activity.hasWindowFocus()){ "Volte ao Comic TV para controlar." }
         if(c.action=="rotate"){container.orientation.cycle();return}
+        if(c.action=="image-adjust"){
+            val tones=checkNotNull(com.pelican.comictv.reader.ImageAdjustments.parse(c.text)){"Ajustes inválidos."}
+            scope.launch(Dispatchers.IO){runCatching{container.readerImages.save(c.id,container.readerImages.read(c.id).copy(adjustments=tones))}}
+            reader?.takeIf{it.companionComicId==c.id}?.companionAdjustSaved(tones);return
+        }
         if(c.action=="theme") {
             val preset=com.pelican.comictv.ui.ColorPreset.entries.firstOrNull{it.name==c.text&&it.selectable}?:error("Tema inválido.")
             scope.launch{container.appearance.update(container.appearance.state.value.copy(preset=preset))};return
@@ -310,6 +319,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 "reader-zoom"->owner.companionZoom(c.zoom)
                 "reader-scroll-to"->owner.companionScrollTo(c.dy.toFloat())
                 "reader-pinch"->owner.companionPinch(c.zoom,c.x.toFloat(),c.y.toFloat(),c.dx.toFloat(),c.dy.toFloat())
+                "reader-view"->owner.companionView(c.zoom,c.x.toFloat(),c.y.toFloat())
+                "reader-adjust"->owner.companionAdjustPreview(if(c.text.isEmpty())null else com.pelican.comictv.reader.ImageAdjustments.parse(c.text))
                 else->error("Comando de leitor inválido.")
             };return
         }

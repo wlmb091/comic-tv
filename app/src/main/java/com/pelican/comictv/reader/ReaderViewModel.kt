@@ -61,6 +61,9 @@ class ReaderViewModel(
     val previews = _previews.asStateFlow()
     private val _imageOptions = MutableStateFlow(imagePreferences.read(comicId))
     val imageOptions = _imageOptions.asStateFlow()
+    // What is saved; the phone's sliders may be showing something else on the TV for a moment.
+    private var savedAdjustments = _imageOptions.value.adjustments
+    private fun savableImageOptions() = _imageOptions.value.copy(adjustments = savedAdjustments)
     private val _compareOriginal = MutableStateFlow(false)
     val compareOriginal = _compareOriginal.asStateFlow()
     private val imageWrites = Mutex()
@@ -216,6 +219,14 @@ class ReaderViewModel(
         if(_image.value?.text!=null){_textScrollRequests.tryEmit(TextScrollRequest(position=position));return}
         val old=_state.value
         if(old.zoom>1f)_state.value=old.copy(panY=position*2f-1f)
+    }
+    /** The editor on the phone: the same page point goes to the center of the TV, at the phone's zoom up to the TV's own limit. */
+    internal fun companionView(zoom:Float,x:Float,y:Float) {
+        check(companionAvailable()){ "Leitor indisponível para controle." };require(zoom.isFinite()&&x.isFinite()&&y.isFinite())
+        pauseAutomaticReading()
+        if(_image.value?.text!=null)return
+        val value=zoom.coerceIn(1f,3f);val (fillX,fillY)=pageFill
+        _state.value=_state.value.copy(zoom=value,panX=centerPan(fillX,value,x),panY=centerPan(fillY,value,y))
     }
     internal fun companionZoom(zoom:Float) {
         check(companionAvailable()){ "Leitor indisponível para controle." };require(zoom.isFinite())
@@ -391,10 +402,21 @@ class ReaderViewModel(
         _imageOptions.value = _imageOptions.value.copy(intensity = (_imageOptions.value.intensity + 1) % 3)
         saveImageOptions()
     }
+    /** While the phone's sliders move: shown here, not saved. Null goes back to what is saved. */
+    internal fun companionAdjustPreview(adjustments: ImageAdjustments?) {
+        if (closing || exited) return
+        _imageOptions.value = _imageOptions.value.copy(adjustments = adjustments ?: savedAdjustments)
+    }
+    /** The phone already saved these; the open reader only follows, so its own later saves keep them. */
+    internal fun companionAdjustSaved(adjustments: ImageAdjustments) {
+        if (closing || exited) return
+        savedAdjustments = adjustments
+        _imageOptions.value = _imageOptions.value.copy(adjustments = adjustments)
+    }
     fun toggleOriginalComparison() { if (!closing && !exited) _compareOriginal.value = !_compareOriginal.value }
     private fun saveImageOptions() {
         viewModelScope.launch {
-            try { imageWrites.withLock { imagePreferences.save(comicId, _imageOptions.value) } }
+            try { imageWrites.withLock { imagePreferences.save(comicId, savableImageOptions()) } }
             catch (e: CancellationException) { throw e }
             catch (_: Exception) { _error.value = "Não foi possível salvar o filtro desta edição." }
         }
@@ -584,7 +606,7 @@ class ReaderViewModel(
                 loadJob?.cancelAndJoin()
                 previewJob?.cancelAndJoin()
                 prefetchJob?.cancelAndJoin()
-                imageWrites.withLock { imagePreferences.save(comicId, _imageOptions.value) }
+                imageWrites.withLock { imagePreferences.save(comicId, savableImageOptions()) }
                 if (initialized) {
                     persistence.withLock { repository.saveProgress(comicId, _state.value.page) }
                     repository.savePreferences(comicId, _state.value.fit.ordinal, _state.value.rtl)

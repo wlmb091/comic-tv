@@ -55,6 +55,7 @@ import com.pelican.comictv.ui.*
         LibraryDialog("Restaurar backup?", viewModel::dismissPreview) {
             Text("${document.comics.size} edições · ${document.collections.size} coleções · ${document.comics.count { it.favorite }} favoritos")
             Text("Data: " + java.text.DateFormat.getDateTimeInstance().format(java.util.Date(document.createdAt)))
+            if (state.previewDrawings > 0) Text("${state.previewDrawings} páginas com desenho. Um desenho que já existe nesta TV é mantido.")
             Text("A biblioteca atual será preservada. O progresso mais recente vence; favoritos e coleções são unidos. Arquivos locais ausentes precisarão ser reimportados.")
             TvButton(if (state.restoreAppearance) "✓ Restaurar aparência" else "Restaurar aparência: não", viewModel::toggleAppearance, enabled = !state.busy)
             TvButton("Cancelar", viewModel::dismissPreview, Modifier.focusRequester(first), enabled = !state.busy)

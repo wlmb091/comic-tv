@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -127,8 +128,13 @@ import kotlin.math.roundToInt
         }.focusRequester(focus).focusable()) {
         Column(Modifier.fillMaxSize().padding(horizontal = 64.dp).padding(top = 28.dp, bottom = 58.dp)
             .verticalScroll(scroll)) {
-            Text(page.text.orEmpty(), fontSize = fontSize.sp, lineHeight = (fontSize * 1.55).sp,
-                modifier = Modifier.fillMaxWidth().widthIn(max = 1200.dp), color = Color(0xFFF5F3EF))
+            val pieces = viewModel.drawings?.let { rememberTextPieces(it, state.page, page.text.orEmpty()) } ?: listOf(TextPiece.Words(page.text.orEmpty()))
+            for (piece in pieces) when (piece) {
+                is TextPiece.Words -> Text(piece.text, fontSize = fontSize.sp, lineHeight = (fontSize * 1.55).sp,
+                    modifier = Modifier.fillMaxWidth().widthIn(max = 1200.dp), color = Color(0xFFF5F3EF))
+                is TextPiece.Picture -> androidx.compose.foundation.Image(piece.bitmap.asImageBitmap(), "Trecho com desenho",
+                    Modifier.fillMaxWidth().widthIn(max = 1200.dp).padding(vertical = 8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
+            }
         }
         Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(TvColors.Panel).padding(horizontal = 30.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween) {

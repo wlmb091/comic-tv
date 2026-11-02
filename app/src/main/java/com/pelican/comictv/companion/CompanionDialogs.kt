@@ -27,6 +27,10 @@ internal val LocalCompanionDialogs=compositionLocalOf<CompanionDialogs?>{null}
     val bridge=LocalCompanionDialogs.current
     val latestDismiss by rememberUpdatedState(onDismiss)
     val window=(LocalView.current.parent as? DialogWindowProvider)?.window
+    DisposableEffect(window){
+        window?.let(com.pelican.comictv.ui.NavigationSounds::attach)
+        onDispose{}
+    }
     DisposableEffect(bridge,window){
         val unregister=window?.let{bridge?.register(it){latestDismiss()}}
         onDispose{unregister?.invoke()}

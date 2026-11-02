@@ -36,7 +36,7 @@ internal class ReaderTileCache(private val budget: Long) {
     }
     fun peek(key: TileKey): TileBitmap? = entries.get(key)
     // Filtered frames need several ARGB work buffers. Bound them using the existing RAM budget.
-    fun framePixelLimit(options: ReaderImageOptions): Long = minOf(2_000_000L, budget / if (options.preset == ImagePreset.Original) 8L else 16L)
+    fun framePixelLimit(options: ReaderImageOptions): Long = minOf(2_000_000L, budget / if (options.plain) 8L else 16L)
     fun clear() { entries.clear(); resetRequested = true; releaseIfIdle() }
     fun close() { closed = true; entries.clear(); releaseIfIdle() }
     private fun releaseIfIdle() {
@@ -95,7 +95,7 @@ internal class ReaderTileCache(private val budget: Long) {
             owned = bitmap
             val context = currentCoroutineContext()
             context.ensureActive()
-            val result = if (key.options.preset == ImagePreset.Original) bitmap else {
+            val result = if (key.options.plain) bitmap else {
                 val pixels = IntArray(bitmap.width * bitmap.height)
                 bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
                 val filtered = enhancePixels(pixels, bitmap.width, bitmap.height, key.options) { context.ensureActive() }

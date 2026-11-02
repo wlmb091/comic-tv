@@ -47,7 +47,7 @@ class BackupTransferServer(private val host: String, private val directory: File
             return reply(FORBIDDEN, "Origem inválida.")
         if (session.method == NanoHTTPD.Method.GET && session.uri == root) return reply(OK, PAGE, true)
         if (session.method == NanoHTTPD.Method.GET && session.uri == "$root/export") {
-            val file = export()?.takeIf { it.isFile && it.length() in 1..BackupCodec.MAX_BYTES.toLong() }
+            val file = export()?.takeIf { it.isFile && it.length() in 1..BackupArchive.MAX_BYTES }
                 ?: return reply(NOT_FOUND, "Primeiro prepare o backup na TV.")
             return secure(NanoHTTPD.newFixedLengthResponse(OK, "application/octet-stream", file.inputStream(), file.length())).apply {
                 addHeader("Content-Disposition", "attachment; filename=Comic-TV.ctvbackup")
@@ -55,7 +55,7 @@ class BackupTransferServer(private val host: String, private val directory: File
         }
         if (session.method != NanoHTTPD.Method.POST || session.uri != "$root/receive") return reply(METHOD_NOT_ALLOWED, "Método inválido.")
         val length = session.headers["content-length"]?.toLongOrNull()
-        if (session.headers.containsKey("transfer-encoding") || length == null || length !in 1..BackupCodec.MAX_BYTES.toLong()) return reply(PAYLOAD_TOO_LARGE, "Envie backup de até 32 MiB com tamanho conhecido.")
+        if (session.headers.containsKey("transfer-encoding") || length == null || length !in 1..BackupArchive.MAX_BYTES) return reply(PAYLOAD_TOO_LARGE, "Envie backup de até 1 GiB com tamanho conhecido.")
         if (!gate.tryAcquire()) return reply(CONFLICT, "Outro envio está em andamento.")
         var temporary: File? = null
         try {
@@ -70,7 +70,7 @@ class BackupTransferServer(private val host: String, private val directory: File
                 }
             }
             try {
-                target.inputStream().use(BackupCodec::decode)
+                BackupArchive.document(target)
                 if (!active || expired()) throw IOException("Sessão encerrada")
                 received(target)
             } catch (_: Exception) {
@@ -81,6 +81,6 @@ class BackupTransferServer(private val host: String, private val directory: File
         } finally { temporary?.delete(); gate.release() }
     }
     companion object {
-        private val PAGE = """<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Comic TV · Backup</title><style>body{background:#090a0c;color:white;font:18px system-ui;max-width:680px;margin:40px auto;padding:24px}button,a{display:inline-block;padding:16px;background:#ffbd59;color:black;border:0;border-radius:8px;margin:12px 0}input{display:block;margin:20px 0}</style><h1>COMIC TV · Backup</h1><p>Prepare o backup na TV e guarde uma cópia fora do aparelho.</p><a id="download">Baixar backup preparado</a><h2>Enviar backup para restauração</h2><p>Enviar apenas abre uma prévia na TV. A restauração exige confirmação no controle.</p><input id="file" type="file"><button id="send">Enviar backup · até 32 MiB</button><p id="status"></p><script>document.getElementById('download').href=location.pathname+'/export';document.getElementById('send').onclick=async()=>{const f=document.getElementById('file').files[0];const s=document.getElementById('status');if(!f||f.size>33554432){s.textContent='Selecione um backup de até 32 MiB.';return;}const b=document.getElementById('send');b.disabled=true;try{const r=await fetch(location.pathname+'/receive',{method:'POST',body:f});s.textContent=await r.text();}catch(e){s.textContent='Falha na transferência. Tente novamente.';}finally{b.disabled=false;}};</script></html>"""
+        private val PAGE = """<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Comic TV · Backup</title><style>body{background:#090a0c;color:white;font:18px system-ui;max-width:680px;margin:40px auto;padding:24px}button,a{display:inline-block;padding:16px;background:#ffbd59;color:black;border:0;border-radius:8px;margin:12px 0}input{display:block;margin:20px 0}</style><h1>COMIC TV · Backup</h1><p>Prepare o backup na TV e guarde uma cópia fora do aparelho.</p><a id="download">Baixar backup preparado</a><h2>Enviar backup para restauração</h2><p>Enviar apenas abre uma prévia na TV. A restauração exige confirmação no controle.</p><input id="file" type="file"><button id="send">Enviar backup · até 1 GiB</button><p id="status"></p><script>document.getElementById('download').href=location.pathname+'/export';document.getElementById('send').onclick=async()=>{const f=document.getElementById('file').files[0];const s=document.getElementById('status');if(!f||f.size>1073741824){s.textContent='Selecione um backup de até 1 GiB.';return;}const b=document.getElementById('send');b.disabled=true;try{const r=await fetch(location.pathname+'/receive',{method:'POST',body:f});s.textContent=await r.text();}catch(e){s.textContent='Falha na transferência. Tente novamente.';}finally{b.disabled=false;}};</script></html>"""
     }
 }

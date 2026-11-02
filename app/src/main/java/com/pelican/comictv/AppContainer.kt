@@ -25,7 +25,7 @@ class AppContainer(context: Context) {
         coil3.SingletonImageLoader.get(app).execute(com.pelican.comictv.reader.readerThumbnailRequest(app, file))
     }
     val online = OnlineReaderRepository(app, database.comics(), library, mihon, sourcePreferences)
-    val backup = com.pelican.comictv.backup.BackupRepository(app, database, library, online, appearance, readerImages, pendingRestores)
+    val backup = com.pelican.comictv.backup.BackupRepository(app, database, library, online, appearance, readerImages, pendingRestores, pageDrawings)
     val offlineStore = com.pelican.comictv.offline.OfflineStore(java.io.File(app.filesDir,"offline"))
     val downloads = com.pelican.comictv.offline.DownloadRepository(java.io.File(app.filesDir,"offline-queue.json"),offlineStore,
         online::prepareOffline,{id,index,file ->

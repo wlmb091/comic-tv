@@ -12,15 +12,63 @@ function harness() {
   vm.runInContext(script,context);
   return {elements, requests, run: code=>vm.runInContext(code,context)};
 }
-test('expanding one reader side hides the other, and the edit arrow does not need sync',()=>{
- const h=harness();h.run("globalThis.log=[];document.body.classList.toggle=(n,on)=>log.push(n+':'+on);syncOn=true;connectedUI();readerSide('right',true);readerSide('left',true)");
- const log=JSON.parse(h.run('JSON.stringify(log)'));for(const name of ['syncActive:true','rightOpen:true','rightOpen:false','leftOpen:true'])assert.ok(log.includes(name),name);
- assert.equal(h.run('sideOpen.left'),true);assert.equal(h.run('sideOpen.right'),false);assert.equal(h.run('ed.open'),true);
- assert.equal(h.run("$('editHandle').textContent"),'‹');assert.equal(h.run("$('menuHandle').textContent"),'‹');
- h.run("$('editHandle').onclick()");assert.equal(h.run('sideOpen.left'),false);assert.equal(h.run("$('editHandle').textContent"),'›');
+test('the editor opens from the right bar, without sync, and leaves by its own button',async()=>{
+ const h=harness();assert.doesNotMatch(html,/editHandle/);
+ await h.run("current={id:'c'};readerSide('right',true)");
+ assert.deepEqual(JSON.parse(h.run("JSON.stringify($('menuRows').children.map(c=>c.dataset.label))")),['Editar a página','Ajustes de imagem']);
+ await h.run("$('menuRows').children[0].onclick()");assert.equal(h.run('sideOpen.left'),true);assert.equal(h.run('sideOpen.right'),false);assert.equal(h.run('ed.open'),true);
+ assert.equal(h.run("$('drawRail').children[0].id"),'drawExit');
+ await h.run("$('drawRail').children[0].onclick()");assert.equal(h.run('sideOpen.left'),false);assert.equal(h.run('ed.open'),false);
  h.run("readerSide('left',true);readerSide('right',true)");assert.equal(h.run('sideOpen.left'),false);assert.equal(h.run('ed.open'),false);
- assert.match(html,/body\.leftOpen #menuHandle,body\.leftOpen \.readerSide\.right,body\.leftOpen \.readerSide\.sliders,body\.rightOpen #editHandle,body\.rightOpen \.readerSide\.left\{display:none\}/);
- assert.doesNotMatch(html,/body:not\(\.syncActive\) \.readerHandle,/);assert.match(html,/body:not\(\.syncActive\) \.readerHandle\.right/);
+ assert.match(html,/body\.leftOpen #menuHandle,body\.leftOpen \.readerSide\.right,body\.leftOpen \.readerSide\.sliders,body\.rightOpen \.readerSide\.left\{display:none\}/);
+ assert.doesNotMatch(html,/body:not\(\.syncActive\) \.readerHandle/);
+});
+test('text pages offer the visible stretch instead of the image tools',async()=>{
+ const h=harness();await h.run("current={id:'c'};textShown=true;readerSide('right',true)");
+ assert.deepEqual(JSON.parse(h.run("JSON.stringify($('menuRows').children.map(c=>c.dataset.label))")),['Editar o trecho visível']);
+});
+test('in the editor the image stops at its own edge and the phone may zoom past the TV',()=>{
+ const h=harness();const range=()=>JSON.parse(h.run('JSON.stringify(viewRange(200,600))'));
+ h.run("view={s:2,x:0,y:0}");assert.deepEqual(range(),{x:100,y:300},'the reader keeps the whole-area travel');assert.equal(h.run('maxZoom()'),3);
+ // A page 200x300 in a 200x600 area: at 200% it overflows sideways and fits on height, with no empty travel.
+ h.run("pg.cur.naturalWidth=400;pg.cur.naturalHeight=600;ed.open=true");assert.equal(h.run('maxZoom()'),6);assert.deepEqual(range(),{x:100,y:0});
+ h.run("view={s:3,x:0,y:0}");assert.deepEqual(range(),{x:200,y:150});
+ h.run("view={s:3,x:900,y:-900};clampView(200,600)");assert.equal(h.run('view.x'),200);assert.equal(h.run('view.y'),-150);
+});
+test('editing, the TV gets the page point at the center of the phone, capped at its own zoom',async()=>{
+ const h=harness();h.run("globalThis.setTimeout=f=>{f();return 1};current={id:'c'};syncOn=true;tvReader={active:true,comicId:'c'};$('pager').getBoundingClientRect=()=>({left:0,top:0,width:200,height:600});pg.cur.naturalWidth=400;pg.cur.naturalHeight=600;ed.open=true;view={s:6,x:-300,y:450};mirrorView();flushLive()");
+ await new Promise(resolve=>setImmediate(resolve));
+ const sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).pop().options.body);
+ assert.equal(sent.action,'reader-view');assert.equal(sent.zoom,3);assert.equal(sent.x,.75);assert.equal(sent.y,.25);
+ assert.match(html,/"?reader-view"?/);
+});
+test('adjustments match the TV math, vector by vector',()=>{
+ const h=harness();for(const [values,input,expected] of ADJUST_VECTORS){const out=JSON.parse(h.run('JSON.stringify(adjRgb('+JSON.stringify(values)+','+input.join(',')+'))'));out.forEach((c,i)=>assert.ok(Math.abs(c-expected[i])<.0005,JSON.stringify([values,input,out,expected])))}
+ assert.deepEqual(JSON.parse(h.run("JSON.stringify(adjParse('1:'+new Array(34).fill(0).join(',')))")).length,34);assert.equal(h.run("adjParse('x')"),null);assert.equal(h.run("adjParse('1:1,2')"),null);
+ assert.equal(h.run('adjIdentity(adjZero())'),true);assert.equal(h.run("adjEncode(adjZero()).startsWith('1:0,0,')"),true);
+});
+test('the table gives the same colors as the direct math, and zero changes nothing',()=>{
+ const h=harness();const near=JSON.parse(h.run("(()=>{const v=adjZero();v[2]=50;v[3]=30;v[8]=20;v[13+3]=40;const input=new Uint8ClampedArray([200,120,40,255,12,200,90,128]),out=new Uint8ClampedArray(8);adjApply(adjLut(v),input,out);return JSON.stringify([[...out],adjRgb(v,200/255,120/255,40/255).map(c=>c*255),adjRgb(v,12/255,200/255,90/255).map(c=>c*255)])})()"));
+ for(const i of [0,1,2])assert.ok(Math.abs(near[0][i]-near[1][i])<4);for(const i of [0,1,2])assert.ok(Math.abs(near[0][4+i]-near[2][i])<4);assert.equal(near[0][7],128);
+ const same=JSON.parse(h.run("(()=>{const input=new Uint8ClampedArray([200,120,40,255,3,250,90,255]),out=new Uint8ClampedArray(8);adjApply(adjLut(adjZero()),input,out);return JSON.stringify([...out])})()"));
+ assert.deepEqual(same,[200,120,40,255,3,250,90,255]);
+});
+test('the paper tap and Auto bring yellowed paper back toward neutral',()=>{
+ const h=harness();const paper=JSON.parse(h.run('JSON.stringify(adjNeutral(.95,.9,.7))'));assert.ok(paper.temperature<0,'yellow paper needs a cooler page');
+ const check=JSON.parse(h.run('(()=>{const n=adjNeutral(.95,.9,.7),v=adjZero();v[0]=n.temperature;v[1]=n.tint;return JSON.stringify(adjRgb(v,.95,.9,.7))})()'));assert.ok(Math.abs(check[0]-check[2])<.03&&Math.abs(check[0]-check[1])<.03,JSON.stringify(check));
+ const auto=JSON.parse(h.run("(()=>{const d=[];for(let i=0;i<1000;i++)d.push(i<40?30:240,i<40?30:230,i<40?30:190,255);return JSON.stringify(adjAuto(new Uint8ClampedArray(d),adjZero()))})()"));
+ assert.ok(auto[7]<0,'dull ink goes darker');assert.ok(auto[6]>0,'dull paper goes lighter');assert.ok(auto[0]<0,'the brightest part is the paper');
+});
+test('a drawn stretch replaces its text and the rest keeps its place',()=>{
+ const h=harness();const pieces=JSON.parse(h.run("JSON.stringify(textPieces('abcdefghij',[{start:2,end:5,page:50000,drawn:true},{start:7,end:9,page:50001,drawn:false}]))"));
+ assert.deepEqual(pieces,[{at:0,text:'ab'},{row:{start:2,end:5,page:50000,drawn:true}},{at:5,text:'fghij'}]);
+ assert.deepEqual(JSON.parse(h.run("JSON.stringify(textPieces('abc',[]))")),[{at:0,text:'abc'}]);
+ const lines=JSON.parse(h.run("JSON.stringify(textWrap('um dois tres\\n\\nquatro',7,s=>s.length))"));assert.deepEqual(lines,['um dois','tres','','quatro']);
+ assert.deepEqual(JSON.parse(h.run("JSON.stringify(textWrap('abcdefghij',4,s=>s.length))")),['abcd','efgh','ij']);
+});
+test('the library search is an icon until touched',()=>{
+ const h=harness();h.run("globalThis.seen=[];$('searchBox').classList.toggle=(n,on)=>seen.push(n+':'+on);$('searchBox').classList.contains=()=>seen[seen.length-1]==='open:true';$('searchIcon').onclick()");assert.deepEqual(JSON.parse(h.run('JSON.stringify(seen)')),['open:true']);
+ h.run("$('search').value='x';$('searchIcon').onclick()");assert.equal(h.run("$('search').value"),'');assert.match(html,/id="search" class="hidden"/);
 });
 test('zoom and scroll sliders moved to the right bar behind one icon',async()=>{
  assert.match(html,/id="readerSliders" class="readerSide sliders"/);assert.doesNotMatch(html,/slidersHandle/);
@@ -31,6 +79,7 @@ test('zoom and scroll sliders moved to the right bar behind one icon',async()=>{
  await h.run(icon+".onclick()");assert.equal(h.run('slidersOpen'),true);assert.equal(h.run('menuMore'),null);
  h.run("readerSide('right',false)");assert.equal(h.run('slidersOpen'),false);
 });
+const ADJUST_VECTORS=[[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.95,0.9,0.7],[0.95,0.9,0.7]],[[0,0,100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.1,0.1,0.1],[0.1519,0.1519,0.1519]],[[0,0,-150,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.8,0.2,0.15],[0.499399,0.110347,0.077926]],[[60,-40,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.2,0.6,0.9],[0.229457,0.641785,0.768116]],[[0,0,0,70,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.5,0.5,0.5],[0.5,0.5,0.5]],[[0,0,0,-50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.3,0.75,0.3],[0.36,0.675,0.36]],[[0,0,0,0,-60,50,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.95,0.9,0.7],[0.927168,0.861703,0.650531]],[[0,0,0,0,0,0,40,-30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.1,0.1,0.1],[0.030303,0.030303,0.030303]],[[0,0,0,0,0,0,0,0,60,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.8,0.2,0.15],[1,0.12563,0.04563]],[[0,0,0,0,0,0,0,0,-100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.2,0.6,0.9],[0.53662,0.53662,0.53662]],[[0,0,0,0,0,0,0,0,0,80,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.5,0.5,0.5],[0.5,0.5,0.5]],[[0,0,0,0,0,0,0,0,0,-40,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.3,0.75,0.3],[0.428736,0.698736,0.428736]],[[0,0,0,0,0,0,0,0,0,0,50,60,30,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.95,0.9,0.7],[0.95,0.9,0.7]],[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,-70,50,-40,0,0,0,0,0,0,0,0,0,0,0,0],[0.1,0.1,0.1],[0.1,0.1,0.1]],[[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,100,-60,80,0,0,0,0,0,0],[0.8,0.2,0.15],[0.8,0.2,0.15]],[[-30,15,35,25,-20,30,20,-25,10,25,20,30,0,0,0,0,-15,40,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0.2,0.6,0.9],[0.120988,0.683779,1]]];
 test('the drawing math stays inside the layer limits',()=>{
  const h=harness(),size=(w,h2)=>JSON.parse(h.run('JSON.stringify(drawLayerSize('+w+','+h2+'))'));
  assert.deepEqual(size(800,1200),{w:800,h:1200});
@@ -120,7 +169,7 @@ test('stroke messages keep their order and join the points still waiting',()=>{
 test('reader menu offers the TV options and sends only known ones',async()=>{
  const h=harness();await h.run("current={id:'c'};syncOn=true;tvReader={active:true,comicId:'c',page:1,pageCount:5,readerMenu:{layout:'Normal',fit:'Página',filter:'Original',interval:10,chapters:true,editions:true,cover:true,rotatable:true}};readerSide('right',true)");
  const labels=JSON.parse(h.run("JSON.stringify($('menuRows').children.map(c=>c.dataset.label))"));
- assert.deepEqual(labels,['Continuar','Escolher página','Capítulo anterior','Próximo capítulo','Capítulos / edições','Visualização: Normal','Ajuste: Página','Zoom e rolagem','Imagem e mais opções','Sair da leitura']);
+ assert.deepEqual(labels,['Continuar','Editar a página','Ajustes de imagem','Escolher página','Capítulo anterior','Próximo capítulo','Capítulos / edições','Visualização: Normal','Ajuste: Página','Zoom e rolagem','Imagem e mais opções','Sair da leitura']);
  h.run("toggleMore('more')");const more=JSON.parse(h.run("JSON.stringify($('menuMore').children.map(c=>c.textContent))"));for(const label of ['Usar página atual como capa da saga','Filtro: Original','Iniciar leitura automática','Intervalo: 10s'])assert.ok(more.includes(label),label);
  await h.run("$('menuRows').children.find(c=>c.dataset.label==='Sair da leitura').onclick()");assert.deepEqual(JSON.parse(h.requests.find(r=>r.url.endsWith('/command')).options.body),{action:'reader-option',text:'exit'});
 });

@@ -3,24 +3,28 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 
 enum class ImagePreset(val label: String) { Original("Original"), Ink("Texto e traços"), Vintage("HQ antiga") }
-data class ReaderImageOptions(val preset: ImagePreset = ImagePreset.Original, val intensity: Int = 1) {
+data class ReaderImageOptions(val preset: ImagePreset = ImagePreset.Original, val intensity: Int = 1, val adjustments: ImageAdjustments = ImageAdjustments()) {
+    /** Whether a page has to go through its pixels at all. */
+    val plain: Boolean get() = preset == ImagePreset.Original && adjustments.identity
     companion object {
-        fun restore(name: String?, intensity: Int): ReaderImageOptions {
-            val preset = ImagePreset.entries.firstOrNull { it.name == name } ?: return ReaderImageOptions()
-            return ReaderImageOptions(preset, intensity.coerceIn(0, 2))
+        fun restore(name: String?, intensity: Int, adjustments: String? = null): ReaderImageOptions {
+            val tones = ImageAdjustments.restore(adjustments)
+            val preset = ImagePreset.entries.firstOrNull { it.name == name } ?: return ReaderImageOptions(adjustments = tones)
+            return ReaderImageOptions(preset, intensity.coerceIn(0, 2), tones)
         }
     }
 }
 
 fun enhancePixels(input: IntArray, width: Int, height: Int, options: ReaderImageOptions, checkActive: () -> Unit = {}): IntArray {
     require(width > 0 && height > 0 && width.toLong() * height == input.size.toLong())
-    if (options.preset == ImagePreset.Original) return input.copyOf()
+    val toned = options.adjustments.adjust(input, checkActive)
+    if (options.preset == ImagePreset.Original) return toned
     val intensity = options.intensity.coerceIn(0, 2)
     val black = if (options.preset == ImagePreset.Vintage) listOf(5, 10, 16)[intensity] else 0
     val gamma = if (options.preset == ImagePreset.Vintage) listOf(1.03, 1.07, 1.11)[intensity] else 1.0
     val table = IntArray(256) { (((it - black).toDouble() / (255 - black)).coerceIn(0.0, 1.0).pow(gamma) * 255).roundToInt() }
-    val leveled = IntArray(input.size) { index ->
-        val p = input[index]
+    val leveled = IntArray(toned.size) { index ->
+        val p = toned[index]
         (p and -0x1000000) or (table[(p ushr 16) and 255] shl 16) or (table[(p ushr 8) and 255] shl 8) or table[p and 255]
     }
     val amount = if (options.preset == ImagePreset.Ink) listOf(.18f, .32f, .48f)[intensity] else listOf(.1f, .18f, .26f)[intensity]

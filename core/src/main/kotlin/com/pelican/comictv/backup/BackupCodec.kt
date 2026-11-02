@@ -33,7 +33,7 @@ object BackupCodec {
     private val online = obj("source" to source, "title" to title, "chapter" to chapter, "pin" to text(64)).copy(optional = true)
     private val comic = obj("id" to text(100), "title" to text(300), "pageCount" to smallNumber, "currentPage" to smallNumber,
         "lastRead" to number, "importedAt" to number, "fit" to smallNumber, "rtl" to boolean, "hiddenFromHistory" to boolean,
-        "favorite" to boolean, "sha256" to text(64, true), "online" to online, "imagePreset" to text(30), "imageIntensity" to smallNumber)
+        "favorite" to boolean, "sha256" to text(64, true), "online" to online, "imagePreset" to text(30), "imageIntensity" to smallNumber, "imageAdjustments" to text(400, true))
     private val schema = obj("format" to text(30), "version" to smallNumber, "createdAt" to number,
         "comics" to Rule(element = comic, limit = 20000),
         "collections" to Rule(element = obj("id" to text(100), "name" to text(100)), limit = 2000),
@@ -112,6 +112,7 @@ object BackupCodec {
             require(id(entry.id) && entry.title.isNotBlank() && entry.title.length <= 300)
             require(entry.pageCount in 1..5000 && entry.currentPage in 0 until entry.pageCount && entry.lastRead >= 0 && entry.importedAt >= 0 && entry.fit in 0..2)
             require(entry.imagePreset in setOf("Original", "Ink", "Vintage") && entry.imageIntensity in 0..2)
+            require(entry.imageAdjustments == null || com.pelican.comictv.reader.ImageAdjustments.parse(entry.imageAdjustments) != null) { "Ajustes de imagem inválidos." }
             require(entry.sha256 == null || entry.sha256.matches(Regex("[a-f0-9]{64}")))
             if (OnlineIdentity.isOnline(entry.id)) {
                 val online = requireNotNull(entry.online) { "Metadados online ausentes." }

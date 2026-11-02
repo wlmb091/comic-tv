@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
         val composeView = ComposeView(this)
         root.addView(composeView)
         setContentView(root)
+        com.pelican.comictv.ui.NavigationSounds.attach(window)
         composeView.setContent {
             val container = (application as ComicTvApplication).container
             val appearance by container.appearance.state.collectAsStateWithLifecycle()

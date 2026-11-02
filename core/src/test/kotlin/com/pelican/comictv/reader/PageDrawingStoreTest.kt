@@ -51,4 +51,38 @@ class PageDrawingStoreTest {
             assertFalse(store.hidden)
         } finally { root.deleteRecursively() }
     }
+    @Test fun textStretchesHaveTheirOwnDrawingPages() {
+        val root = Files.createTempDirectory("drawings").toFile()
+        try {
+            val store = PageDrawingStore(root)
+            val first = store.addExcerpt("a-1", 2, 10, 50, byteArrayOf(1))
+            val second = store.addExcerpt("a-1", 2, 60, 90, byteArrayOf(2))
+            store.addExcerpt("a-1", 3, 10, 50, byteArrayOf(3))
+            assertEquals(TextExcerpt.FIRST_PAGE, first.page)
+            assertEquals(listOf(first, second), store.excerpts("a-1", 2))
+            assertTrue(runCatching { store.addExcerpt("a-1", 2, 40, 70, byteArrayOf(4)) }.isFailure)
+            assertTrue(store.excerptBase("a-1", first.page)!!.isFile)
+            store.delete("a-1", first.page)
+            assertNull(store.excerptBase("a-1", first.page))
+            assertEquals(listOf(second), store.excerpts("a-1", 2))
+            assertEquals(second.page + 2, store.addExcerpt("a-1", 9, 0, 1, byteArrayOf(5)).page)
+        } finally { root.deleteRecursively() }
+    }
+    @Test fun aRestoreNeverReplacesWhatIsHere() {
+        val root = Files.createTempDirectory("drawings").toFile()
+        try {
+            val store = PageDrawingStore(root)
+            store.save("a-1", 3, 10, 20, byteArrayOf(9))
+            fun put(name: String, value: Int) = store.restoreFile(name, byteArrayOf(value.toByte()).inputStream(), 10)
+            put("a-1/3.size", 1); put("a-1/3.png", 1); put("a-1/4.png", 2); put("a-1/4.size", 2); put("b-2/5.png", 3)
+            store.finishRestore()
+            assertEquals(9, store.file("a-1", 3)!!.readBytes()[0].toInt())
+            assertEquals(2, store.file("a-1", 4)!!.readBytes()[0].toInt())
+            assertEquals(3, store.file("b-2", 5)!!.readBytes()[0].toInt())
+            for (bad in listOf("a-1/../x.png", "a-1/3.exe", "x/y/3.png", "a-1/abc.png")) assertTrue(bad, runCatching { put(bad, 1) }.isFailure)
+            assertTrue(runCatching { store.restoreFile("c-3/1.png", ByteArray(20).inputStream(), 10) }.isFailure)
+            assertNull(store.file("c-3", 1))
+            assertEquals(listOf("a-1/3.png", "a-1/3.size", "a-1/4.png", "a-1/4.size", "b-2/5.png"), store.backupFiles().map { it.first })
+        } finally { root.deleteRecursively() }
+    }
 }

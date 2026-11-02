@@ -32,7 +32,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
     private val get:(String)->CompanionResource,private val command:(CompanionCommand)->Unit,
     private val received:(File,String)->Unit={_,_->},private val clock:()->Long=System::currentTimeMillis,
     private val lifetimeMillis:Long=30*60*1000L,private val status:(String)->Unit={},private val maxLifetimeMillis:Long=8*60*60*1000L,
-    private val stroke:(CompanionStroke)->Unit={},private val drawing:(CompanionDrawing,ByteArray)->Unit={_,_->},private val drawingLayers:(String,Int,InputStream)->Unit={_,_,_->}) : Closeable {
+    private val stroke:(CompanionStroke)->Unit={},private val drawing:(CompanionDrawing,ByteArray)->Unit={_,_->},private val drawingLayers:(String,Int,InputStream)->Unit={_,_,_->},private val excerpt:(String,Int,Int,Int,ByteArray)->Int={_,_,_,_,_->0}) : Closeable {
     private val token=ByteArray(24).also {SecureRandom().nextBytes(it)}.joinToString(""){"%02x".format(it.toInt() and 255)}
     private val root="/s/$token"
     private var openedAt=0L
@@ -64,7 +64,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; media-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
     }
     private fun valid(c:CompanionCommand):Boolean {
-        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","reader-arrow","open-chapter","ok-long","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
+        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","reader-arrow","open-chapter","ok-long","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","reader-view","reader-adjust","image-adjust","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
         if(c.text.length>1000||c.id.length>100||c.text.any {it=='\u0000'})return false
         if((c.action=="open"||c.action=="open-chapter")&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
         if(!c.x.isFinite()||!c.y.isFinite()||!c.dx.isFinite()||!c.dy.isFinite()||!c.zoom.isFinite())return false
@@ -86,6 +86,9 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
             "reader-page"->c.page in 0..4999
             "reader-turn"->c.delta==-1||c.delta==1
             "reader-zoom"->c.zoom in 1f..3f
+            "reader-view"->c.zoom in 1f..3f&&c.x in 0.0..1.0&&c.y in 0.0..1.0
+            "reader-adjust"->c.text.isEmpty()||com.pelican.comictv.reader.ImageAdjustments.parse(c.text)!=null
+            "image-adjust"->c.id.matches(Regex("[A-Za-z0-9-]{1,100}"))&&com.pelican.comictv.reader.ImageAdjustments.parse(c.text)!=null
             "reader-pinch"->c.zoom in 1f..3f&&c.x in 0.0..1.0&&c.y in 0.0..1.0&&c.dx in -1.0..1.0&&c.dy in -1.0..1.0
             else->c.x in 0.0..1.0&&c.y in 0.0..1.0&&c.delta in -600..600
         }
@@ -124,7 +127,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         try {
             if(session.method==Method.GET){
                 if(endpoint.isEmpty())return response(Response.Status.OK,html,"text/html; charset=utf-8")
-                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing-layers/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
+                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing-layers/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|image-adjust/[A-Za-z0-9-]{1,100}|text-excerpts/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|excerpt-base/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
                 // The state poll is light and must keep answering while pages and covers load.
                 val limited=endpoint!="/reader-state"
                 val cover=endpoint.startsWith("/cover/")||endpoint.startsWith("/saga-cover/")
@@ -156,6 +159,19 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
                 synchronized(this){val second=clock()/1000;if(strokeBucket!=second){strokeBucket=second;strokes=0};if(++strokes>60)return response(Response.Status.TOO_MANY_REQUESTS,"Aguarde um instante.")}
                 val s=Gson().fromJson(body(session,16384).reader(Charsets.UTF_8),CompanionStroke::class.java)
                 require(s!=null&&validStroke(s)){"Traço inválido."};stroke(s);return response(Response.Status.OK,"OK")
+            }
+            if(endpoint.startsWith("/text-excerpt/")) {
+                val parts=endpoint.removePrefix("/text-excerpt/").split('/')
+                require(parts.size==2&&parts[0].matches(Regex("[A-Za-z0-9-]{1,100}"))&&parts[1].matches(Regex("[0-9]{1,5}"))){"Trecho inválido."}
+                val start=session.parameters["start"]?.singleOrNull()?.toIntOrNull()?:-1
+                val end=session.parameters["end"]?.singleOrNull()?.toIntOrNull()?:-1
+                require(start>=0&&end>start){"Trecho inválido."}
+                if(!drawings.tryAcquire(3000L,java.util.concurrent.TimeUnit.MILLISECONDS))return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
+                try {
+                    val bytes=body(session,16L*1024*1024).readBytes()
+                    require(bytes.size>8&&PNG_SIGNATURE.indices.all{bytes[it]==PNG_SIGNATURE[it]}){"Envie uma imagem PNG."}
+                    return response(Response.Status.OK,excerpt(parts[0],parts[1].toInt(),start,end,bytes).toString())
+                } finally {drawings.release()}
             }
             if(endpoint.startsWith("/drawing/")) {
                 val parts=endpoint.removePrefix("/drawing/").split('/')

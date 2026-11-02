@@ -45,7 +45,7 @@ class BackupRestoreTest {
             val library = LibraryRepository(context, db.comics(), collectionDao = db.collections(), pendingRestores = pending)
             val images = ReaderImagePreferences(context); val appearance = AppearancePreferences(context)
             val online = OnlineReaderRepository(context, db.comics(), library, MihonEngine(real), SourcePreferences(context))
-            val repository = BackupRepository(context,db,library,online,appearance,images,pending)
+            val repository = BackupRepository(context,db,library,online,appearance,images,pending,com.pelican.comictv.reader.PageDrawingStore(java.io.File(context.cacheDir,"backup-test-drawings")))
             val document = BackupDocument(createdAt = 123, comics = listOf(BackupComic("restored", "Título", 1, lastRead = 99, favorite = true, sha256 = hash, imagePreset = "Vintage", imageIntensity = 2)),
                 collections = listOf(BackupCollection("c","Meus favoritos")), links = listOf(BackupLink("restored","c")))
             repository.restore(document, false); repository.restore(document, false)
@@ -62,7 +62,7 @@ class BackupRestoreTest {
                 override fun read(id: String) = images.read(id)
                 override suspend fun save(id: String, options: ReaderImageOptions) { throw java.io.IOException("Injected interruption") }
             }
-            val interrupted = BackupRepository(context,db,library,online,appearance,failing,pending)
+            val interrupted = BackupRepository(context,db,library,online,appearance,failing,pending,com.pelican.comictv.reader.PageDrawingStore(java.io.File(context.cacheDir,"backup-test-drawings")))
             val latest = exported.copy(comics = exported.comics.map { it.copy(lastRead = 500, imagePreset = "Ink", imageIntensity = 0) })
             var failed = false
             try { interrupted.restore(latest, false) } catch (_: java.io.IOException) { failed = true }

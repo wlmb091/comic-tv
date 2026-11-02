@@ -11,15 +11,15 @@ interface ReaderImageStore {
 }
 class ReaderImagePreferences(context: Context) : ReaderImageStore {
     private val preferences = context.getSharedPreferences("reader-image", Context.MODE_PRIVATE)
-    override fun read(id: String) = ReaderImageOptions.restore(preferences.getString(id + ":preset", null), preferences.getInt(id + ":intensity", 1))
+    override fun read(id: String) = ReaderImageOptions.restore(preferences.getString(id + ":preset", null), preferences.getInt(id + ":intensity", 1), preferences.getString(id + ":adjust", null))
     override suspend fun save(id: String, options: ReaderImageOptions) = withContext(Dispatchers.IO) {
-        check(preferences.edit().putString(id + ":preset", options.preset.name).putInt(id + ":intensity", options.intensity).commit()) {
+        check(preferences.edit().putString(id + ":preset", options.preset.name).putInt(id + ":intensity", options.intensity).putString(id + ":adjust", options.adjustments.encode()).commit()) {
             "Não foi possível salvar o filtro desta edição."
         }
     }
     override suspend fun saveAll(options: Map<String, ReaderImageOptions>) = withContext(Dispatchers.IO) {
         val editor = preferences.edit()
-        for ((id,value) in options) editor.putString(id + ":preset",value.preset.name).putInt(id + ":intensity",value.intensity)
+        for ((id,value) in options) editor.putString(id + ":preset",value.preset.name).putInt(id + ":intensity",value.intensity).putString(id + ":adjust",value.adjustments.encode())
         check(editor.commit()) { "Não foi possível salvar os filtros restaurados." }
     }
 }

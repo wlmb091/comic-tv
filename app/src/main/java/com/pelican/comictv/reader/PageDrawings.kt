@@ -105,6 +105,30 @@ internal class PageDrawings(private val store: PageDrawingStore, private val com
         // A lost phone must not leave its stroke over the page.
         if (live != null) liveReset = scope.launch { delay(4000); live = null }
     }
+    /** The stretches that have a drawing; one the phone is still editing stays plain text until saved. */
+    suspend fun textPieces(section: Int, text: String): List<TextPiece> = withContext(io) {
+        val rows = runCatching { store.excerpts(comicId, section) }.getOrDefault(emptyList())
+            .filter { store.file(comicId, it.page) != null && it.end <= text.length }
+        val pieces = mutableListOf<TextPiece>()
+        var at = 0
+        for (row in rows) {
+            if (row.start < at) continue
+            val picture = runCatching { excerptPicture(row.page) }.getOrNull() ?: continue
+            if (row.start > at) pieces += TextPiece.Words(text.substring(at, row.start).trimEnd('\n'))
+            pieces += TextPiece.Picture(picture)
+            at = row.end
+        }
+        if (at < text.length) pieces += TextPiece.Words(text.substring(at).trimStart('\n'))
+        pieces.ifEmpty { listOf(TextPiece.Words(text)) }
+    }
+    private fun excerptPicture(page: Int): Bitmap? {
+        val base = store.excerptBase(comicId, page) ?: return null
+        val image = BitmapFactory.decodeFile(base.path, BitmapFactory.Options().apply { inMutable = true; inPreferredConfig = Bitmap.Config.ARGB_8888 }) ?: return null
+        val drawing = store.file(comicId, page)?.let { BitmapFactory.decodeFile(it.path) } ?: return image
+        AndroidCanvas(image).drawBitmap(drawing, null, RectF(0f, 0f, image.width.toFloat(), image.height.toFloat()), AndroidPaint(AndroidPaint.FILTER_BITMAP_FLAG))
+        drawing.recycle()
+        return image
+    }
     /** Replaces one rectangle of the layer, in the phone's layer coordinates. Transparent pixels erase. */
     suspend fun patch(page: Int, patch: Bitmap, x: Int, y: Int, width: Int, height: Int, layerWidth: Int, layerHeight: Int) {
         val known = withContext(Dispatchers.Main.immediate) { layers.containsKey(page) }
@@ -123,6 +147,20 @@ internal class PageDrawings(private val store: PageDrawingStore, private val com
             version++
         }
     }
+}
+
+internal sealed interface TextPiece {
+    data class Words(val text: String) : TextPiece
+    data class Picture(val bitmap: Bitmap) : TextPiece
+}
+
+/** A section's text with its drawn stretches in place. Hidden drawings bring the plain text back. */
+@Composable internal fun rememberTextPieces(drawings: PageDrawings, section: Int, text: String): List<TextPiece> {
+    val hidden = drawings.hidden
+    val pieces by produceState(listOf<TextPiece>(TextPiece.Words(text)), section, text, hidden, drawings.version) {
+        value = if (hidden) listOf(TextPiece.Words(text)) else drawings.textPieces(section, text)
+    }
+    return pieces
 }
 
 /** Drawn over the page tiles with the same placement, so zoom, pan and turns carry the drawing along. */

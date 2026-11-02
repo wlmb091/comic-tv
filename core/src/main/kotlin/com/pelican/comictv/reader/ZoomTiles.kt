@@ -40,6 +40,17 @@ fun pinchPan(fill: Float, oldZoom: Float, newZoom: Float, pan: Float, from: Floa
     return ((pagePoint * newSize - to + (1f - newSize) / 2f) / newOverflow).coerceIn(-1f, 1f)
 }
 
+/**
+ * Pan that puts one page point at the center of the view, on one axis: the phone editor and the TV then show the same spot
+ * even with different screen shapes. [point] is a page fraction.
+ */
+fun centerPan(fill: Float, zoom: Float, point: Float): Float {
+    val size = fill * zoom
+    val overflow = (size - 1f) / 2f
+    if (overflow <= 0f) return 0f
+    return ((point - .5f) * size / overflow).coerceIn(-1f, 1f)
+}
+
 fun sampleSizeForScale(scale: Float): Int {
     var sample = 1
     while (sample < 128 && sample * 2 * scale <= 1f) sample *= 2
