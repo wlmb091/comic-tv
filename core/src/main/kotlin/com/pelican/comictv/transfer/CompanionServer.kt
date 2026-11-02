@@ -14,7 +14,10 @@ import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicInteger
 
 data class CompanionCommand(val action:String="",val text:String="",val id:String="",val x:Double=0.0,val y:Double=0.0,val delta:Int=0,val dx:Double=0.0,val dy:Double=0.0,val page:Int=0,val zoom:Float=1f,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorSize:Int=100,val cursorStyle:Int=0)
-data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f,val browser:Boolean=false,val comicId:String="",val browserScroll:Float=0f,val browserScrollable:Boolean=false,val readerScroll:Float=0f,val readerScrollable:Boolean=false,val browserCanBack:Boolean=false,val browserCanForward:Boolean=false,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorAvailable:Boolean=false,val cursorSize:Int=100,val cursorStyle:Int=0,val theme:String="")
+data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f,val browser:Boolean=false,val comicId:String="",val browserScroll:Float=0f,val browserScrollable:Boolean=false,val readerScroll:Float=0f,val readerScrollable:Boolean=false,val browserCanBack:Boolean=false,val browserCanForward:Boolean=false,val readerText:Boolean=false,val readerMenu:CompanionReaderMenu=CompanionReaderMenu(),val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorAvailable:Boolean=false,val cursorSize:Int=100,val cursorStyle:Int=0,val theme:String="")
+/** What the TV reader's own tools show now, so the phone panel can offer the same options. */
+data class CompanionReaderMenu(val layout:String="",val fit:String="",val rtl:Boolean=false,val filter:String="",val filterOn:Boolean=false,val intensity:Int=1,val compare:Boolean=false,val automatic:Boolean=false,val interval:Int=10,val rotatable:Boolean=false,val rotated:Boolean=false,val chapters:Boolean=false,val editions:Boolean=false,val cover:Boolean=false,val coverBusy:Boolean=false,val coverMessage:String="",val retry:Boolean=false,val fontSize:Int=0)
+val readerOptions=setOf("layout","fit","direction","rotate","cover","filter","intensity","compare","automatic","interval","chapter-prev","chapter-next","editions","retry","exit","font-down","font-up")
 /** The five selectable TV themes, by their persisted preset names. */
 val themeNames=setOf("Amber","Flix","Prime","Max","Cinema")
 data class CompanionResource(val mime:String,val bytes:ByteArray?=null,val file:File?=null,val filename:String?=null)
@@ -51,7 +54,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; media-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
     }
     private fun valid(c:CompanionCommand):Boolean {
-        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
+        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
         if(c.text.length>1000||c.id.length>100||c.text.any {it=='\u0000'})return false
         if(c.action=="open"&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
         if(!c.x.isFinite()||!c.y.isFinite()||!c.dx.isFinite()||!c.dy.isFinite()||!c.zoom.isFinite())return false
@@ -59,6 +62,8 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
             "settings"->listOf(c.readerSensitivity,c.pointerSensitivity,c.zoomSensitivity,c.scrollSensitivity).all{it.isFinite()&&it in .25f..3f}
             "cursor"->c.cursorSize in 50..300&&c.cursorStyle in 0..2
             "theme"->c.text in themeNames
+            "reader-option"->c.text in readerOptions
+            "browser-open"->c.text.isNotBlank()
             "browser-pointer","browser-scroll"->c.dx in -1.0..1.0&&c.dy in -1.0..1.0
             "browser-scroll-to","reader-scroll-to"->c.dy in 0.0..1.0
             "browser-history"->c.delta==-1||c.delta==1

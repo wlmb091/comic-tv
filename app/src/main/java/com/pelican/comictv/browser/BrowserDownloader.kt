@@ -22,6 +22,15 @@ internal object BrowserPolicy {
                 text.startsWith("localhost") || text.startsWith("["))) return url("https://$text")
         return url("https://www.google.com/search").newBuilder().addQueryParameter("q", text).build()
     }
+    private val spokenEndings = setOf("com", "br", "net", "org", "io", "tv", "gov", "edu", "app", "me", "info")
+    /** Dictation writes "uol ponto com ponto br" or "Google. Com": rebuilt only when the result ends like a real address, so a spoken search stays a search. */
+    fun spokenAddress(input: String): String {
+        val text = input.trim().trimEnd('.')
+        if (Regex("^[a-zA-Z][a-zA-Z0-9+.-]*:").containsMatchIn(text)) return text
+        val joined = text.lowercase().replace(Regex("\\s+ponto\\s+"), ".").replace(Regex("\\s*\\.\\s*"), ".").replace(Regex("\\s+"), "")
+        val domain = Regex("^[a-z0-9-]+(\\.[a-z0-9-]+)+(/\\S*)?$").matches(joined)
+        return if (domain && joined.substringBefore('/').substringAfterLast('.') in spokenEndings) joined else text
+    }
     /** HQ Now serves every comic page as http://static.hq-now.com/...; the WebView blocks that on its HTTPS reader. Images only, for this site only. */
     private val mixedImageSites = listOf("hq-now.com")
     fun mixedImagesBuiltIn(pageUrl: String?) = siteMatches(pageUrl, mixedImageSites)

@@ -8,6 +8,14 @@ import java.nio.file.Files
 import kotlin.concurrent.thread
 
 class BrowserPolicyTest {
+    @Test fun dictationBecomesAnAddressOnlyWhenItEndsLikeOne() {
+        assertEquals("uol.com.br", BrowserPolicy.spokenAddress("Uol ponto com ponto br"))
+        assertEquals("google.com", BrowserPolicy.spokenAddress("Google. Com."))
+        assertEquals("hqnow.com", BrowserPolicy.spokenAddress("hq now ponto com"))
+        assertEquals("https://a.b/c", BrowserPolicy.spokenAddress("https://a.b/c"))
+        assertEquals("meu ponto de vista", BrowserPolicy.spokenAddress("meu ponto de vista"))
+        assertEquals("quadrinhos do batman", BrowserPolicy.spokenAddress("quadrinhos do batman"))
+    }
     @Test fun addressBarDistinguishesQueriesFromAddresses() {
         assertEquals("batman", BrowserPolicy.destination("Batman").queryParameter("q")?.lowercase())
         assertEquals("www.google.com", BrowserPolicy.destination("Batman quadrinhos & DC").host)

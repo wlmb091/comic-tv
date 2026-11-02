@@ -23,6 +23,40 @@ class ReaderViewModelTest {
         vm.companionZoom(1f);assertEquals(0f,vm.state.value.panX);assertEquals(0f,vm.state.value.panY)
         vm.close{};advanceUntilIdle()
     }
+    @Test fun phoneScrollsTextInsteadOfMovingAnImage() = runTest(dispatcher) {
+        val section=File.createTempFile("section",".txt").apply{writeText("texto");deleteOnExit()}
+        val repo=FakeRepository().apply{textFile=section}
+        val vm=ReaderViewModel(repo,"remote-text",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})
+        advanceUntilIdle()
+        val requests=mutableListOf<TextScrollRequest>();val listener=launch(UnconfinedTestDispatcher(testScheduler)){vm.textScrollRequests.collect{requests+=it}}
+        vm.reportTextScroll(.4f,true);assertEquals(.4f to true,vm.companionTextScroll())
+        vm.companionScrollTo(.7f);vm.companionPan(0f,.2f)
+        assertEquals(listOf(TextScrollRequest(position=.7f),TextScrollRequest(delta=.2f*1.5f)),requests)
+        vm.companionZoom(2f);vm.companionPinch(2f,.5f,.5f,0f,0f);assertEquals(1f,vm.state.value.zoom)
+        listener.cancel();vm.close{};advanceUntilIdle()
+    }
+    @Test fun companionDragPreparesTheNeighborAndKeepsTheOldPageAfterATurn() = runTest(dispatcher) {
+        val repo=FakeRepository().apply{count=8}
+        val vm=ReaderViewModel(repo,"remote-neighbor",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})
+        advanceUntilIdle();val start=vm.state.value.page
+        vm.companionDrag(-.2f);advanceUntilIdle();assertTrue(start+1 in vm.dragPages.value)
+        vm.companionDrag(0f);vm.imageDisplayed(vm.image.value!!.file);vm.companionPage(start+1)
+        assertTrue(start in vm.dragPages.value);assertTrue(start+1 in vm.dragPages.value)
+        vm.close{};advanceUntilIdle()
+    }
+    @Test fun companionOptionsFollowTheReaderAndScreenActionsAreForwarded() = runTest(dispatcher) {
+        val repo=FakeRepository().apply{count=8}
+        val vm=ReaderViewModel(repo,"remote-options",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})
+        advanceUntilIdle()
+        val requests=mutableListOf<String>();val listener=launch(UnconfinedTestDispatcher(testScheduler)){vm.companionRequests.collect{requests+=it}}
+        val fit=vm.state.value.fit;val rtl=vm.state.value.rtl;val layout=vm.layout.value
+        vm.companionOption("fit");assertNotEquals(fit,vm.state.value.fit)
+        vm.companionOption("direction");assertEquals(!rtl,vm.state.value.rtl)
+        vm.companionOption("layout");assertNotEquals(layout,vm.layout.value);assertEquals(vm.layout.value.label,vm.companionMenu().layout)
+        vm.companionOption("exit");assertEquals(listOf("exit"),requests)
+        assertEquals(null,vm.companionTextScroll())
+        listener.cancel();vm.close{};advanceUntilIdle()
+    }
     @Test fun companionDragShiftsThePageAndNeverStaysStuck() = runTest(dispatcher) {
         val repo=FakeRepository().apply{count=8}
         val vm=ReaderViewModel(repo,"remote-drag",SavedStateHandle(),ioDispatcher=dispatcher,pageDimensions={100 to 200})

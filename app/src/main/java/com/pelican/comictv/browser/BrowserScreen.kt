@@ -139,7 +139,8 @@ import kotlinx.coroutines.*
     DisposableEffect(session, host) {
         val handle = BrowserCursorBridge.Handle(
             read = { session.state.value.let { it.cursorSize to it.cursorStyle } },
-            apply = { size, style -> session.options(cursorSize = size, cursorStyle = style); host.updateOptions() })
+            apply = { size, style -> session.options(cursorSize = size, cursorStyle = style); host.updateOptions() },
+            open = { text -> navigate(BrowserPolicy.spokenAddress(text)) })
         BrowserCursorBridge.handle = handle
         onDispose { if (BrowserCursorBridge.handle === handle) BrowserCursorBridge.handle = null }
     }

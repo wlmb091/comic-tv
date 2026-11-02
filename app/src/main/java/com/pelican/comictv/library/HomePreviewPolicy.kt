@@ -31,9 +31,9 @@ internal object HomeBringIntoViewSpec : androidx.compose.foundation.gestures.Bri
         homeBringIntoViewDistance(offset, size, containerSize)
 }
 
-/** Explorer follows the optional recent heading/row; collection/catalog/latest keep their indices. */
+/** Explorer follows the optional recent heading/row; collection/latest/catalog keep their indices. */
 internal fun homeSourceRowIndex(recentCount: Int, explorer: Boolean, latest: Boolean, collectionItemCount: Int = 1): Int =
-    libraryGridFooterIndex(false, recentCount, collectionItemCount, explorer) + (if (latest) 1 else 0)
+    libraryGridFooterIndex(false, recentCount, collectionItemCount, explorer) + (if (latest) 0 else 1)
 
 /** The header includes non-focusable title/art above its actions: reveal it as a unit. */
 internal fun homeHeaderBringIntoViewDistance(offset: Float, size: Float, container: Float, headerHasFocus: Boolean): Float =

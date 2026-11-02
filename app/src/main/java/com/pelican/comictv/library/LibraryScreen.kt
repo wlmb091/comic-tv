@@ -748,7 +748,7 @@ import kotlinx.coroutines.launch
         }
         }
         if (homeSourceRows) {
-            listOf(false, true).forEach { latest ->
+            listOf(true, false).forEach { latest ->
                 val row = if (latest) "latest" else "catalog"
                 item(key = "home-$row", span = { GridItemSpan(maxLineSpan) }) {
                     HomeSourceRow(if (latest) "Novidades" else "Catálogo", if (latest) homeSources.latest else homeSources.catalog,

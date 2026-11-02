@@ -33,10 +33,10 @@ class HomePreviewPolicyTest {
         assertEquals(3, homeExplorerRowIndex(30))
         assertEquals(1, homeExplorerRowIndex(0))
         assertEquals(5, libraryGridHeaderItems(false, 30, explorer = true))
-        assertEquals(6, homeSourceRowIndex(30, explorer = true, latest = false))
-        assertEquals(7, homeSourceRowIndex(30, explorer = true, latest = true))
-        assertEquals(4, homeSourceRowIndex(0, explorer = true, latest = false))
-        assertEquals(5, homeSourceRowIndex(30, explorer = false, latest = false))
+        assertEquals(7, homeSourceRowIndex(30, explorer = true, latest = false))
+        assertEquals(6, homeSourceRowIndex(30, explorer = true, latest = true))
+        assertEquals(5, homeSourceRowIndex(0, explorer = true, latest = false))
+        assertEquals(6, homeSourceRowIndex(30, explorer = false, latest = false))
     }
 
     @Test fun autoplayKeepsRunningWhileHeroIsVisibleAfterSmallFocusScroll() {
@@ -51,7 +51,7 @@ class HomePreviewPolicyTest {
         for (recentCount in listOf(0, 1, 12, 30)) {
             val rows = mutableListOf("hero")
             if (recentCount > 0) rows.addAll(listOf("recent-heading", "recent-row"))
-            rows.addAll(listOf("explorer", "collection-heading", "collection-row", "catalog", "latest", "footer"))
+            rows.addAll(listOf("explorer", "collection-heading", "collection-row", "latest", "catalog", "footer"))
             assertEquals(rows.indexOf("explorer"), homeExplorerRowIndex(recentCount))
             if (recentCount > 0) assertEquals(rows.indexOf("recent-row"), libraryGridRecentRowIndex(true))
             assertEquals(rows.indexOf("collection-row"), libraryGridHeaderItems(false, recentCount, true))
@@ -67,11 +67,11 @@ class HomePreviewPolicyTest {
             if (recentCount > 0) rows.addAll(listOf("recent-heading", "recent-row"))
             rows.add("collection-heading")
             if (count == 0) rows.add("empty") else repeat(count) { rows.add("cover-$it") }
-            rows.addAll(listOf("catalog", "latest", "footer"))
+            rows.addAll(listOf("latest", "catalog", "footer"))
             assertEquals(rows.indexOf("catalog"), homeSourceRowIndex(recentCount, false, false, count))
             assertEquals(rows.indexOf("latest"), homeSourceRowIndex(recentCount, false, true, count))
             assertEquals(rows.indexOf("footer"), libraryGridFooterIndex(false, recentCount, count, sourceRows = true))
-            assertEquals(rows.indexOf("catalog"), libraryGridFooterIndex(false, recentCount, count))
+            assertEquals(rows.indexOf("latest"), libraryGridFooterIndex(false, recentCount, count))
         }
     }
 

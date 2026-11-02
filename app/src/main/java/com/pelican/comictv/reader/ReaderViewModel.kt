@@ -19,6 +19,11 @@ data class PageImage(val file: File, val width: Int, val height: Int, val text: 
 data class TimelinePreview(val page: Int, val file: File? = null, val loading: Boolean = true, val failed: Boolean = false)
 data class AutomaticReading(val enabled: Boolean = false, val secondsPerScreen: Int = 10)
 private data class ReadingImages(val current: PageImage?, val partner: PageImage?, val layout: ReaderLayout)
+/** Set by the screen, which owns these actions: the phone panel only needs to know which ones exist now. */
+internal data class CompanionMenuFlags(val chapters: Boolean = false, val editions: Boolean = false, val cover: Boolean = false, val coverBusy: Boolean = false,
+    val coverMessage: String = "", val rotatable: Boolean = false, val rotated: Boolean = false)
+/** Text scrolls on its own surface: [position] is absolute (0 top, 1 end) and [delta] counts screens. */
+internal data class TextScrollRequest(val position: Float? = null, val delta: Float = 0f)
 private data class AutomaticFrame(val options: AutomaticReading, val page: Int, val mode: ReaderMode,
     val loading: Boolean, val failed: Boolean, val text: Boolean, val ready: Boolean)
 
@@ -68,6 +73,20 @@ class ReaderViewModel(
     private val _automatic = MutableStateFlow(AutomaticReading())
     val automatic = _automatic.asStateFlow()
     private var pages = emptyList<PageRef>()
+    private val _dragPages = MutableStateFlow<Map<Int, PageImage>>(emptyMap())
+    /** Pages near the current one that can be drawn at once, beside it during a phone drag and in its place after a turn. */
+    val dragPages = _dragPages.asStateFlow()
+    private var companionDragUsed = false
+    private var dragLoad: Pair<Int, Job>? = null
+    private fun keepDragPage(index: Int, image: PageImage) {
+        val center = _state.value.page
+        _dragPages.value = (_dragPages.value + (index to image.copy(displayed = false))).filterKeys { kotlin.math.abs(it - center) <= 2 }
+    }
+    private suspend fun loadDragPage(index: Int): PageImage {
+        val file = repository.prefetch(comicId, pages[index])
+        val dimensions = withContext(ioDispatcher) { pageDimensions(file) }
+        return PageImage(file, dimensions.first, dimensions.second)
+    }
     private val sourceLoads = linkedSetOf<Job>()
     private fun launchLoad(block: suspend CoroutineScope.() -> Unit): Job {
         val job = viewModelScope.launch(block = block)
@@ -183,6 +202,7 @@ class ReaderViewModel(
         check(companionAvailable()){ "Leitor indisponível para controle." }
         require(x.isFinite()&&y.isFinite())
         pauseAutomaticReading()
+        if(_image.value?.text!=null){_textScrollRequests.tryEmit(TextScrollRequest(delta=y*1.5f));return}
         val old=_state.value
         _state.value=if(old.zoom<=1f)old.copy(panX=0f,panY=0f) else old.copy(
             panX=(old.panX+x).coerceIn(-1f,1f),panY=(old.panY+y).coerceIn(-1f,1f))
@@ -191,12 +211,14 @@ class ReaderViewModel(
     internal fun companionScrollTo(position:Float) {
         check(companionAvailable()){ "Leitor indisponível para controle." };require(position.isFinite()&&position in 0f..1f)
         pauseAutomaticReading()
+        if(_image.value?.text!=null){_textScrollRequests.tryEmit(TextScrollRequest(position=position));return}
         val old=_state.value
         if(old.zoom>1f)_state.value=old.copy(panY=position*2f-1f)
     }
     internal fun companionZoom(zoom:Float) {
         check(companionAvailable()){ "Leitor indisponível para controle." };require(zoom.isFinite())
         pauseAutomaticReading()
+        if(_image.value?.text!=null)return
         val old=_state.value;val value=zoom.coerceIn(1f,3f)
         _state.value=old.copy(zoom=value,panX=if(value==1f)0f else old.panX,panY=if(value==1f)0f else old.panY)
     }
@@ -205,9 +227,54 @@ class ReaderViewModel(
     internal fun companionDrag(fraction:Float) {
         check(companionAvailable()){ "Leitor indisponível para controle." };require(fraction.isFinite())
         pauseAutomaticReading()
+        if(fraction!=0f)prepareDragPage(_state.value.page+if(fraction<0f)1 else -1)
         _state.value=_state.value.copy(dragX=fraction.coerceIn(-1f,1f))
         dragReset?.cancel()
         dragReset=if(fraction==0f)null else viewModelScope.launch{delay(1500);_state.value=_state.value.copy(dragX=0f)}
+    }
+    private fun prepareDragPage(index:Int) {
+        companionDragUsed=true
+        if(index !in pages.indices||index in _dragPages.value||pages[index].key.startsWith("epub:text:"))return
+        if(dragLoad?.let{(target,job)->target==index&&job.isActive}==true)return
+        dragLoad?.second?.cancel()
+        dragLoad=index to launchLoad {
+            try {val image=loadDragPage(index);ensureActive();keepDragPage(index,image)}
+            catch(e:CancellationException){throw e}catch(_:Exception){}
+        }
+    }
+    private val _textScrollRequests=MutableSharedFlow<TextScrollRequest>(extraBufferCapacity=8,onBufferOverflow=kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
+    internal val textScrollRequests=_textScrollRequests.asSharedFlow()
+    private var textPosition=0f to false
+    internal fun reportTextScroll(position:Float,scrollable:Boolean){textPosition=position to scrollable}
+    /** Where the text section is and whether it overflows; null while the current page is not text. */
+    internal fun companionTextScroll()=if(_image.value?.text!=null)textPosition else null
+    private var textFont=0
+    internal fun reportTextFont(size:Int){textFont=size}
+    internal var companionMenuFlags=CompanionMenuFlags()
+    internal fun companionMenu()=companionMenuFlags.let{flags->
+        val state=_state.value;val options=_imageOptions.value
+        com.pelican.comictv.transfer.CompanionReaderMenu(layout=_layout.value.label,fit=when(state.fit){FitMode.Page->"Página";FitMode.Width->"Largura";FitMode.Height->"Altura"},rtl=state.rtl,
+            filter=options.preset.label,filterOn=options.preset!=ImagePreset.Original,intensity=options.intensity.coerceIn(0,2),compare=_compareOriginal.value,
+            automatic=_automatic.value.enabled,interval=_automatic.value.secondsPerScreen,rotatable=flags.rotatable,rotated=flags.rotated,chapters=flags.chapters,editions=flags.editions,
+            cover=flags.cover,coverBusy=flags.coverBusy,coverMessage=flags.coverMessage,retry=error.value!=null,fontSize=if(_image.value?.text!=null)textFont else 0)
+    }
+    private val _companionRequests=MutableSharedFlow<String>(extraBufferCapacity=8,onBufferOverflow=kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
+    /** Options whose action belongs to the screen: leaving the reader, turning it, saving the cover, the text font. */
+    internal val companionRequests=_companionRequests.asSharedFlow()
+    /** The same options as the TV tools, without opening them over the page. */
+    internal fun companionOption(option:String) {
+        check(companionAvailable()){ "Leitor indisponível para controle." }
+        when(option){
+            "layout"->cycleLayout()
+            "fit"->action(ReaderAction.ToggleFit)
+            "direction"->action(ReaderAction.ToggleRtl)
+            "filter"->cycleImagePreset()
+            "intensity"->cycleImageIntensity()
+            "compare"->toggleOriginalComparison()
+            "automatic"->if(_automatic.value.enabled)pauseAutomaticReading() else startAutomaticReading()
+            "interval"->cycleAutomaticInterval()
+            else->_companionRequests.tryEmit(option)
+        }
     }
     /** How much of the view the shown pages fill at zoom 1; published by the renderer that measures them. */
     @Volatile private var pageFill=1f to 1f
@@ -216,6 +283,7 @@ class ReaderViewModel(
     internal fun companionPinch(zoom:Float,x:Float,y:Float,dx:Float,dy:Float) {
         check(companionAvailable()){ "Leitor indisponível para controle." };require(zoom.isFinite()&&x.isFinite()&&y.isFinite()&&dx.isFinite()&&dy.isFinite())
         pauseAutomaticReading()
+        if(_image.value?.text!=null)return
         val old=_state.value;val value=zoom.coerceIn(1f,3f);val (fillX,fillY)=pageFill
         _state.value=old.copy(zoom=value,panX=pinchPan(fillX,old.zoom,value,old.panX,x-dx,x),panY=pinchPan(fillY,old.zoom,value,old.panY,y-dy,y))
     }
@@ -235,6 +303,7 @@ class ReaderViewModel(
     private fun applyState(old:ReaderState,next:ReaderState) {
         _state.value = next
         if (next.page != old.page) {
+            _image.value?.takeIf { it.text == null }?.let { keepDragPage(old.page, it) }
             saved["page"] = next.page
             writes.trySend(next.page)
             val keep = activePrefetch?.let { (owner, index) -> owner === prefetchJob && owner.isActive && index == next.page } == true
@@ -359,8 +428,14 @@ class ReaderViewModel(
                     ensureActive()
                     if (_state.value.page != expected) return@launchLoad
                     _anticipated.value = (_anticipated.value.filterNot { it.file == file } + PageImage(file, dimensions.first, dimensions.second)).takeLast(2)
+                    keepDragPage(index, PageImage(file, dimensions.first, dimensions.second))
                     try {thumbnail(index); warmed += index} catch(e: CancellationException) {throw e} catch(_: Exception) { }
                 } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+            }
+            // Only a phone drag can show the previous page before it is asked for.
+            if (companionDragUsed && expected - 1 in pages.indices && expected - 1 !in _dragPages.value && !pages[expected - 1].key.startsWith("epub:text:")) {
+                try { val image = loadDragPage(expected - 1); ensureActive(); if (_state.value.page == expected) keepDragPage(expected - 1, image) }
+                catch (e: CancellationException) { throw e } catch (_: Exception) { }
             }
             for (index in (expected - 2..expected + 4).filter { it in pages.indices && it !in warmed }.sortedBy { kotlin.math.abs(it - expected) }) {
                 if (_state.value.page != expected) return@launchLoad

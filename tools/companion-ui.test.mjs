@@ -12,6 +12,41 @@ function harness() {
   vm.runInContext(script,context);
   return {elements, requests, run: code=>vm.runInContext(code,context)};
 }
+test('reader side arrows belong to sync and stay until pulled back',()=>{
+ const h=harness();h.run("globalThis.log=[];document.body.classList.toggle=(n,on)=>log.push(n+':'+on);syncOn=true;connectedUI();readerSide('left',true);readerSide('right',true)");
+ const log=JSON.parse(h.run('JSON.stringify(log)'));for(const name of ['syncActive:true','leftOpen:true','rightOpen:true'])assert.ok(log.includes(name),name);
+ h.run("view={s:1,x:0,y:0};paintTrack(false)");assert.equal(h.run('sideOpen.left&&sideOpen.right'),true);
+ assert.equal(h.run("$('slidersHandle').textContent"),'‹');assert.equal(h.run("$('menuHandle').textContent"),'›');
+ h.run("$('slidersHandle').onclick()");assert.equal(h.run('sideOpen.left'),false);assert.equal(h.run("$('slidersHandle').textContent"),'›');
+});
+test('reader menu offers the TV options and sends only known ones',async()=>{
+ const h=harness();await h.run("current={id:'c'};syncOn=true;tvReader={active:true,comicId:'c',page:1,pageCount:5,readerMenu:{layout:'Normal',fit:'Página',filter:'Original',interval:10,chapters:true,editions:true,cover:true,rotatable:true}};readerSide('right',true)");
+ const labels=JSON.parse(h.run("JSON.stringify($('menuRows').children.map(c=>c.textContent))"));
+ for(const label of ['Continuar','Escolher página','Capítulo anterior','Próximo capítulo','Capítulos / edições','Visualização: Normal','Ajuste: Página','Usar página atual como capa da saga','Filtro: Original','Iniciar leitura automática','Intervalo: 10s','Sair da leitura'])assert.ok(labels.includes(label),label);
+ await h.run("$('menuRows').children.find(c=>c.textContent==='Sair da leitura').onclick()");assert.deepEqual(JSON.parse(h.requests.find(r=>r.url.endsWith('/command')).options.body),{action:'reader-option',text:'exit'});
+});
+test('double tap zooms at the point, again returns, and only mirrors when synced',async()=>{
+ const h=harness();await h.run("$('pager').getBoundingClientRect=()=>({left:0,top:0,width:400,height:800});doubleTapZoom(100,200)");
+ assert.equal(h.run('view.s'),2);assert.equal(h.run('view.x'),100);assert.equal(h.run('view.y'),200);assert.equal(h.requests.filter(r=>r.url.endsWith('/command')).length,0);
+ h.run('doubleTapZoom(100,200)');assert.equal(h.run('view.s'),1);
+ h.run("current={id:'c'};syncOn=true;tvReader={active:true,comicId:'c'};doubleTapZoom(100,200)");await new Promise(resolve=>setTimeout(resolve,20));
+ assert.deepEqual(JSON.parse(h.requests.find(r=>r.url.endsWith('/command')).options.body),{action:'reader-pinch',zoom:2,x:.25,y:.25,dx:0,dy:0});
+});
+test('control groups dim their buttons and leave the fixed ones alone',()=>{
+ const h=harness();h.run("for(const key of Object.keys(CONTROL_GROUPS))CONTROL_GROUPS[key]=false;tvReader={active:true,page:2,pageCount:5};$('padOK').disabled=false;controlLayout()");
+ for(const id of ['tvPrev','tvNext','btnLeft','btnRight'])assert.equal(h.run("$('"+id+"').disabled"),true,id);
+ assert.equal(h.run("$('padOK').disabled"),false);assert.equal(h.run("$('btnBack').disabled||false"),false);assert.equal(h.run("$('btnMenu').disabled||false"),false);
+ assert.match(html,/role="switch" data-group="arrows"/);assert.match(html,/data-group="pad"/);assert.match(html,/data-group="pages"/);assert.match(html,/data-group="sliders"/);
+});
+test('text pages dim the zoom and let the scroll slider follow the TV',()=>{
+ const h=harness();h.run("tvReader={active:true,page:2,pageCount:5,readerText:true,readerScrollable:true};globalThis.log={};for(const id of ['zoomSide','scrollSide'])$(id).classList.toggle=(n,on)=>log[id]=on;controlLayout()");
+ assert.equal(h.run('log.zoomSide'),true);assert.equal(h.run('log.scrollSide'),false);
+});
+test('Abrir site appears with the TV browser and sends the spoken text',async()=>{
+ const h=harness();h.run("globalThis.shown=null;$('openSite').classList.toggle=(n,on)=>shown=!on;tvReader={cursorAvailable:true};cursorUI()");assert.equal(h.run('shown'),true);
+ await h.run("$('keyboard').value=' uol ponto com ';$('openSite').onclick()");await new Promise(resolve=>setTimeout(resolve,20));
+ assert.deepEqual(JSON.parse(h.requests.find(r=>r.url.endsWith('/command')).options.body),{action:'browser-open',text:'uol ponto com'});
+});
 test('TV mirror and capture requests are removed',()=>{assert.doesNotMatch(html,/\/screen|refreshScreen|id="screen"/)});
 test('arrows are off in the reader and in the browser',async()=>{
   const h=harness();await h.run("tvReader={active:true,page:4,pageCount:10,zoom:2,minZoom:1,maxZoom:4}; directional('right')");await h.run("tvReader={active:false,browser:true}; directional('right')");

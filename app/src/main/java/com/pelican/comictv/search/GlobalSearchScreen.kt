@@ -192,8 +192,8 @@ internal class GlobalSearchSession : ViewModel() {
       }
     }) {
             item("modes", span = { GridItemSpan(maxLineSpan) }) { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                FocusButton("catalog", "Catálogo", { query = ""; latest = false; browseRequested = true })
                 FocusButton("latest", "Novidades", { query = ""; latest = true; browseRequested = true })
+                FocusButton("catalog", "Catálogo", { query = ""; latest = false; browseRequested = true })
                 FocusButton("retry", "Buscar novamente", { retry++ })
             } }
             onBrowserUrl?.let { open ->

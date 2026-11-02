@@ -90,7 +90,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 val page=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)?.takeIf{dialogs.focused()==null&&activity.hasWindowFocus()}
                 val position=page?.companionScrollPosition()
                 val cursor=com.pelican.comictv.browser.BrowserCursorBridge.handle?.read?.invoke()
-                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null,browserCanBack=page?.canGoBack()==true,browserCanForward=page?.canGoForward()==true) else owner.state.value.let{CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId,readerScroll=((it.panY+1f)/2f).coerceIn(0f,1f),readerScrollable=it.zoom>1.001f)}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"),cursorAvailable=cursor!=null&&owner==null,cursorSize=cursor?.first?:100,cursorStyle=cursor?.second?:0)
+                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null,browserCanBack=page?.canGoBack()==true,browserCanForward=page?.canGoForward()==true) else owner.state.value.let{val text=owner.companionTextScroll();CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId,readerScroll=text?.first?:((it.panY+1f)/2f).coerceIn(0f,1f),readerScrollable=text?.second?:(it.zoom>1.001f),readerText=text!=null,readerMenu=owner.companionMenu())}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"),cursorAvailable=cursor!=null&&owner==null,cursorSize=cursor?.first?:100,cursorStyle=cursor?.second?:0)
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot.copy(theme=container.appearance.state.value.preset.name)).toByteArray(Charsets.UTF_8))
         }
@@ -190,6 +190,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             handle.apply(c.cursorSize,c.cursorStyle);return
         }
         if(dialog!=null){controlDialog(c,dialog);return}
+        if(c.action=="browser-open"){(com.pelican.comictv.browser.BrowserCursorBridge.handle?:error("Abra o navegador na TV para abrir um site.")).open(c.text);return}
         if(c.action.startsWith("browser-")) {
             val browser=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)
                 ?:error("Selecione a página do navegador na TV.")
@@ -211,6 +212,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             when(c.action){
                 "reader-pan"->owner.companionPan(c.x.toFloat(),c.y.toFloat())
                 "reader-drag"->owner.companionDrag(c.x.toFloat())
+                "reader-option"->owner.companionOption(c.text)
                 "reader-page"->owner.companionPage(c.page)
                 "reader-turn"->owner.companionTurn(c.delta)
                 "reader-zoom"->owner.companionZoom(c.zoom)

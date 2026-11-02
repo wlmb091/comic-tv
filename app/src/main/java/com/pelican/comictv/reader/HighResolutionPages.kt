@@ -33,7 +33,7 @@ internal val LocalReaderPageFill = staticCompositionLocalOf<(Float, Float) -> Un
 /** Display coordinates change immediately; visible source pixels are decoded asynchronously. */
 @Composable internal fun HighResolutionPages(state: ReaderState, pages: List<PageImage?>,
     cache: ReaderTileCache, options: ReaderImageOptions, modifier: Modifier = Modifier, gap: Float = 0f,
-    onDisplayed: (File) -> Unit, onFailed: (File) -> Unit) {
+    displayKey: Any? = null, onDisplayed: (File) -> Unit, onFailed: (File) -> Unit) {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val extents = pages.map { ImageExtent(it?.width ?: pages.filterNotNull().firstOrNull()?.width ?: 1,
         it?.height ?: pages.filterNotNull().firstOrNull()?.height ?: 1) }
@@ -52,7 +52,7 @@ internal val LocalReaderPageFill = staticCompositionLocalOf<(Float, Float) -> Un
     val requested = if (size.width == 0) emptyList() else (overview + visible).distinct()
     var tiles by remember(stamps, options) { mutableStateOf<Map<TileKey, TileBitmap>>(emptyMap()) }
     var failed by remember(stamps, options) { mutableStateOf(false) }
-    LaunchedEffect(requested) {
+    LaunchedEffect(requested, displayKey) {
         if (requested.isEmpty()) return@LaunchedEffect
         val previous = tiles
         val prepared = requested.mapNotNull { key -> (previous[key] ?: cache.peek(key))?.let { key to it } }.toMap().toMutableMap()
@@ -90,7 +90,7 @@ internal val LocalReaderPageFill = staticCompositionLocalOf<(Float, Float) -> Un
                 val placement = placements.getOrNull(index) ?: return
                 val scale = placement.width / placement.source.width
                 val r = tile.region
-                drawImage(tile.bitmap.asImageBitmap(), dstOffset = IntOffset((placement.left + r.left * scale + state.dragX * size.width).roundToInt(),
+                drawImage(tile.bitmap.asImageBitmap(), dstOffset = IntOffset((placement.left + r.left * scale).roundToInt(),
                     (placement.top + r.top * scale).roundToInt()),
                     dstSize = IntSize(((r.right-r.left) * scale).roundToInt().coerceAtLeast(1), ((r.bottom-r.top) * scale).roundToInt().coerceAtLeast(1)),
                     filterQuality = FilterQuality.High)

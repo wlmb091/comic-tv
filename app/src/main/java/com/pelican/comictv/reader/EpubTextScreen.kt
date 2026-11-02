@@ -55,6 +55,27 @@ import kotlin.math.roundToInt
     LaunchedEffect(positionKey, restored) {
         if (restored) snapshotFlow { scroll.value }.sample(500).collect { savePosition() }
     }
+    SideEffect { viewModel.reportTextFont(fontSize) }
+    LaunchedEffect(positionKey, restored) {
+        if (restored) snapshotFlow { scroll.value to scroll.maxValue }.collect { (value, maximum) ->
+            val measured = maximum > 0 && maximum != Int.MAX_VALUE
+            viewModel.reportTextScroll(if (measured) value.toFloat() / maximum else 0f, measured)
+        }
+    }
+    LaunchedEffect(positionKey, restored) {
+        if (restored) viewModel.textScrollRequests.collect { request ->
+            val target = request.position?.let { it * scroll.maxValue } ?: (scroll.value + request.delta * scroll.viewportSize)
+            scroll.scrollTo(target.roundToInt().coerceIn(0, scroll.maxValue))
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.companionRequests.collect { option ->
+            if (option == "font-down" || option == "font-up") {
+                fontSize = (fontSize + if (option == "font-up") 2 else -2).coerceIn(18, 40)
+                preferences.edit().putInt("font-size", fontSize).apply()
+            }
+        }
+    }
     LaunchedEffect(positionKey, restored, automatic, state.mode) {
         if (!restored || !automatic.enabled || state.mode != ReaderMode.Reading) return@LaunchedEffect
         val expectedPage = state.page

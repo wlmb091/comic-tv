@@ -1,6 +1,10 @@
 package com.pelican.comictv.reader
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -68,6 +72,35 @@ import kotlinx.coroutines.launch
     var coverJob by remember { mutableStateOf<Job?>(null) }
     var coverBusy by remember { mutableStateOf(false) }
     var coverMessage by remember { mutableStateOf<String?>(null) }
+    fun saveCover(failed: Boolean) {
+        val save = onUsePageAsSagaCover ?: return
+        val page = image
+        if (!coverBusy && canUseSagaPageCover(page, loading, failed)) {
+            coverBusy = true; coverMessage = null
+            coverJob = coverScope.launch {
+                try { save(requireNotNull(page).file); coverMessage = "Página salva como capa da saga." }
+                catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { coverMessage = failure.message ?: "Não foi possível salvar a capa." }
+                finally { coverBusy = false }
+            }
+        }
+    }
+    val rotatable = !com.pelican.comictv.ui.LocalAppOrientation.current.portrait
+    SideEffect {
+        viewModel.companionMenuFlags = CompanionMenuFlags(onChapterStep != null, onEditions != null, onUsePageAsSagaCover != null && image?.text == null,
+            coverBusy, coverMessage.orEmpty(), rotatable, rotated)
+    }
+    val phoneOption by rememberUpdatedState<(String) -> Unit> { option ->
+        when (option) {
+            "exit" -> viewModel.close(onExit)
+            "chapter-prev" -> onChapterStep?.let { step -> viewModel.close { step(-1) } }
+            "chapter-next" -> onChapterStep?.let { step -> viewModel.close { step(1) } }
+            "editions" -> onEditions?.let { viewModel.close(it) }
+            "rotate" -> if (rotatable) onRotate()
+            "cover" -> saveCover(error != null)
+        }
+    }
+    LaunchedEffect(viewModel) { viewModel.companionRequests.collect { phoneOption(it) } }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, viewModel, narrationMode) {
         val observer = LifecycleEventObserver { _, event ->
@@ -95,6 +128,24 @@ import kotlinx.coroutines.launch
     DisposableEffect(tileCache) { onDispose { tileCache.close() } }
     var renderError by remember(image?.file) { mutableStateOf(false) }
     val displayedError = error ?: if (renderError) "Não foi possível decodificar esta página." else null
+    LaunchedEffect(viewModel) {
+        viewModel.companionRequests.collect { if (it == "retry") { tileCache.clear(); renderError = false; viewModel.retry() } }
+    }
+    val dragPages by viewModel.dragPages.collectAsStateWithLifecycle()
+    // Between the 20 commands per second of a phone drag the page keeps moving; a turn lands at once.
+    val dragOffset = remember(viewModel) { Animatable(0f) }
+    var dragPage by remember(viewModel) { mutableIntStateOf(state.page) }
+    LaunchedEffect(state.dragX, state.page) {
+        val turned = dragPage != state.page
+        dragPage = state.page
+        val settling = state.dragX == 0f || kotlin.math.abs(state.dragX) == 1f
+        if (turned) dragOffset.snapTo(state.dragX)
+        else dragOffset.animateTo(state.dragX, if (settling) tween(220, easing = FastOutSlowInEasing) else tween(70, easing = LinearEasing))
+    }
+    val dragNext by remember(viewModel) { derivedStateOf { if (dragOffset.value < 0f) true else if (dragOffset.value > 0f) false else null } }
+    val neighbor = dragNext?.takeIf { state.zoom <= 1.001f && layout == ReaderLayout.Normal }?.let { next -> dragPages[state.page + if (next) 1 else -1]?.let { next to it } }
+    // The next page is usually ready already: nothing is left dark while its turn is confirmed.
+    val shownPage = image ?: dragPages[state.page].takeIf { error == null }
     val focus = remember { FocusRequester() }
     val endShortcutFocus = remember { FocusRequester() }
     var endShortcutFocused by remember { mutableStateOf(false) }
@@ -176,13 +227,20 @@ import kotlinx.coroutines.launch
                 }
             }
         }.onFocusChanged { if (!it.hasFocus) cancelCenter() }.focusRequester(focus).focusable()) {
-        if (layout == ReaderLayout.Gallery) ReaderGallery(state, image, previews, tileCache, effectiveImageOptions, Modifier.fillMaxSize().padding(bottom = timelineHeight),
+        val dragged = Modifier.fillMaxSize().graphicsLayer { translationX = dragOffset.value * size.width }.padding(bottom = timelineHeight)
+        neighbor?.let { (next, page) ->
+            CompositionLocalProvider(LocalReaderPageFill provides { _, _ -> }) {
+                HighResolutionPages(state.copy(zoom = 1f, panX = 0f, panY = 0f), listOf(page), tileCache, effectiveImageOptions,
+                    Modifier.fillMaxSize().graphicsLayer { translationX = (dragOffset.value + if (next) 1f else -1f) * size.width }.padding(bottom = timelineHeight),
+                    onDisplayed = {}, onFailed = {})
+            }
+        }
+        if (layout == ReaderLayout.Gallery) ReaderGallery(state, image, previews, tileCache, effectiveImageOptions, dragged,
             onDisplayed = viewModel::imageDisplayed, onFailed = viewModel::imageDisplayFailed)
-        if (layout == ReaderLayout.Book) ReaderBook(state, image, bookPartner, viewModel.hasBookPartner(state.page), tileCache, effectiveImageOptions, Modifier.fillMaxSize().padding(bottom = timelineHeight),
+        if (layout == ReaderLayout.Book) ReaderBook(state, image, bookPartner, viewModel.hasBookPartner(state.page), tileCache, effectiveImageOptions, dragged,
             viewModel::imageDisplayed, viewModel::imageDisplayFailed, viewModel::bookPageDisplayed, viewModel::bookPageFailed)
-        if (layout == ReaderLayout.Normal) image?.let { page ->
-            HighResolutionPages(state, listOf(page), tileCache, effectiveImageOptions,
-                Modifier.fillMaxSize().padding(bottom = timelineHeight),
+        if (layout == ReaderLayout.Normal) shownPage?.let { page ->
+            HighResolutionPages(state, listOf(page), tileCache, effectiveImageOptions, dragged, displayKey = image?.file,
                 onDisplayed = viewModel::imageDisplayed, onFailed = viewModel::imageDisplayFailed)
         }
         if (showPosition && state.pageCount > 0 && (state.mode == ReaderMode.Reading || state.mode == ReaderMode.Pan)) {
@@ -192,7 +250,7 @@ import kotlinx.coroutines.launch
                 Modifier.align(Alignment.TopStart).padding(16.dp).background(Color.Black.copy(alpha = .65f)).padding(8.dp),
                 fontSize = 14.sp, color = Color.White)
         }
-        if (loading) Text("Carregando página…", Modifier.align(Alignment.Center), fontSize = 20.sp)
+        if (loading && (shownPage == null || layout != ReaderLayout.Normal)) Text("Carregando página…", Modifier.align(Alignment.Center), fontSize = 20.sp)
         ReaderModeNotice(state.mode, Modifier.align(Alignment.BottomCenter).padding(24.dp))
         if (showEndShortcut) ChapterEndShortcut(endShortcutFocus, { focused ->
             endShortcutFocused = focused
@@ -220,18 +278,7 @@ import kotlinx.coroutines.launch
                 imageOptions = imageOptions, compareOriginal = compareOriginal, onCycleImagePreset = viewModel::cycleImagePreset,
                 onCycleImageIntensity = viewModel::cycleImageIntensity, onCompareOriginal = viewModel::toggleOriginalComparison,
                 onNarrate = if (viewModel.canNarrateBook()) narrate else null, onRotate = onRotate,
-                onUsePageCover = onUsePageAsSagaCover?.let { save -> {
-                    val page = image
-                    if (!coverBusy && canUseSagaPageCover(page, loading, displayedError != null)) {
-                        coverBusy = true; coverMessage = null
-                        coverJob = coverScope.launch {
-                            try { save(requireNotNull(page).file); coverMessage = "Página salva como capa da saga." }
-                            catch (cancelled: CancellationException) { throw cancelled }
-                            catch (failure: Exception) { coverMessage = failure.message ?: "Não foi possível salvar a capa." }
-                            finally { coverBusy = false }
-                        }
-                    }
-                } }, pageCoverBusy = coverBusy,
+                onUsePageCover = onUsePageAsSagaCover?.let { { saveCover(displayedError != null) } }, pageCoverBusy = coverBusy,
                 pageCoverReady = canUseSagaPageCover(image, loading, displayedError != null), pageCoverMessage = coverMessage)
         }
     }
