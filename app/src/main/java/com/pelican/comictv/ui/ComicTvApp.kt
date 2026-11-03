@@ -99,7 +99,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
         companionLifecycle.addObserver(observer)
         onDispose{companionLifecycle.removeObserver(observer);companion.close()}
     }
-    SideEffect{companion.onOpen={id->nav.navigate("reader/$id"){launchSingleTop=true}};companion.onHome={nav.navigate("library"){popUpTo("library"){inclusive=false};launchSingleTop=true}}}
+    SideEffect{companion.onOpen={id->nav.navigate("reader/$id"){launchSingleTop=true}};companion.onHome={nav.navigate("library"){popUpTo("library"){inclusive=false};launchSingleTop=true}};companion.onTv={nav.navigate("tv"){launchSingleTop=true}}}
     val updater: com.pelican.comictv.updates.AppUpdateViewModel = viewModel(key = "app-updates", factory = viewModelFactory {
         initializer { com.pelican.comictv.updates.AppUpdateViewModel(container.appUpdates) }
     })
@@ -161,6 +161,13 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
 
     CompositionLocalProvider(LocalShellLibrarySearch provides openLibrarySearch, com.pelican.comictv.companion.LocalCompanionDialogs provides companionDialogs) {
     NavHost(navController = nav, startDestination = "library") {
+        composable("tv") {
+            TvShell("tv", onNavigate = { route -> navigationContentTarget = route; nav.navigate(route) { launchSingleTop = true } },
+                focusContentOnEntry = navigationContentTarget == "tv", onSectionFocused = { navigationContentTarget = null }) {
+                com.pelican.comictv.tv.TvScreen(container.television, container.tvPlayback,
+                    onBrowser = { url -> nav.navigate("browser?url=" + android.net.Uri.encode(url)) })
+            }
+        }
         composable("global-search") {
             val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory)
             com.pelican.comictv.search.GlobalSearchScreen(comics, downloadsState.complete, sources,
@@ -496,8 +503,8 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     val showLibrarySearch = searchAction != null && theme.navigation.searchInNavigation &&
         (policy != ThemeNavigationPolicy.ImmersiveMenu || selected == "library")
     val routes = (if (showLibrarySearch) listOf("search" to "Buscar") else emptyList()) +
-        listOf("library" to "Biblioteca", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "browser" to "Navegador", "companion" to "Celular", "settings" to "Configurações")
-    val icons = mapOf("library" to R.drawable.nav_library, "recent" to R.drawable.nav_recent,
+        listOf("library" to "Biblioteca", "tv" to "TV", "recent" to "Novidades", "sources" to "Catálogo", "extensions" to "Extensões", "import" to "Importar", "browser" to "Navegador", "companion" to "Celular", "settings" to "Configurações")
+    val icons = mapOf("library" to R.drawable.nav_library, "tv" to R.drawable.nav_tv, "recent" to R.drawable.nav_recent,
         "sources" to R.drawable.nav_sources, "extensions" to R.drawable.nav_extensions,
         "import" to R.drawable.nav_import, "browser" to R.drawable.nav_browser,
         "companion" to R.drawable.nav_companion, "settings" to R.drawable.nav_settings)

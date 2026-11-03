@@ -8,6 +8,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CompanionServerTest {
+    @Test fun tvPlaybackCommandsAreBoundedAndNeedThePrivateSession() {
+        val root=Files.createTempDirectory("companion-tv").toFile();val commands=mutableListOf<CompanionCommand>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={commands+=it})
+        try {
+            server.open();assertEquals(200,request(server.url+"/tv-state").first)
+            for(action in listOf("tv-pause","tv-resume","tv-stop","tv-open"))assertEquals(200,request(server.url+"/command","""{"action":"$action"}""").first)
+            assertEquals(200,request(server.url+"/command","""{"action":"tv-seek","positionMs":42000}""").first)
+            assertEquals(400,request(server.url+"/command","""{"action":"tv-seek","positionMs":-1}""").first)
+            assertEquals(400,request(server.url+"/command","""{"action":"tv-addon-preview","text":"file:///etc/passwd"}""").first)
+            assertEquals(400,request(server.url+"/command","""{"action":"tv-addon-install","id":"../bad"}""").first)
+            assertEquals(200,request(server.url+"/command","""{"action":"tv-addon-preview","text":"stremio://example.org/token/manifest.json"}""").first)
+            assertEquals(200,request(server.url+"/command","""{"action":"tv-addon-install","id":"12345678-1234-1234-1234-123456789abc"}""").first)
+            assertEquals(42000L,commands.first{it.action=="tv-seek"}.positionMs)
+            assertEquals(404,request(server.url.substringBefore("/s/")+"/s/wrong/tv-state").first)
+        } finally {server.close();root.deleteRecursively()}
+    }
     /** The server is an allowlist: a phone button whose action is missing here fails as "Comando inválido". */
     @Test fun rotateBrowserArrowsAndPinchReachTheApp() {
         val root=Files.createTempDirectory("companion-actions").toFile();val commands=mutableListOf<CompanionCommand>()

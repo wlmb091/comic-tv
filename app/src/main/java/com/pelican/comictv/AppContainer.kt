@@ -9,6 +9,8 @@ import com.pelican.comictv.sources.*
 
 class AppContainer(context: Context) {
     private val app = context.applicationContext
+    val television by lazy { com.pelican.comictv.tv.TvRepository(app) }
+    val tvPlayback by lazy { com.pelican.comictv.tv.TvPlaybackController(app, television) }
     private val database = Room.databaseBuilder(app, LibraryDatabase::class.java, "comic-tv.db")
         .addMigrations(LibraryDatabase.MIGRATION_1_2, LibraryDatabase.MIGRATION_2_3).build()
     val readerImages = com.pelican.comictv.reader.ReaderImagePreferences(app)

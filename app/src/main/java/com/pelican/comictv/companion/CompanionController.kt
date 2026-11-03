@@ -35,6 +35,9 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private val files=File(activity.cacheDir,"companion-pages")
     var onOpen:(String)->Unit={}
     var onHome:()->Unit={}
+    var onTv:()->Unit={}
+    private val tvPreviews=com.pelican.comictv.tv.TvPreviewRegistry<com.pelican.comictv.tv.TvAddon>(SystemClock::elapsedRealtime)
+    private var tvPreviewGeneration=0L
     /** Set while the TV home exists; the phone's Novidades and Catálogo come from the same samples. */
     var sources:com.pelican.comictv.sources.SourcesViewModel?=null
     private val chapterContexts=LinkedHashMap<String,List<com.pelican.comictv.details.DetailChapter>>()
@@ -53,7 +56,14 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             val html=withContext(Dispatchers.IO){activity.assets.open("companion/index.html").bufferedReader().use{it.readText()}}
             fun <T> call(timeout:Long=30_000,block:suspend ()->T):T=runBlocking {withContext(job+Dispatchers.IO){withTimeout(timeout){block()}}}
             val instance=CompanionServer(host,File(activity.cacheDir,"companion-upload"),html,
-                get={path->call(if(path.startsWith("/chapters/"))95_000 else if(path.startsWith("/source-cover/"))45_000 else 30_000){resource(path)}},command={command->if(command.action=="open-chapter")call(95_000){prepareChapter(command)} else call {if(command.action=="open")container.library.getComic(command.id);withContext(Dispatchers.Main.immediate){control(command)}}},
+                get={path->call(if(path.startsWith("/chapters/"))95_000 else if(path.startsWith("/source-cover/"))45_000 else 30_000){resource(path)}},command={command->
+                    when(command.action){
+                        "tv-addon-preview"->call(50_000){previewTvAddon(command.text)}
+                        "tv-addon-install"->call{installTvAddon(command.id)}
+                        "open-chapter"->call(95_000){prepareChapter(command)}
+                        else->call{if(command.action=="open")container.library.getComic(command.id);withContext(Dispatchers.Main.immediate){control(command)}}
+                    }
+                },
                 received={file,name->call(300_000){container.library.importReceived(file,name){text->mutable.update{it.copy(message=text)}};Unit}},
                 clock=SystemClock::elapsedRealtime,status={text->if(sessionJob===job)mutable.update {it.copy(message=text)}},
                 stroke={live->call{withContext(Dispatchers.Main.immediate){active();drawingsOf(live.id)?.stroke(live)}}},
@@ -78,6 +88,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         finally{owned?.close();if(server===owned)server=null}}
     }
     fun stop(message:String="Sessão encerrada.") {
+        tvPreviewGeneration++;tvPreviews.clear()
         server?.close();server=null;sessionJob?.cancel();sessionJob=null
         activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         mutable.value=CompanionState(message=message);pages.clear();exporter.clear()
@@ -86,6 +97,16 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     private fun active(){check(server!=null&&activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)){"O Comic TV precisa estar aberto na TV."}}
     private suspend fun resource(path:String):CompanionResource {
         withContext(Dispatchers.Main.immediate){active()}
+        if(path=="/tv-state") {
+            val snapshot=withContext(Dispatchers.Main.immediate){
+                active()
+                val preview=tvPreviews.peek()?.let{(nonce,addon)->mapOf("nonce" to nonce,"name" to addon.manifest.name,
+                    "description" to addon.manifest.description,"types" to addon.manifest.types,"configurationRequired" to addon.manifest.configurationRequired)}
+                mapOf("playback" to container.tvPlayback.state.value,"preview" to preview,
+                    "addons" to container.television.state.value.addons.map{mapOf("name" to it.manifest.name,"enabled" to it.enabled)})
+            }
+            return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
+        }
         if(path=="/library") {
             val comics=container.library.observeComics().first().take(5000)
             val rows=comics.map {comic->
@@ -277,8 +298,28 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             withContext(Dispatchers.Main.immediate){reader?.let{open->changed[open.companionComicId]?.let{open.companionAdjustSaved(it.adjustments)}}}
         }}
     }
+    private suspend fun previewTvAddon(input:String){
+        val request=withContext(Dispatchers.Main.immediate){active();tvPreviews.clear();sessionJob to ++tvPreviewGeneration}
+        val addon=container.television.preview(input)
+        withContext(Dispatchers.Main.immediate){active();check(sessionJob===request.first&&tvPreviewGeneration==request.second){"A consulta foi substituída. Consulte o link novamente."};tvPreviews.issue(addon)}
+    }
+    private suspend fun installTvAddon(nonce:String){
+        val addon=withContext(Dispatchers.Main.immediate){active();checkNotNull(tvPreviews.consume(nonce)){"A prévia expirou. Consulte o complemento novamente."}}
+        container.television.install(addon)
+    }
     private fun control(c:CompanionCommand){
         active();val dialog=dialogs.focused();check(dialog!=null||activity.hasWindowFocus()){ "Volte ao Comic TV para controlar." }
+        if(c.action.startsWith("tv-")){
+            check(dialog==null){"Feche a janela aberta na TV para controlar o vídeo."}
+            when(c.action){
+                "tv-open"->onTv()
+                "tv-pause"->container.tvPlayback.pause()
+                "tv-resume"->container.tvPlayback.resume()
+                "tv-stop"->container.tvPlayback.stop()
+                "tv-seek"->container.tvPlayback.seekTo(c.positionMs)
+            }
+            return
+        }
         if(c.action=="rotate"){container.orientation.cycle();return}
         if(c.action=="image-adjust"){
             val tones=checkNotNull(com.pelican.comictv.reader.ImageAdjustments.parse(c.text)){"Ajustes inválidos."}

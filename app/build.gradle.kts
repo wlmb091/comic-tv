@@ -13,8 +13,8 @@ android {
         applicationId = "com.pelican.comictv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 100
-        versionName = "1.4.26"
+        versionCode = 101
+        versionName = "1.4.27"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -40,6 +40,13 @@ dependencies {
     implementation("org.jsoup:jsoup:1.23.2")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    implementation("androidx.media3:media3-exoplayer:1.8.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.8.0")
+    implementation("androidx.media3:media3-exoplayer-dash:1.8.0")
+    implementation("androidx.media3:media3-ui:1.8.0")
+    implementation("org.libtorrent4j:libtorrent4j:2.1.0-38")
+    runtimeOnly("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-38")
+    runtimeOnly("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-38")
     implementation(platform("androidx.compose:compose-bom:2025.08.01"))
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.foundation:foundation")

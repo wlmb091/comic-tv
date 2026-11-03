@@ -4,5 +4,6 @@ local.properties
 .idea/
 *.iml
 .superpowers/
+work/tv-deps/
 .kotlin/
 tools/translation-server/.env

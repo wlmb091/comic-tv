@@ -553,3 +553,39 @@ test('a layer folder hides its layers and takes its opacity along',()=>{
  h.run("const make=(n,folder)=>({name:n,folder});ed.layers=[make('a',9),make('b',null),make('c',null)];ed.active=2;drawFolderJoin(9)");assert.equal(h.run("ed.layers.map(l=>l.name).join()"),'a,c,b');assert.equal(h.run('ed.active'),1);
  h.run("ed.layers.forEach(l=>{l.folder=null});drawFolderTidy()");assert.equal(h.run('ed.folders.length'),0);
 });
+
+
+test('TV phone commands seek the actual TV timeline and never request video bytes',async()=>{
+ const h=harness();
+ h.run("tvPlay={active:true,positionMs:45000,durationMs:120000}");
+ await h.run("$('tvBack30').onclick()");
+ let sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-seek');assert.equal(sent.positionMs,15000);
+ await h.run("$('tvForward30').onclick()");
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.positionMs,75000);
+ await h.run("$('tvPause').onclick()");
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-pause');
+ assert.ok(!h.requests.some(r=>/torrent:|magnet:|\.mp4/.test(r.url)));
+});
+
+test('TV addon confirmation consumes the reviewed nonce and clears the private URL',async()=>{
+ const h=harness();
+ h.run("tvPendingNonce='reviewed-nonce';tvAllowPreview=true;$('tvAddonLink').value='https://example.org/secret/manifest.json'");
+ await h.run("$('tvAddonInstall').onclick()");
+ const sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-addon-install');assert.equal(sent.id,'reviewed-nonce');assert.equal(sent.text,undefined);
+ assert.equal(h.elements.get('tvAddonLink').value,'');
+ assert.equal(h.run('tvAllowPreview'),false);assert.equal(h.run('tvPendingNonce'),'');
+});
+
+test('editing the TV addon URL invalidates the local confirmation',async()=>{
+ const h=harness();
+ h.run("tvPendingNonce='old-nonce';tvAllowPreview=true;$('tvAddonLink').oninput()");
+ assert.equal(h.run('tvPendingNonce'),'');assert.equal(h.run('tvAllowPreview'),false);
+ const before=h.requests.filter(r=>r.url.endsWith('/command')).length;
+ await h.run("$('tvAddonInstall').onclick()");
+ assert.equal(h.requests.filter(r=>r.url.endsWith('/command')).length,before);
+ assert.equal(h.elements.get('tvAddonInstall').disabled,true);
+});
