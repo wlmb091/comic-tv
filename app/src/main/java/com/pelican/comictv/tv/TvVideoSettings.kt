@@ -49,6 +49,8 @@ import kotlinx.coroutines.withContext
             }
         }
         item { Text("Como no Stremio: o Comic TV encontra as fontes e o player escolhido reproduz. Em torrents, o Comic TV continua baixando enquanto o player externo estiver aberto. Legendas automáticas são enviadas junto.",color=TvColors.Muted) }
+        item { TvChoice("Trackers públicos nos torrents: "+if(prefs.publicTrackers)"ligados" else "desligados",prefs.publicTrackers,{save { it.copy(publicTrackers=!it.publicTrackers) }}) }
+        item { Text("Ligados, todo torrent recebe uma lista de trackers públicos além dos do complemento, o que costuma achar conexões mais rápido. Desligados, valem só os do complemento e a rede DHT.",color=TvColors.Muted) }
         item { Text("Legendas",fontSize=23.sp) }
         item { TvChoice("Legendas automáticas: "+if(p.auto)"ligadas" else "desligadas",p.auto,{subs { it.copy(auto=!it.auto) }}) }
         item {

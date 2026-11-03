@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.media3.common.C
 import androidx.media3.datasource.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.sync.Semaphore
 import org.libtorrent4j.*
 import org.libtorrent4j.alerts.*
 import java.io.*
@@ -16,16 +15,86 @@ import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.atomic.AtomicLong
 
-/** What the player shows while a torrent connects and fills the start of the video. */
-data class TorrentStats(val peers:Int,val seeds:Int,val downloadRate:Long,val done:Long,val target:Long,val metadata:Boolean)
+/** What the player shows while a torrent connects and fills the start of the video. [candidates] are known peers not yet connected. */
+data class TorrentStats(val peers:Int,val seeds:Int,val downloadRate:Long,val done:Long,val target:Long,val metadata:Boolean,val candidates:Int=0)
 
-/** Owns one native session and its private cache. All JNI calls finish before native teardown. */
-class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable {
+/**
+ * The one native session of the app. It stays on while the app is open, so the DHT is already warm when the next
+ * video starts; each video only adds and removes its own torrent. Two minutes after the app leaves the screen with
+ * no torrent open, it stops.
+ */
+internal object TvTorrentEngine {
+    private var manager: SessionManager? = null
+    private var users = 0
+    private var foreground = true
+    private var idle: Job? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val flushes = java.util.concurrent.ConcurrentHashMap<String, AtomicLong>()
+    private const val IDLE_MS = 2 * 60 * 1000L
+
+    /** Starts the session when needed. Must be paired with [release]. */
+    @Synchronized fun acquire(parent: File): SessionManager {
+        idle?.cancel(); idle = null
+        val running = manager ?: start(parent)
+        users++
+        return running
+    }
+
+    @Synchronized fun release() { users = (users - 1).coerceAtLeast(0); scheduleIdle() }
+
+    /** Opening the TV tab starts the engine early, so the DHT finds nodes before the first video. */
+    fun warm(context: Context) {
+        scope.launch { runCatching { acquire(File(context.cacheDir, "tv-torrents")); release() } }
+    }
+
+    @Synchronized fun foreground(visible: Boolean) {
+        foreground = visible
+        if (visible) { idle?.cancel(); idle = null } else scheduleIdle()
+    }
+
+    fun flushCount(hash: String): AtomicLong = flushes.getOrPut(hash.lowercase()) { AtomicLong() }
+
+    private fun start(parent: File): SessionManager {
+        parent.mkdirs()
+        // No torrent is open before the first start, so every cache left in the folder was abandoned.
+        parent.listFiles()?.filter { it.name.matches(Regex("[0-9a-fA-F-]{36}")) }?.forEach { runCatching { it.deleteRecursively() } }
+        val settings = SettingsPack().connectionsLimit(60).activeDownloads(2)
+        settings.setMaxMetadataSize(16 * 1024 * 1024)
+        val session = SessionManager()
+        session.start(SessionParams(settings))
+        session.addListener(object : AlertListener {
+            override fun types() = intArrayOf(AlertType.CACHE_FLUSHED.swig())
+            override fun alert(alert: Alert<*>) {
+                if (alert is CacheFlushedAlert) runCatching { flushCount(alert.handle().infoHash().toHex()).incrementAndGet() }
+            }
+        })
+        manager = session
+        return session
+    }
+
+    private fun scheduleIdle() {
+        if (users > 0 || foreground || manager == null) return
+        idle?.cancel()
+        idle = scope.launch {
+            delay(IDLE_MS)
+            synchronized(this@TvTorrentEngine) {
+                if (users > 0 || foreground) return@launch
+                val session = manager
+                manager = null
+                flushes.clear()
+                runCatching { session?.stop() }
+            }
+        }
+    }
+}
+
+/** One torrent in the shared engine, with its private cache. All JNI calls for it finish before it is removed. */
+class TvTorrentSession(context: Context, private val quotaGiB: Int, private val publicTrackers: Boolean = true) : Closeable {
     private val parent = File(context.cacheDir, "tv-torrents")
     private val directory = File(parent, java.util.UUID.randomUUID().toString())
     @Volatile private var stopped = false
-    private var ownsPermit = false
-    private val flushes = AtomicLong()
+    private var acquired = false
+    private var flushes = AtomicLong()
     private var manager: SessionManager? = null
     @Volatile private var handle: TorrentHandle? = null
     private val statsGuard = Any()
@@ -42,45 +111,34 @@ class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable 
     suspend fun prepare(stream: TvStream): TvTorrentSession = withContext(Dispatchers.IO) {
         try {
             require(quotaGiB in setOf(1, 2, 4, 8, 16)) { "Limite de cache inválido." }
-            require(stream.infoHash.matches(Regex("[0-9a-fA-F]{40}")) || stream.url.startsWith("magnet:?")) {
-                "Esta fonte torrent não tem um identificador compatível."
-            }
-            val magnet = if (stream.url.startsWith("magnet:?")) stream.url else buildString {
-                append("magnet:?xt=urn:btih:")
-                append(stream.infoHash)
-                stream.sources.filter { it.startsWith("tracker:") }.take(30).forEach {
-                    append("&tr=")
-                    append(StremioLinks.encode(it.removePrefix("tracker:")))
-                }
-            }
-            sessions.acquire()
-            synchronized(this@TvTorrentSession) {
-                ownsPermit = true
+            val magnet = TorrentLinks.magnet(stream.url, stream.infoHash, stream.sources, publicTrackers)
+                ?: throw IOException("Esta fonte torrent não tem um identificador compatível.")
+            val params = AddTorrentParams.parseMagnetUri(magnet)
+            val hash = params.infoHashes.best
+            val session = synchronized(this@TvTorrentSession) {
                 checkOpen()
-                parent.mkdirs()
-                // The process owns the only native session, so other UUID caches are abandoned sessions.
-                parent.listFiles()?.filter { it.name.matches(Regex("[0-9a-fA-F-]{36}")) }?.forEach(::deleteCache)
+                TvTorrentEngine.acquire(parent).also { acquired = true; manager = it }
+            }
+            // The same video played again: wait until the previous copy has left the engine.
+            val free = System.nanoTime() + 15_000_000_000L
+            while (session.find(hash)?.isValid == true) {
+                currentCoroutineContext().ensureActive()
+                if (System.nanoTime() > free) throw IOException("O vídeo anterior ainda está sendo encerrado. Tente de novo em alguns segundos.")
+                delay(100)
+            }
+            synchronized(this@TvTorrentSession) {
+                checkOpen()
                 check(directory.mkdirs()) { "Não foi possível preparar o cache do torrent." }
-                val settings = SettingsPack().connectionsLimit(60).activeDownloads(1)
-                settings.setMaxMetadataSize(16 * 1024 * 1024)
-                val session = SessionManager()
-                manager = session
-                session.start(SessionParams(settings))
-                session.addListener(object : AlertListener {
-                    override fun types() = intArrayOf(AlertType.CACHE_FLUSHED.swig())
-                    override fun alert(alert: Alert<*>) {
-                        if (alert is CacheFlushedAlert) flushes.incrementAndGet()
-                    }
-                })
-                val params = AddTorrentParams.parseMagnetUri(magnet)
+                flushes = TvTorrentEngine.flushCount(hash.toHex())
                 params.savePath = directory.absolutePath
                 params.flags = params.flags
                     .and_(TorrentFlags.AUTO_MANAGED.or_(TorrentFlags.PAUSED).inv())
                     .or_(TorrentFlags.UPLOAD_MODE).or_(TorrentFlags.DEFAULT_DONT_DOWNLOAD)
                 session.swig().async_add_torrent(params.swig())
-                pendingHash = params.infoHashes.best
+                pendingHash = hash
             }
-            val deadline = System.nanoTime() + 90_000_000_000L
+            // The player suggests another source after a while; this one keeps trying until the user leaves.
+            val deadline = System.nanoTime() + 10 * 60_000_000_000L
             var ready = false
             while (!ready) {
                 currentCoroutineContext().ensureActive()
@@ -203,7 +261,8 @@ class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable 
         runCatching {
             if (!h.isValid) return null
             val s = h.status()
-            TorrentStats(s.numPeers(), s.numSeeds(), s.downloadPayloadRate().toLong(), s.totalWantedDone(), startTarget, s.hasMetadata())
+            TorrentStats(s.numPeers(), s.numSeeds(), s.downloadPayloadRate().toLong(), s.totalWantedDone(), startTarget, s.hasMetadata(),
+                maxOf(s.listPeers(), s.connectCandidates()))
         }.getOrNull()
     }
 
@@ -229,14 +288,20 @@ class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable 
         synchronized(statsGuard) { }
         synchronized(this) {
             val session = manager
+            val hash = pendingHash
             manager = null
             handle = null
             try {
-                // If stop cannot confirm shutdown, retain this cache rather than deleting beneath a writer.
-                if (session != null) session.stop()
-                deleteCache(directory)
+                if (session != null && hash != null) {
+                    // The engine stays on; only this torrent leaves it, with its files.
+                    session.find(hash)?.takeIf { it.isValid }?.let { session.remove(it, SessionHandle.DELETE_FILES) }
+                    val until = System.nanoTime() + 10_000_000_000L
+                    while (session.find(hash)?.isValid == true && System.nanoTime() < until) Thread.sleep(50)
+                    // If removal cannot be confirmed, retain this cache rather than deleting beneath a writer.
+                    if (session.find(hash)?.isValid != true) runCatching { deleteCache(directory) }
+                } else runCatching { deleteCache(directory) }
             } finally {
-                if (ownsPermit) { ownsPermit = false; sessions.release() }
+                if (acquired) { acquired = false; TvTorrentEngine.release() }
             }
         }
     }
@@ -258,7 +323,6 @@ class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable 
     }
 
     companion object {
-        private val sessions = Semaphore(1)
         private const val GIB = 1024L * 1024 * 1024
         private const val RESERVE = 256L * 1024 * 1024
         private val VIDEO_EXTENSIONS = setOf("mp4", "mkv", "webm", "avi", "m4v", "ts", "mov")

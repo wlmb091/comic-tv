@@ -41,6 +41,8 @@ data class AppearanceOptions(val preset: ColorPreset = ColorPreset.Amber, val te
     val textPercentage: Int get() = textPercent?.let(::normalizeTextPercentage) ?: listOf(100, 115, 130)[textSize.coerceIn(0, 2)]
     val textScale: Float get() = textPercentage / 100f
     val carouselImageOptions: ReaderImageOptions get() = ReaderImageOptions(carouselImagePreset, carouselImageIntensity.coerceIn(0, 2))
+    /** Dinâmico or Sem movimento. The older single-effect choices count as Dinâmico. */
+    val carouselMotionOn: Boolean get() = carouselMotion != "None"
     fun withTextPercentage(percent: Int): AppearanceOptions {
         val normalized = normalizeTextPercentage(percent)
         val legacy = listOf(100, 115, 130).indices.minBy { kotlin.math.abs(listOf(100, 115, 130)[it] - normalized) }

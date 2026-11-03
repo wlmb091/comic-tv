@@ -40,6 +40,13 @@ import kotlinx.coroutines.*
     val videos=meta.videos.filter { it.id.isNotBlank() }.distinctBy { it.id }
     val selected=videos.firstOrNull { it.id==selectedId }?:selectedId?.takeIf { it==meta.id&&videos.isEmpty() }?.let { TvVideo(it,meta.name) }
     val progress=stored.progress.firstOrNull { it.meta.type==meta.type&&it.meta.id==meta.id }
+    val filter=SourceFilter.apply(streams,SourceFilter.Choice(stored.video.sourceAddon,stored.video.sourceQuality,stored.video.sourceAudio))
+    val shownStreams=filter.shown.map { it.value }
+    // The remembered source, or the first one the filters leave.
+    val focusIndex=filter.shown.firstOrNull { it.index==lastSource }?.index?:filter.shown.firstOrNull()?.index?:0
+    fun choose(change:(TvVideoPrefs)->TvVideoPrefs) {
+        scope.launch { try { withContext(Dispatchers.IO) { repository.video(change) } }catch(e:CancellationException){throw e}catch(_:Exception){message="Não foi possível salvar o filtro."} }
+    }
     LaunchedEffect(preview.type,preview.id) {
         detailBusy=true
         try {
@@ -61,15 +68,15 @@ import kotlinx.coroutines.*
         finally { sourceBusy=false }
     }
     LaunchedEffect(streams,sourceFocus) {
-        if(sourceFocus&&streams.isNotEmpty()) {
-            val index=lastSource.coerceIn(0,streams.lastIndex)
+        if(sourceFocus&&filter.shown.isNotEmpty()) {
+            val index=focusIndex
             lastSource=index
             // Lazy children must be brought into composition before requesting their focus.
-            val beforeSources=3+(if(progress!=null&&videos.isNotEmpty())1 else 0)+
+            val beforeSources=3+(if(detailBusy)1 else 0)+(if(progress!=null&&videos.isNotEmpty())1 else 0)+
                 (if(videos.isNotEmpty())2 else if(!detailBusy&&meta.type=="series")1 else 0)+
                 (if(selected!=null)1 else 0)+(if(message.isNotBlank())1 else 0)+
-                (if(selected!=null&&!sourceBusy)1 else 0)+(if(resume!=null)1 else 0)
-            val grouped=streams.withIndex().groupBy { it.value.addonName }
+                (if(selected!=null&&!sourceBusy)1 else 0)+(if(resume!=null)1 else 0)+1
+            val grouped=filter.shown.groupBy { it.value.addonName }
             var sourceItem=beforeSources
             for((_,group) in grouped) {
                 sourceItem++
@@ -92,7 +99,7 @@ import kotlinx.coroutines.*
         }
     }
     fun select(video:TvVideo) { selectedId=video.id;resume=null;lastSource=0;sourceFocus=true }
-    fun start(stream:TvStream,position:Long=0) { selected?.let { playback.play(meta,it,stream,position) } }
+    fun start(stream:TvStream,position:Long=0) { selected?.let { playback.play(meta,it,stream,position,sources=shownStreams.ifEmpty { streams }) } }
     LazyColumn(Modifier.fillMaxSize().background(TvColors.Background).padding(20.dp),state=listState,verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item("back") { TvButton("Voltar",onBack) }
         item("summary") {
@@ -145,7 +152,18 @@ import kotlinx.coroutines.*
                 TvButton("Cancelar",{resume=null})
             }
         }
-        streams.mapIndexed { index,stream -> index to stream }.groupBy { it.second.addonName }.forEach { (addon,group) ->
+        if(streams.isNotEmpty())item("source-filters") {
+            Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                FilterRow("Complemento",filter.addons,filter.applied.addon,showEmpty=true) { v->choose { it.copy(sourceAddon=v) } }
+                FilterRow("Qualidade",filter.qualities,filter.applied.quality) { v->choose { it.copy(sourceQuality=v) } }
+                FilterRow("Áudio",filter.audios,filter.applied.audio) { v->choose { it.copy(sourceAudio=v) } }
+                if(filter.shown.isEmpty()) {
+                    Text("Nenhuma fonte com estes filtros.",color=TvColors.Muted)
+                    TvButton("Limpar filtros",{choose { it.copy(sourceAddon="",sourceQuality="",sourceAudio="") }})
+                } else Text("Qualidade e áudio são lidos do nome da fonte e podem não estar certos.",color=TvColors.Muted,fontSize=14.sp)
+            }
+        }
+        filter.shown.map { it.index to it.value }.groupBy { it.second.addonName }.forEach { (addon,group) ->
             item("addon:$addon") { Text(addon.ifBlank { "Fontes" },color=TvColors.Muted,fontSize=17.sp) }
             items(group,key={it.first}) { (index,stream) ->
                 TvButton((if(StreamRank.slow(stream))"Poucos seeders, pode demorar · " else "")+listOf(stream.name,stream.description).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Fonte ${index+1}" }.take(600),{
@@ -153,9 +171,19 @@ import kotlinx.coroutines.*
                     if(stream.externalUrl.isNotBlank()) {
                         if(StremioLinks.http(stream.externalUrl))onBrowser(stream.externalUrl)else message="Este destino externo não é compatível."
                     } else if(progress?.video?.id==selected?.id&&(progress?.positionMs?:0)>0)resume=stream else start(stream)
-                },Modifier.fillMaxWidth().then(if(index==lastSource)Modifier.focusRequester(sourceRequester)else Modifier),enabled=!sourceBusy)
+                },Modifier.fillMaxWidth().then(if(index==focusIndex)Modifier.focusRequester(sourceRequester)else Modifier),enabled=!sourceBusy)
             }
         }
+    }
+}
+
+/** One row of filter buttons with the number of sources each leaves; empty choices hide, except the add-ons and the one in use. */
+@Composable private fun FilterRow(title:String,options:List<SourceFilter.Option>,selected:String,showEmpty:Boolean=false,choose:(String)->Unit) {
+    val visible=options.filter { it.value==SourceFilter.ALL||it.value==selected||it.count>0||showEmpty }
+    if(visible.size<=2&&selected==SourceFilter.ALL&&!showEmpty)return
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+        Text(title,color=TvColors.Muted,fontSize=15.sp,modifier=Modifier.widthIn(min=110.dp))
+        visible.forEach { option -> TvChoice("${option.label} · ${option.count}",option.value==selected,{choose(option.value)},compact=true) }
     }
 }
 

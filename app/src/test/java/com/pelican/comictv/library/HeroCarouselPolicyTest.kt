@@ -44,6 +44,33 @@ class HeroCarouselPolicyTest {
         resumed.join()
         assertNull(awaitHeroCarouselAdvance(listOf("b"), "b", true))
     }
+    /** runTest has no frame clock at all: the swap must come from the timer alone, never from an animation frame. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun swapHappensWithoutAnyAnimationFrame() = kotlinx.coroutines.test.runTest {
+        assertNull(coroutineContext[androidx.compose.runtime.MonotonicFrameClock])
+        var selected: String? = "a"
+        repeat(3) {
+            val timer = launch { selected = awaitHeroCarouselAdvance(listOf("a", "b", "c"), selected, true) }
+            advanceTimeBy(HeroCarouselPolicy.INTERVAL_MS)
+            runCurrent()
+            timer.join()
+        }
+        assertEquals("a", selected)
+    }
+    @Test fun motionAlternatesAndStaysWithinItsLimits() {
+        assertEquals(CarouselMotion.Effect.Zoom, CarouselMotion.effect(0, 1000, 1500, 960f, 540f))
+        assertEquals(CarouselMotion.Effect.Scroll, CarouselMotion.effect(1, 1000, 1500, 960f, 540f))
+        // Wide art has nothing to scroll and zooms instead.
+        assertEquals(CarouselMotion.Effect.Zoom, CarouselMotion.effect(1, 1920, 1080, 960f, 540f))
+        assertEquals(1.08f, CarouselMotion.zoom(0), 1e-4f)
+        assertEquals(1f, CarouselMotion.zoom(4_000), 1e-4f)
+        for (ms in 0L..20_000L step 250) {
+            assertTrue(CarouselMotion.zoom(ms) in 1f..1.0801f)
+            assertTrue(CarouselMotion.scroll(ms) in 0f..1f)
+        }
+        assertEquals(0f, CarouselMotion.scroll(0), 1e-4f)
+        assertEquals(1f, CarouselMotion.scroll(7_500), 1e-4f)
+    }
     @Test fun stableIdsWrapAndRecoverFromRemoval() {
         val ids = listOf("a", "b", "c")
         assertEquals("b", HeroCarouselPolicy.next(ids, "a"))

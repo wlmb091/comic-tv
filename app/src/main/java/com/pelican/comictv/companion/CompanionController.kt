@@ -38,6 +38,9 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     var onTv:()->Unit={}
     private val tvPreviews=com.pelican.comictv.tv.TvPreviewRegistry<com.pelican.comictv.tv.TvAddon>(SystemClock::elapsedRealtime)
     private var tvPreviewGeneration=0L
+    /** The list of add-on links the phone sent, after the TV consulted it. Main thread only. */
+    private var tvBatch:TvBatch?=null
+    private data class TvBatch(val nonce:String,val busy:Boolean,val items:List<com.pelican.comictv.tv.TvBatchItem>,val message:String="")
     /** Set while the TV home exists; the phone's Novidades and Catálogo come from the same samples. */
     var sources:com.pelican.comictv.sources.SourcesViewModel?=null
     private val chapterContexts=LinkedHashMap<String,List<com.pelican.comictv.details.DetailChapter>>()
@@ -60,6 +63,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                     when(command.action){
                         "tv-addon-preview"->call(50_000){previewTvAddon(command.text)}
                         "tv-addon-install"->call{installTvAddon(command.id)}
+                        "tv-addon-batch"->call(60_000){installTvBatch(command.id,command.text)}
                         "tv-prefs"->call{withContext(Dispatchers.Main.immediate){active()};val prefs=Gson().fromJson(command.text,com.pelican.comictv.tv.TvVideoPrefs::class.java);container.television.video{prefs}}
                         "open-chapter"->call(95_000){prepareChapter(command)}
                         else->call{if(command.action=="open")container.library.getComic(command.id);withContext(Dispatchers.Main.immediate){control(command)}}
@@ -71,7 +75,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 drawing={request,bytes->call{applyDrawing(request,bytes)}},
                 drawingLayers={id,page,input->call(120_000){withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);container.pageDrawings.saveLayers(id,page,input)}},
                 excerpt={id,section,start,end,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);val page=withContext(Dispatchers.IO){container.pageDrawings.addExcerpt(id,section,start,end,bytes).page};withContext(Dispatchers.Main.immediate){drawingsOf(id)?.reload(page)};page}},
-                subtitle={name,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.tvPlayback.addPhoneSubtitle(name,bytes)}})
+                subtitle={name,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.tvPlayback.addPhoneSubtitle(name,bytes)}},
+                addonList={text->call{withContext(Dispatchers.Main.immediate){active();checkTvBatch(job,text)}}})
             owned=instance
             val url=withContext(Dispatchers.IO){instance.open();instance.url}
             ensureActive();check(sessionJob===job);server=instance
@@ -90,7 +95,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         finally{owned?.close();if(server===owned)server=null}}
     }
     fun stop(message:String="Sessão encerrada.") {
-        tvPreviewGeneration++;tvPreviews.clear()
+        tvPreviewGeneration++;tvPreviews.clear();tvBatch=null
         server?.close();server=null;sessionJob?.cancel();sessionJob=null
         activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         mutable.value=CompanionState(message=message);pages.clear();exporter.clear()
@@ -105,8 +110,11 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 val preview=tvPreviews.peek()?.let{(nonce,addon)->mapOf("nonce" to nonce,"name" to addon.manifest.name,
                     "description" to addon.manifest.description,"types" to addon.manifest.types,"configurationRequired" to addon.manifest.configurationRequired)}
                 mapOf("playback" to container.tvPlayback.state.value,"preview" to preview,"video" to container.television.state.value.video,
-                    "players" to com.pelican.comictv.tv.TvExternalPlayers.available(activity),
-                    "addons" to container.television.state.value.addons.map{mapOf("name" to it.manifest.name,"enabled" to it.enabled)})
+                    "players" to com.pelican.comictv.tv.TvExternalPlayers.available(activity),"appearance" to appearanceState(),
+                    "addons" to container.television.state.value.addons.map{mapOf("name" to it.manifest.name,"enabled" to it.enabled)},
+                    // The links stay on the phone that sent them; only names, results and the configuration page come back.
+                    "batch" to tvBatch?.let{b->mapOf("nonce" to b.nonce,"busy" to b.busy,"message" to b.message,"items" to b.items.map{i->
+                        mapOf("n" to i.n,"name" to i.name,"status" to i.status,"installable" to i.installable,"adult" to i.adult,"configure" to i.configure,"result" to i.result)}) })
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
         }
@@ -301,10 +309,54 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             withContext(Dispatchers.Main.immediate){reader?.let{open->changed[open.companionComicId]?.let{open.companionAdjustSaved(it.adjustments)}}}
         }}
     }
+    /** What Configurações → Aparência da TV shows on the phone. Backup, storage, updates and diagnostics stay on the TV. */
+    private fun appearanceState():Map<String,Any?> {
+        val a=container.appearance.state.value
+        return mapOf("orientation" to container.orientation.state.value.name,"orientations" to com.pelican.comictv.ui.AppOrientation.entries.map{mapOf("id" to it.name,"label" to it.label)},
+            "carouselAutoplay" to a.carouselAutoplay,"carouselMotion" to a.carouselMotionOn,"carouselImagePreset" to a.carouselImagePreset.name,
+            "presets" to com.pelican.comictv.reader.ImagePreset.entries.map{mapOf("id" to it.name,"label" to if(it==com.pelican.comictv.reader.ImagePreset.Original)"Desligado" else it.label)},
+            "carouselImageIntensity" to a.carouselImageIntensity,"coverBackground" to a.coverBackground,"textPercent" to a.textPercentage,"highContrast" to a.highContrast)
+    }
+    /** A change from the phone, or "reset" for the default look. The orientation is kept on reset: it follows how the TV is mounted. */
+    private fun applyAppearance(text:String){
+        if(text=="reset"){scope.launch{container.appearance.update(com.pelican.comictv.ui.AppearanceOptions())};return}
+        val o=com.google.gson.JsonParser.parseString(text).asJsonObject
+        fun bool(key:String)=o.get(key)?.takeIf{it.isJsonPrimitive&&it.asJsonPrimitive.isBoolean}?.asBoolean
+        fun int(key:String)=o.get(key)?.takeIf{it.isJsonPrimitive&&it.asJsonPrimitive.isNumber}?.asInt
+        fun str(key:String)=o.get(key)?.takeIf{it.isJsonPrimitive&&it.asJsonPrimitive.isString}?.asString
+        str("orientation")?.let{name->com.pelican.comictv.ui.AppOrientation.entries.firstOrNull{it.name==name}?.let(container.orientation::updateFromPhone)}
+        var a=container.appearance.state.value
+        bool("carouselAutoplay")?.let{a=a.copy(carouselAutoplay=it)}
+        bool("carouselMotion")?.let{a=a.copy(carouselMotion=if(it)"Dynamic" else "None")}
+        str("carouselImagePreset")?.let{name->com.pelican.comictv.reader.ImagePreset.entries.firstOrNull{it.name==name}?.let{a=a.copy(carouselImagePreset=it)}}
+        int("carouselImageIntensity")?.let{a=a.copy(carouselImageIntensity=it.coerceIn(0,2))}
+        bool("coverBackground")?.let{a=a.copy(coverBackground=it)}
+        int("textPercent")?.let{a=a.withTextPercentage(it)}
+        bool("highContrast")?.let{a=a.copy(highContrast=it)}
+        if(a!=container.appearance.state.value){val next=a;scope.launch{container.appearance.update(next)}}
+    }
     private suspend fun previewTvAddon(input:String){
         val request=withContext(Dispatchers.Main.immediate){active();tvPreviews.clear();sessionJob to ++tvPreviewGeneration}
         val addon=container.television.preview(input)
         withContext(Dispatchers.Main.immediate){active();check(sessionJob===request.first&&tvPreviewGeneration==request.second){"A consulta foi substituída. Consulte o link novamente."};tvPreviews.issue(addon)}
+    }
+    /** Starts consulting the list in the background; the phone polls /tv-state for each link's result. */
+    private fun checkTvBatch(job:Job,text:String){
+        check(tvBatch?.busy!=true){"A TV ainda está consultando a lista anterior."}
+        val nonce=java.util.UUID.randomUUID().toString()
+        tvBatch=TvBatch(nonce,true,emptyList(),"Consultando os complementos…")
+        scope.launch(job){
+            val items=try{container.television.checkList(text)}catch(e:CancellationException){throw e}catch(_:Exception){null}
+            if(tvBatch?.nonce!=nonce)return@launch
+            tvBatch=TvBatch(nonce,false,items.orEmpty(),when{items==null->"Não foi possível consultar a lista.";items.isEmpty()->"Nenhum link encontrado na lista.";else->""})
+        }
+    }
+    private suspend fun installTvBatch(nonce:String,chosen:String){
+        val batch=withContext(Dispatchers.Main.immediate){active();tvBatch?.takeIf{it.nonce==nonce&&!it.busy}?:error("A lista mudou. Envie de novo.")}
+        val indexes=chosen.split(',').mapNotNull{it.toIntOrNull()}.toSet()
+        val done=container.television.installChecked(batch.items,indexes)
+        val installed=done.count{it.result=="Instalado"}
+        withContext(Dispatchers.Main.immediate){if(tvBatch?.nonce==nonce)tvBatch=batch.copy(items=done,message=if(installed==1)"1 complemento instalado." else "$installed complementos instalados.")}
     }
     private suspend fun installTvAddon(nonce:String){
         val addon=withContext(Dispatchers.Main.immediate){active();checkNotNull(tvPreviews.consume(nonce)){"A prévia expirou. Consulte o complemento novamente."}}
@@ -316,6 +368,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             check(dialog==null){"Feche a janela aberta na TV para controlar o vídeo."}
             when(c.action){
                 "tv-open"->onTv()
+                "tv-next"->container.tvPlayback.playNext()
                 "tv-pause"->container.tvPlayback.pause()
                 "tv-resume"->container.tvPlayback.resume()
                 "tv-stop"->container.tvPlayback.stop()
@@ -342,6 +395,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             if(c.delta==1)sounds.preview();return
         }
         if(c.action=="browser-dark"){(com.pelican.comictv.browser.BrowserCursorBridge.handle?:error("Abra o navegador na TV para usar o modo escuro.")).toggleDark();return}
+        if(c.action=="appearance"){applyAppearance(c.text);return}
         if(c.action=="theme") {
             val preset=com.pelican.comictv.ui.ColorPreset.entries.firstOrNull{it.name==c.text&&it.selectable}?:error("Tema inválido.")
             scope.launch{container.appearance.update(container.appearance.state.value.copy(preset=preset))};return

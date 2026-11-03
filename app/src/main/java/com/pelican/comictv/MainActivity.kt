@@ -65,8 +65,15 @@ class MainActivity : ComponentActivity() {
             // Above the exit guard: its confirmation window must reach the same phone control as the app's dialogs.
             val companionDialogs = remember { CompanionDialogs() }
             CompositionLocalProvider(LocalCompanionDialogs provides companionDialogs, LocalAppOrientation provides orientation) {
-                ComicTvTheme(appearance) { AppExitGuard(onExit = { finish() }) { ComicTvApp(container) } }
+                ComicTvTheme(appearance) {
+                    AppExitGuard(onExit = { finish() }) { ComicTvApp(container) }
+                    com.pelican.comictv.ui.OrientationConfirmation(container.orientation)
+                }
             }
         }
     }
+
+    // The torrent engine stays on while the app is visible and stops a while after it leaves the screen.
+    override fun onStart() { super.onStart(); com.pelican.comictv.tv.TvTorrentEngine.foreground(true) }
+    override fun onStop() { com.pelican.comictv.tv.TvTorrentEngine.foreground(false); super.onStop() }
 }

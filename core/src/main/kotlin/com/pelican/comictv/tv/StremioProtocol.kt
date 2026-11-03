@@ -14,7 +14,9 @@ data class TvCatalog(val id:String,val type:String,val name:String,val extra:Lis
 }
 data class AddonManifest(val id:String,val name:String,val version:String,val description:String="",val logo:String="",
     val types:List<String> = emptyList(),val idPrefixes:List<String>?=null,val resources:List<AddonResource> = emptyList(),
-    val catalogs:List<TvCatalog> = emptyList(),val addonCatalogs:List<TvCatalog> = emptyList(),val configurable:Boolean=false,val configurationRequired:Boolean=false) {
+    val catalogs:List<TvCatalog> = emptyList(),val addonCatalogs:List<TvCatalog> = emptyList(),val configurable:Boolean=false,val configurationRequired:Boolean=false,
+    /** Declared adult by the add-on, or named like one. Batch installs leave it unchecked. */
+    val adult:Boolean=false) {
     fun supports(resource:String,type:String,id:String)=resources.any{it.name==resource&&type in (it.types?:types)&&
         (it.idPrefixes?:if(it.types==null)idPrefixes else null).let{prefixes->prefixes==null||prefixes.any(id::startsWith)}}
 }
@@ -74,7 +76,8 @@ object StremioJson {
         val resources=o.a("resources").mapNotNull{when{it.isJsonPrimitive&&it.asJsonPrimitive.isString->AddonResource(it.asString);it.isJsonObject->{val r=it.asJsonObject;if(r.get("types")?.isJsonArray!=true||r.s("name").isBlank())null else AddonResource(r.s("name"),r.a("types").strings(),if(r.has("idPrefixes"))r.a("idPrefixes").strings()else null)};else->null}}.filter{it.name.isNotBlank()}.take(100)
         val hints=o.o("behaviorHints")
         return AddonManifest(o.s("id"),o.s("name"),o.s("version"),o.s("description"),o.s("logo"),o.a("types").strings(),if(o.has("idPrefixes"))o.a("idPrefixes").strings()else null,resources,
-            o.a("catalogs").filter{it.isJsonObject}.take(100).map{catalog(it.asJsonObject)}.filter{it.id.isNotBlank()&&it.type.isNotBlank()}.distinctBy{it.type to it.id},o.a("addonCatalogs").filter{it.isJsonObject}.take(100).map{catalog(it.asJsonObject)}.filter{it.id.isNotBlank()&&it.type.isNotBlank()}.distinctBy{it.type to it.id},hints.b("configurable"),hints.b("configurationRequired"))
+            o.a("catalogs").filter{it.isJsonObject}.take(100).map{catalog(it.asJsonObject)}.filter{it.id.isNotBlank()&&it.type.isNotBlank()}.distinctBy{it.type to it.id},o.a("addonCatalogs").filter{it.isJsonObject}.take(100).map{catalog(it.asJsonObject)}.filter{it.id.isNotBlank()&&it.type.isNotBlank()}.distinctBy{it.type to it.id},hints.b("configurable"),hints.b("configurationRequired"),
+            hints.b("adult")||Regex("(?i)(^|[^a-z0-9])(xxx|porn|adult|adulto|nsfw|18\\+)([^a-z0-9]|$)").containsMatchIn(o.s("name")+" "+o.s("description")))
     }
     private fun item(o:JsonObject)=TvMeta(o.s("id"),o.s("type"),o.s("name"),o.s("poster"),o.s("background"),o.s("description"),o.a("genres").strings(),o.a("videos").filter{it.isJsonObject}.take(5000).map{val v=it.asJsonObject;val episode=v.i("episode");TvVideo(v.s("id"),v.s("title").ifBlank{v.s("name")}.ifBlank{if(episode>0)"Episódio $episode" else v.s("id")},v.i("season"),episode,v.s("thumbnail"))}.filter{it.id.isNotBlank()}.distinctBy{it.id})
     fun metas(text:String)=root(text).a("metas").filter{it.isJsonObject}.take(500).map{item(it.asJsonObject)}.filter{it.id.isNotBlank()&&it.name.isNotBlank()}.distinctBy{it.type to it.id}

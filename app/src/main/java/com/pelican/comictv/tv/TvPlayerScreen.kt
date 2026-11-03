@@ -42,6 +42,11 @@ import kotlinx.coroutines.delay
     var interaction by remember { mutableIntStateOf(0) }
     val mainFocus=remember { FocusRequester() }
     val panelFocus=remember { FocusRequester() }
+    val nextFocus=remember { FocusRequester() }
+    var waitMore by remember(state.suggestNext) { mutableStateOf(false) }
+    val offerNext=state.suggestNext&&!waitMore
+    val failedWithNext=state.message.isNotBlank()&&state.hasNext&&!state.canPlay
+    LaunchedEffect(offerNext,failedWithNext) { if(offerNext||failedWithNext) { delay(80);runCatching { nextFocus.requestFocus() } } }
     val aspects=listOf("Ajustar" to AspectRatioFrameLayout.RESIZE_MODE_FIT,"Preencher" to AspectRatioFrameLayout.RESIZE_MODE_ZOOM,"Esticar" to AspectRatioFrameLayout.RESIZE_MODE_FILL)
     val launcher=rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         controller.externalFinished(TvExternalPlayers.resultPosition(result.data))
@@ -96,6 +101,7 @@ import kotlinx.coroutines.delay
             Text(state.title,color=Color.White,fontSize=24.sp,maxLines=2)
             Text(status.ifBlank { "Preparando o vídeo para o ${state.external}…" },color=TvColors.Muted)
             TvButton("Parar e voltar às fontes",{controller.stop()},Modifier.focusRequester(mainFocus))
+            if(state.hasNext)TvButton("Tentar próxima fonte",{controller.playNext()},if(offerNext)Modifier.focusRequester(nextFocus) else Modifier)
         } else if(overlay||panel.isNotEmpty()||status.isNotBlank()&&!state.canPlay) {
             Column(Modifier.fillMaxWidth().align(Alignment.TopStart).background(Brush.verticalGradient(listOf(Color(0xCC000000),Color.Transparent))).padding(24.dp)) {
                 Text(state.title,color=Color.White,fontSize=22.sp,maxLines=2)
@@ -117,9 +123,16 @@ import kotlinx.coroutines.delay
                     TvButton("Legendas",{panel=if(panel=="subtitles")"" else "subtitles"},enabled=state.playerReady)
                     if(state.audio.size>1)TvButton("Áudio",{panel=if(panel=="audio")"" else "audio"})
                     TvButton("Imagem: ${aspects[aspect].first}",{aspect=(aspect+1)%aspects.size;interaction++})
+                    if(state.hasNext)TvButton("Próxima fonte",{controller.playNext()})
                     TvButton("Voltar às fontes",{controller.stop()})
                 }
             }
+        }
+        if(state.external.isBlank()&&(offerNext||failedWithNext))Column(Modifier.align(Alignment.Center).widthIn(max=560.dp)
+            .background(Color(0xF0101010)).padding(24.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            Text(if(!failedWithNext)"Esta fonte ainda não encontrou conexões. Ela continua tentando enquanto você decide." else state.message,color=Color.White,fontSize=18.sp)
+            TvButton("Tentar próxima fonte",{controller.playNext()},Modifier.focusRequester(nextFocus),primary=true)
+            if(!failedWithNext)TvButton("Continuar esperando",{waitMore=true;interaction++}) else TvButton("Voltar às fontes",{controller.stop()})
         }
         if(panel.isNotEmpty())Column(Modifier.align(Alignment.CenterEnd).fillMaxHeight().widthIn(max=460.dp).background(Color(0xF0101010)).padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             if(panel=="subtitles") {

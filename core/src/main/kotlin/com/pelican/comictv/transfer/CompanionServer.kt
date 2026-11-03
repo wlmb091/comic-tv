@@ -33,7 +33,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
     private val received:(File,String)->Unit={_,_->},private val clock:()->Long=System::currentTimeMillis,
     private val lifetimeMillis:Long=30*60*1000L,private val status:(String)->Unit={},private val maxLifetimeMillis:Long=8*60*60*1000L,
     private val stroke:(CompanionStroke)->Unit={},private val drawing:(CompanionDrawing,ByteArray)->Unit={_,_->},private val drawingLayers:(String,Int,InputStream)->Unit={_,_,_->},private val excerpt:(String,Int,Int,Int,ByteArray)->Int={_,_,_,_,_->0},
-    private val subtitle:(String,ByteArray)->Unit={_,_->}) : Closeable {
+    private val subtitle:(String,ByteArray)->Unit={_,_->},private val addonList:(String)->Unit={}) : Closeable {
     private val token=ByteArray(24).also {SecureRandom().nextBytes(it)}.joinToString(""){"%02x".format(it.toInt() and 255)}
     private val root="/s/$token"
     private var openedAt=0L
@@ -65,15 +65,16 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; media-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
     }
     private fun valid(c:CompanionCommand):Boolean {
-        if(c.action !in setOf("tv-open","tv-pause","tv-resume","tv-stop","tv-seek","tv-addon-preview","tv-addon-install","tv-subtitle","tv-audio","tv-subtitle-delay","tv-prefs","up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","reader-arrow","open-chapter","ok-long","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","reader-view","reader-adjust","reader-replay","image-adjust","preset-save","preset-delete","preset-apply","export-cbz","sounds","browser-dark","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
+        if(c.action !in setOf("tv-open","tv-next","tv-addon-batch","appearance","tv-pause","tv-resume","tv-stop","tv-seek","tv-addon-preview","tv-addon-install","tv-subtitle","tv-audio","tv-subtitle-delay","tv-prefs","up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","reader-arrow","open-chapter","ok-long","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","reader-view","reader-adjust","reader-replay","image-adjust","preset-save","preset-delete","preset-apply","export-cbz","sounds","browser-dark","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
         if(c.text.length>(if(c.action=="tv-addon-preview")6000 else 1000)||c.id.length>100||c.text.any {it=='\u0000'})return false
         if((c.action=="open"||c.action=="open-chapter")&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
         if(!c.x.isFinite()||!c.y.isFinite()||!c.dx.isFinite()||!c.dy.isFinite()||!c.zoom.isFinite())return false
         return when(c.action){
-            "tv-open","tv-pause","tv-resume","tv-stop"->true
+            "tv-open","tv-next","tv-pause","tv-resume","tv-stop"->true
             "tv-seek"->c.positionMs in 0L..604800000L
             "tv-addon-preview"->runCatching{com.pelican.comictv.tv.StremioLinks.manifest(c.text)}.isSuccess
             "tv-addon-install"->c.id.matches(Regex("[0-9a-fA-F-]{36}"))
+            "tv-addon-batch"->c.id.matches(Regex("[0-9a-fA-F-]{36}"))&&c.text.matches(Regex("([0-9]{1,2}(,[0-9]{1,2}){0,99})?"))
             "tv-subtitle"->c.text.matches(Regex("off|e:[^\u0000-\u001f]{1,80}|x:[0-9]{1,4}"))
             "tv-audio"->c.text.matches(Regex("a:[^\u0000-\u001f]{1,80}"))
             "tv-subtitle-delay"->c.delta in -600..600
@@ -81,6 +82,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
             "settings"->listOf(c.readerSensitivity,c.pointerSensitivity,c.zoomSensitivity,c.scrollSensitivity).all{it.isFinite()&&it in .25f..3f}
             "cursor"->c.cursorSize in 50..300&&c.cursorStyle in 0..2
             "theme"->c.text in themeNames
+            "appearance"->c.text=="reset"||runCatching{com.google.gson.JsonParser.parseString(c.text).asJsonObject}.isSuccess
             "reader-option"->c.text in readerOptions
             "reader-arrow"->c.text in setOf("up","down","left","right")
             "open-chapter"->c.page in 0..4999
@@ -211,6 +213,15 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
                     if(image)require(bytes.size>8&&PNG_SIGNATURE.indices.all{bytes[it]==PNG_SIGNATURE[it]}){"Envie uma imagem PNG."}
                     drawing(request,bytes);return response(Response.Status.OK,"OK")
                 } finally {drawings.release()}
+            }
+            if(endpoint=="/tv-addon-list") {
+                // A pasted list or a .txt file of add-on links; the TV consults them and the phone reads the result in /tv-state.
+                if(!transfers.tryAcquire())return response(Response.Status.CONFLICT,"Outro envio está em andamento.")
+                try {
+                    val text=body(session,64L*1024).readBytes().toString(Charsets.UTF_8)
+                    require(text.isNotBlank()&&text.none{it=='\u0000'}){"Lista vazia."}
+                    addonList(text);return response(Response.Status.OK,"Lista recebida")
+                } finally {transfers.release()}
             }
             if(endpoint=="/tv-subtitle") {
                 val name=session.parameters["name"]?.singleOrNull()?.takeIf {it.length in 1..200 && '/' !in it && '\\' !in it && it.none {ch->ch.code<32} && it.substringAfterLast('.').lowercase() in setOf("srt","vtt","ass","ssa")}

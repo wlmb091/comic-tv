@@ -21,8 +21,15 @@ data class TvSubtitlePrefs(val auto:Boolean=true,val preferBrazil:Boolean=true,v
         val EDGE_NAMES=listOf("Sem contorno","Contorno","Sombra")
     }
 }
-data class TvVideoPrefs(val player:String="internal",val subtitles:TvSubtitlePrefs=TvSubtitlePrefs()) {
-    fun normalized()=copy(player=player.takeIf{it in PLAYERS}?:"internal",subtitles=subtitles.normalized())
+/**
+ * [publicTrackers] adds the public tracker list to every torrent. The source filter ([sourceAddon], [sourceQuality],
+ * [sourceAudio]) is remembered for every title; empty means all.
+ */
+data class TvVideoPrefs(val player:String="internal",val subtitles:TvSubtitlePrefs=TvSubtitlePrefs(),val publicTrackers:Boolean=true,
+    val sourceAddon:String="",val sourceQuality:String="",val sourceAudio:String="") {
+    fun normalized()=copy(player=player.takeIf{it in PLAYERS}?:"internal",subtitles=(subtitles?:TvSubtitlePrefs()).normalized(),
+        sourceAddon=(sourceAddon?:"").take(200).filter{it.code>=32},sourceQuality=sourceQuality?.takeIf{it in SourceFilter.QUALITIES}.orEmpty(),
+        sourceAudio=sourceAudio?.takeIf{it in SourceFilter.AUDIOS}.orEmpty())
     companion object {
         /** internal: Comic TV; ask: Android chooser; the others open that app directly. */
         val PLAYERS=listOf("internal","ask","vlc","mx","just")

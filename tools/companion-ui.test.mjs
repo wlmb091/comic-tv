@@ -629,3 +629,45 @@ test('video settings on the phone send the whole preference set to the TV',async
  sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
  assert.equal(JSON.parse(sent.text).player,'vlc');assert.equal(JSON.parse(sent.text).subtitles.preferBrazil,false);
 });
+
+test('the source filter on the phone changes the TV choice for every title, and the next source is one tap',async()=>{
+ const h=harness();h.run("globalThis.setTimeout=f=>{f();return 1}");
+ h.run("tvVideo={player:'internal',subtitles:{},sourceAddon:'',sourceQuality:'',sourceAudio:''};tvAddonNames=['Torrentio','Brazuca'];tvFilterUI()");
+ assert.deepEqual(h.elements.get('tvFilterAddon').children.map(b=>b.textContent),['Todas','Torrentio','Brazuca']);
+ assert.deepEqual(h.elements.get('tvFilterAudio').children.map(b=>b.textContent),['Todas','Dublado','Dual áudio','Inglês']);
+ await h.elements.get('tvFilterAudio').children[1].onclick();
+ let sent=sent2(h);assert.equal(sent.action,'tv-prefs');assert.equal(JSON.parse(sent.text).sourceAudio,'Dublado');
+ await h.elements.get('tvFilterQuality').children[0].onclick();
+ sent=sent2(h);assert.equal(JSON.parse(sent.text).sourceQuality,'');assert.equal(JSON.parse(sent.text).sourceAudio,'Dublado');
+ h.run("$('tvPublicTrackers').checked=false");await h.run("$('tvPublicTrackers').onchange()");
+ assert.equal(JSON.parse(sent2(h).text).publicTrackers,false);
+ await h.run("$('tvNextSource').onclick()");assert.equal(sent2(h).action,'tv-next');
+});
+function sent2(h){return JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body)}
+
+test('a list of add-ons goes to the TV, adult ones start unchecked and only the checked ones are installed',async()=>{
+ const h=harness();
+ h.run("$('tvListText').value='https://a/manifest.json\\nhttps://b/manifest.json\\nhttps://c/manifest.json'");
+ await h.run("$('tvListCheck').onclick()");
+ const post=h.requests.find(r=>r.url.endsWith('/tv-addon-list'));assert.ok(post);assert.match(post.options.body,/https:\/\/b\/manifest\.json/);
+ h.run("tvListUI({nonce:'n1',busy:false,message:'',items:[{n:0,name:'A',status:'Pronto para instalar',installable:true,adult:false,configure:'',result:''},{n:1,name:'Adulto',status:'Pronto para instalar · conteúdo adulto',installable:true,adult:true,configure:'',result:''},{n:2,name:'C',status:'Precisa de configuração',installable:false,adult:false,configure:'https://c/configure',result:''}]})");
+ const rows=h.elements.get('tvListItems').children;assert.equal(rows.length,3);
+ assert.equal(rows[0].children[0].checked,true);assert.equal(rows[1].children[0].checked,false);
+ assert.equal(h.elements.get('tvListInstall').textContent,'Instalar 1 complemento');
+ await h.run("$('tvListInstall').onclick()");
+ const sent=sent2(h);assert.equal(sent.action,'tv-addon-batch');assert.equal(sent.id,'n1');assert.equal(sent.text,'0');
+});
+
+test('TV appearance from the phone sends only what changed, and reset asks first',async()=>{
+ const h=harness();
+ h.run("tvLook={orientation:'Landscape',orientations:[{id:'Landscape',label:'Paisagem'},{id:'Portrait90',label:'Retrato 90°'}],carouselAutoplay:true,carouselMotion:true,carouselImagePreset:'Vintage',presets:[{id:'Original',label:'Desligado'},{id:'Vintage',label:'HQ antiga'}],carouselImageIntensity:2,coverBackground:false,textPercent:100,highContrast:false};tvLookUI()");
+ assert.equal(h.elements.get('tvOrientation').children.length,2);
+ await h.elements.get('tvOrientation').children[1].onclick();
+ assert.deepEqual(JSON.parse(sent2(h).text),{orientation:'Portrait90'});
+ h.run("$('tvCarouselMotion').checked=false");await h.run("$('tvCarouselMotion').onchange()");
+ assert.deepEqual(JSON.parse(sent2(h).text),{carouselMotion:false});
+ const before=h.requests.length;h.run("$('tvAppearanceReset').onclick()");assert.equal(h.requests.length,before,'the first tap only asks');
+ await h.run("$('tvResetYes').onclick()");assert.equal(sent2(h).text,'reset');
+ h.run("$('phoneNeon').checked=false;localStorage={setItem(){}};$('phoneNeon').onchange()");assert.equal(h.run('phoneSound.neon'),false);
+ assert.match(html,/#control button\.tap\{border-color:var\(--accent\)/);
+});

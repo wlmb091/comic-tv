@@ -48,6 +48,10 @@ data class TvPlaybackState(
     val subtitleBusy: Boolean = false,
     /** Name of the external player in use, empty for the Comic TV player. */
     val external: String = "",
+    /** Another source of the same video can be tried. */
+    val hasNext: Boolean = false,
+    /** The torrent found no connection in time: the player offers the next source, while this one keeps trying. */
+    val suggestNext: Boolean = false,
 )
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -72,6 +76,9 @@ class TvPlaybackController(private val context: Context, private val repository:
     private var meta: TvMeta? = null
     private var video: TvVideo? = null
     private var stream: TvStream? = null
+    /** The source list the video was started from, for "Tentar próxima fonte". */
+    private var alternatives: List<TvStream> = emptyList()
+    private var startedAt = 0L
     private var mediaUri: String = ""
     private var dataFactory: DataSource.Factory? = null
     private var external: List<TvSubtitle> = emptyList()
@@ -97,11 +104,14 @@ class TvPlaybackController(private val context: Context, private val repository:
     private val prefs get() = repository.state.value.video
 
     /** Starts [stream] in the Comic TV player, or in the external player chosen in the settings. */
-    @MainThread fun play(meta: TvMeta, video: TvVideo, stream: TvStream, position: Long = 0, externalPlayer: String? = null) {
+    @MainThread fun play(meta: TvMeta, video: TvVideo, stream: TvStream, position: Long = 0, externalPlayer: String? = null,
+        sources: List<TvStream> = emptyList()) {
         stop()
         this.meta = meta
         this.video = video
         this.stream = stream
+        alternatives = sources.filter { it.externalUrl.isBlank() }.take(500)
+        startedAt = System.nanoTime()
         val token = ++generation
         val isTorrent = StreamRank.torrent(stream)
         val player = externalPlayer ?: prefs.player
@@ -114,8 +124,9 @@ class TvPlaybackController(private val context: Context, private val repository:
             title = meta.name + if (video.id != meta.id) " · ${video.title}" else "",
             buffering = true,
             torrent = isTorrent,
-            stage = if (isTorrent) "Conectando ao torrent…" else "Abrindo vídeo…",
+            stage = if (isTorrent) "Iniciando torrent…" else "Abrindo vídeo…",
             external = if (outside) TvVideoPrefs.PLAYER_NAMES[player].orEmpty() else "",
+            hasNext = nextSource(stream) != null,
         )
         subtitleJob = scope.launch {
             val found = try { withContext(Dispatchers.IO) { repository.subtitles(meta, video) } } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
@@ -131,7 +142,7 @@ class TvPlaybackController(private val context: Context, private val repository:
                 val factory: DataSource.Factory
                 val uri: String
                 if (isTorrent) {
-                    val session = TvTorrentSession(context, repository.state.value.cacheGiB)
+                    val session = TvTorrentSession(context, repository.state.value.cacheGiB, prefs.publicTrackers)
                     torrent = session
                     session.prepare(stream)
                     ensureActive()
@@ -265,9 +276,11 @@ class TvPlaybackController(private val context: Context, private val repository:
             }
             val now = mutable.value
             val stats = torrent?.let { withContext(Dispatchers.IO) { it.stats() } }
+            val seconds = (System.nanoTime() - startedAt) / 1_000_000_000L
             val stage = when {
+                now.external.isNotBlank() && stats != null && !stats.metadata -> searching(stats, seconds)
                 now.external.isNotBlank() -> if (stats != null && stats.metadata && externalBase.isNotBlank()) "$externalBase · ${connections(stats.peers)} · ${speed(stats.downloadRate)}" else externalBase.ifBlank { now.stage }
-                stats != null && !stats.metadata -> "Conectando ao torrent · ${connections(stats.peers)}"
+                stats != null && !stats.metadata -> searching(stats, seconds)
                 stats != null && !now.canPlay -> {
                     val percent = if (stats.target > 0) (stats.done * 100 / stats.target).coerceIn(0, 99) else 0
                     "Preparando o início: $percent% · ${connections(stats.peers)} · ${speed(stats.downloadRate)}"
@@ -277,9 +290,37 @@ class TvPlaybackController(private val context: Context, private val repository:
                 else -> ""
             }
             if (stage != now.stage) mutable.update { it.copy(stage = stage) }
+            // No connection after the wait: offer the next source once, without stopping this one.
+            val stuck = stats != null && stats.peers == 0 && !now.canPlay && seconds >= SUGGEST_AFTER_S
+            if (stuck && !now.suggestNext && now.hasNext) mutable.update { it.copy(suggestNext = true) }
+            if (stats != null && stats.peers > 0 && now.suggestNext) mutable.update { it.copy(suggestNext = false) }
             server?.let { s -> if (System.currentTimeMillis() - s.lastUse > EXTERNAL_IDLE_MS) { stopExternal(); return } }
             delay(500)
         }
+    }
+
+    private fun searching(stats: TorrentStats, seconds: Long): String {
+        if (stats.candidates == 0 && stats.peers == 0) return "Procurando conexões · $seconds s"
+        val candidates = if (stats.candidates == 1) "1 candidato" else "${stats.candidates} candidatos"
+        val connected = if (stats.peers == 1) "1 conectada" else "${stats.peers} conectadas"
+        return "Procurando conexões: $candidates, $connected · $seconds s"
+    }
+
+    /** The next source after [current] in the list the video was started from. */
+    private fun nextSource(current: TvStream): TvStream? {
+        val index = alternatives.indexOf(current)
+        return if (index < 0) alternatives.firstOrNull { it != current } else alternatives.getOrNull(index + 1)
+    }
+
+    /** Plays the next source of the same video, from where the current one was. */
+    @MainThread fun playNext() {
+        val m = meta ?: return
+        val v = video ?: return
+        val current = stream ?: return
+        val next = nextSource(current) ?: return
+        val list = alternatives
+        val position = player?.currentPosition?.takeIf { state.value.canPlay && it > 0 } ?: 0
+        play(m, v, next, position, sources = list)
     }
 
     private fun connections(n: Int) = if (n == 1) "1 conexão" else "$n conexões"
@@ -595,6 +636,7 @@ class TvPlaybackController(private val context: Context, private val repository:
         meta = null
         video = null
         stream = null
+        alternatives = emptyList()
         external = emptyList()
         texts.clear()
         loaded = null
@@ -606,6 +648,7 @@ class TvPlaybackController(private val context: Context, private val repository:
     companion object {
         private const val SIDELOAD_ID = "1280"
         private const val EXTERNAL_IDLE_MS = 15 * 60 * 1000L
+        private const val SUGGEST_AFTER_S = 45L
     }
 }
 

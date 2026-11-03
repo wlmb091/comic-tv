@@ -15,6 +15,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.CompositionContext
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
@@ -70,6 +77,40 @@ class AppOrientationPreferences(context: Context) {
         _state.value = orientation
     }
     fun cycle() = update(_state.value.next())
+    private val _undo = MutableStateFlow<AppOrientation?>(null)
+    /** The orientation before a change made from the phone, while the TV asks whether to keep the new one. */
+    val undo = _undo.asStateFlow()
+    /** From the phone: the TV may end up turned the wrong way, so it asks and goes back by itself. */
+    fun updateFromPhone(orientation: AppOrientation) {
+        if (orientation == _state.value) return
+        if (_undo.value == null) _undo.value = _state.value
+        update(orientation)
+    }
+    fun keep() { _undo.value = null }
+    fun revert() { _undo.value?.let(::update); _undo.value = null }
+}
+
+/** "Manter esta orientação?", answered with the remote; without an answer the old orientation returns after 10 seconds. */
+@Composable internal fun OrientationConfirmation(preferences: AppOrientationPreferences) {
+    val previous by preferences.undo.collectAsState()
+    if (previous == null) return
+    var left by remember { mutableIntStateOf(10) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        runCatching { kotlinx.coroutines.delay(100); focus.requestFocus() }
+        while (left > 0) { kotlinx.coroutines.delay(1000); left-- }
+        preferences.revert()
+    }
+    ComicDialog(onDismissRequest = { preferences.revert() }) {
+        com.pelican.comictv.companion.CompanionDialogWindow { preferences.revert() }
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth().background(TvColors.Background, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(24.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp)) {
+            androidx.tv.material3.Text("Manter esta orientação?", fontSize = 24.sp)
+            androidx.tv.material3.Text("O celular mudou a orientação da tela. Sem resposta, a anterior volta em $left s.", fontSize = 18.sp, color = TvColors.Muted)
+            TvButton("Manter", { preferences.keep() }, Modifier.focusRequester(focus))
+            TvButton("Voltar à anterior", { preferences.revert() })
+        }
+    }
 }
 
 internal val LocalAppOrientation = staticCompositionLocalOf { AppOrientation.Landscape }

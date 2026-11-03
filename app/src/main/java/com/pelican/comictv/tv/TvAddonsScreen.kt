@@ -51,7 +51,7 @@ import kotlinx.coroutines.*
         }
     }
     LaunchedEffect(preview) {
-        if(preview!=null) { listState.scrollToItem(3);withFrameNanos { };runCatching { previewFocus.requestFocus() } }
+        if(preview!=null) { listState.scrollToItem(if(stored.addonList.isNotEmpty())4 else 3);withFrameNanos { };runCatching { previewFocus.requestFocus() } }
     }
     LaunchedEffect(restoreInput) {
         if(restoreInput>0) { listState.scrollToItem(0);withFrameNanos { };runCatching { inputFocus.requestFocus() } }
@@ -70,6 +70,27 @@ import kotlinx.coroutines.*
             }
         }
         item("message") { if(message.isNotBlank())Text(message,color=Color.White) }
+        if(stored.addonList.isNotEmpty())item("saved-list") {
+            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("Lista salva pelo celular: ${stored.addonList.size} complementos. Fica só nesta TV, fora do backup.",color=TvColors.Muted)
+                TvButton("Reinstalar lista salva",{
+                    scope.launch {
+                        busy=true;message="Consultando ${stored.addonList.size} complementos…"
+                        try {
+                            val items=repository.checkList(stored.addonList.joinToString("\n"))
+                            val done=withContext(Dispatchers.IO) { repository.installChecked(items,items.filter { it.installable }.map { it.n }.toSet()) }
+                            val installed=done.count { it.result=="Instalado" }
+                            val already=done.count { it.status=="Já instalado" }
+                            val skipped=done.size-installed-already
+                            message="$installed instalados · $already já estavam · $skipped pulados"+
+                                done.filter { it.result!="Instalado"&&it.status!="Já instalado" }.take(5).joinToString("") { "\n${it.name}: ${it.result.ifBlank { it.status }}" }
+                        } catch(e:CancellationException) { throw e }
+                        catch(_:Exception) { message="Não foi possível reinstalar a lista. Tente novamente." }
+                        finally { busy=false }
+                    }
+                },enabled=!busy)
+            }
+        }
         preview?.let { addon -> item("preview") {
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
                 Text("${addon.manifest.name} · ${addon.manifest.version}",color=Color.White,fontSize=22.sp)

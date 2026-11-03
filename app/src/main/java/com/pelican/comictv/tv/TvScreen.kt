@@ -36,6 +36,9 @@ import java.security.MessageDigest
     var restorePoster by rememberSaveable { mutableStateOf<String?>(null) }
     val screens=rememberSaveableStateHolder()
     val memory=remember { TvBrowseMemory() }
+    val context=androidx.compose.ui.platform.LocalContext.current
+    // The DHT needs a while to find nodes: start the torrent engine as soon as the TV tab opens.
+    LaunchedEffect(Unit) { TvTorrentEngine.warm(context.applicationContext) }
     // The player is its own full-screen route; this screen only lists titles, details and sources.
     BackHandler(selected!=null||section!="Início") {
         when { selected!=null->selected=null;else->section="Início" }

@@ -141,8 +141,12 @@ import kotlinx.coroutines.sync.withLock
                     TvChoice("Troca automática: " + if (options.carouselAutoplay) "ligada" else "desligada",
                         options.carouselAutoplay, { save { it.copy(carouselAutoplay = !it.carouselAutoplay) } })
                 }
+                settingsRow("carousel-motion") {
+                    TvChoice("Movimento do carrossel: " + if (options.carouselMotionOn) "Dinâmico" else "Sem movimento",
+                        options.carouselMotionOn, { save { it.copy(carouselMotion = if (it.carouselMotionOn) "None" else "Dynamic") } })
+                }
                 settingsRow("carousel-motion-description") {
-                    Text("Em Flix, Max e Cinema, a troca automática alterna as edições a cada 8 segundos, com transição suave e imagem parada. Ao desligá-la, o destaque fica parado. O filtro de imagem permanece como foi escolhido.", color = TvColors.Muted)
+                    Text("Em Flix, Max e Cinema, a troca automática alterna as edições a cada 8 segundos, com transição suave. No modo Dinâmico, a imagem alterna entre um zoom lento e uma descida do topo até o fim; sem movimento, ela fica parada. O movimento nunca interfere na troca. Ao desligar a troca, o destaque fica parado. O filtro de imagem permanece como foi escolhido.", color = TvColors.Muted)
                 }
                 settingsRow("carousel-filter-title") { Text("Filtro das imagens do carrossel", fontSize = 23.sp) }
                 settingsRow("carousel-filter-presets") {
