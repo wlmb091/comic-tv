@@ -15,7 +15,8 @@ data class BackupAppearance(val preset: String = "Amber", val textSize: Int = 0,
     val carouselAutoplay: Boolean = true, val carouselVerticalPan: Boolean = true, val carouselMotion: String = "Pan")
 data class BackupDocument(val format: String = "ComicTVBackup", val version: Int = 1, val createdAt: Long,
     val comics: List<BackupComic>, val collections: List<BackupCollection> = emptyList(),
-    val links: List<BackupLink> = emptyList(), val appearance: BackupAppearance = BackupAppearance())
+    val links: List<BackupLink> = emptyList(), val appearance: BackupAppearance = BackupAppearance(),
+    val imagePresets: List<com.pelican.comictv.reader.AdjustmentPreset>? = null)
 
 fun mergeBackupComic(current: BackupComic, incoming: BackupComic): BackupComic {
     require(current.id == incoming.id)

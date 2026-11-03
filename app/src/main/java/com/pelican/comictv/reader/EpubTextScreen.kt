@@ -132,8 +132,11 @@ import kotlin.math.roundToInt
             for (piece in pieces) when (piece) {
                 is TextPiece.Words -> Text(piece.text, fontSize = fontSize.sp, lineHeight = (fontSize * 1.55).sp,
                     modifier = Modifier.fillMaxWidth().widthIn(max = 1200.dp), color = Color(0xFFF5F3EF))
-                is TextPiece.Picture -> androidx.compose.foundation.Image(piece.bitmap.asImageBitmap(), "Trecho com desenho",
-                    Modifier.fillMaxWidth().widthIn(max = 1200.dp).padding(vertical = 8.dp), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
+                is TextPiece.Picture -> Box(Modifier.fillMaxWidth().widthIn(max = 1200.dp).padding(vertical = 8.dp)) {
+                    androidx.compose.foundation.Image(piece.bitmap.asImageBitmap(), "Trecho com desenho",
+                        Modifier.fillMaxWidth(), contentScale = androidx.compose.ui.layout.ContentScale.FillWidth)
+                    viewModel.drawings?.let { ExcerptDrawing(it, piece, Modifier.matchParentSize()) }
+                }
             }
         }
         Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(TvColors.Panel).padding(horizontal = 30.dp, vertical = 12.dp),

@@ -364,7 +364,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
                 entry.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { container.online.ensureSagaCover(id) }
             }
             val reader: ReaderViewModel = viewModel(factory = viewModelFactory {
-                initializer { ReaderViewModel(if (id.startsWith("online-")) container.onlineReader else container.library, id, createSavedStateHandle(), thumbnailWarm = container::warmReaderThumbnail, imagePreferences = container.readerImages, drawingStore = container.pageDrawings) }
+                initializer { ReaderViewModel(if (id.startsWith("online-")) container.onlineReader else container.library, id, createSavedStateHandle(), thumbnailWarm = container::warmReaderThumbnail, imagePreferences = container.readerImages, drawingStore = container.pageDrawings, presetStore = container.imagePresets) }
             })
             DisposableEffect(companion,reader,entry) {
                 fun sync(){if(entry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))companion.attachReader(reader) else companion.detachReader(reader)}

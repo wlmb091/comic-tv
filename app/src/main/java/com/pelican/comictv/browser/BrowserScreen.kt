@@ -140,7 +140,9 @@ import kotlinx.coroutines.*
         val handle = BrowserCursorBridge.Handle(
             read = { session.state.value.let { it.cursorSize to it.cursorStyle } },
             apply = { size, style -> session.options(cursorSize = size, cursorStyle = style); host.updateOptions() },
-            open = { text -> navigate(BrowserPolicy.spokenAddress(text)) })
+            open = { text -> navigate(BrowserPolicy.spokenAddress(text)) },
+            dark = { session.state.value.let { state -> BrowserPolicy.siteMatches(state.tabs.firstOrNull { it.id == state.selectedId }?.url.orEmpty(), state.darkSites) } },
+            toggleDark = { session.state.value.let { state -> state.tabs.firstOrNull { it.id == state.selectedId }?.url?.takeIf { it.isNotBlank() }?.let { url -> session.toggleDark(url); host.refreshDarkMode() } } })
         BrowserCursorBridge.handle = handle
         onDispose { if (BrowserCursorBridge.handle === handle) BrowserCursorBridge.handle = null }
     }

@@ -15,7 +15,7 @@ function harness() {
 test('the editor opens from the right bar, without sync, and leaves by its own button',async()=>{
  const h=harness();assert.doesNotMatch(html,/editHandle/);
  await h.run("current={id:'c'};readerSide('right',true)");
- assert.deepEqual(JSON.parse(h.run("JSON.stringify($('menuRows').children.map(c=>c.dataset.label))")),['Editar a página','Ajustes de imagem']);
+ assert.deepEqual(JSON.parse(h.run("JSON.stringify($('menuRows').children.map(c=>c.dataset.label))")),['Editar a página','Ajustes de imagem','Reproduzir o desenho na TV','Exportar como CBZ']);
  await h.run("$('menuRows').children[0].onclick()");assert.equal(h.run('sideOpen.left'),true);assert.equal(h.run('sideOpen.right'),false);assert.equal(h.run('ed.open'),true);
  assert.equal(h.run("$('drawRail').children[0].id"),'drawExit');
  await h.run("$('drawRail').children[0].onclick()");assert.equal(h.run('sideOpen.left'),false);assert.equal(h.run('ed.open'),false);
@@ -169,7 +169,7 @@ test('stroke messages keep their order and join the points still waiting',()=>{
 test('reader menu offers the TV options and sends only known ones',async()=>{
  const h=harness();await h.run("current={id:'c'};syncOn=true;tvReader={active:true,comicId:'c',page:1,pageCount:5,readerMenu:{layout:'Normal',fit:'Página',filter:'Original',interval:10,chapters:true,editions:true,cover:true,rotatable:true}};readerSide('right',true)");
  const labels=JSON.parse(h.run("JSON.stringify($('menuRows').children.map(c=>c.dataset.label))"));
- assert.deepEqual(labels,['Continuar','Editar a página','Ajustes de imagem','Escolher página','Capítulo anterior','Próximo capítulo','Capítulos / edições','Visualização: Normal','Ajuste: Página','Zoom e rolagem','Imagem e mais opções','Sair da leitura']);
+ assert.deepEqual(labels,['Continuar','Editar a página','Ajustes de imagem','Reproduzir o desenho na TV','Exportar como CBZ','Escolher página','Capítulo anterior','Próximo capítulo','Capítulos / edições','Visualização: Normal','Ajuste: Página','Zoom e rolagem','Imagem e mais opções','Sair da leitura']);
  h.run("toggleMore('more')");const more=JSON.parse(h.run("JSON.stringify($('menuMore').children.map(c=>c.textContent))"));for(const label of ['Usar página atual como capa da saga','Filtro: Original','Iniciar leitura automática','Intervalo: 10s'])assert.ok(more.includes(label),label);
  await h.run("$('menuRows').children.find(c=>c.dataset.label==='Sair da leitura').onclick()");assert.deepEqual(JSON.parse(h.requests.find(r=>r.url.endsWith('/command')).options.body),{action:'reader-option',text:'exit'});
 });
@@ -420,11 +420,11 @@ test('reader scroll slider sets the vertical position, top to bottom, only when 
  assert.deepEqual(sent(h),[{action:'reader-scroll-to',dy:.5}]);
 });
 test('zoom slider grows from the bottom, from 100% to 300%',()=>{
- const h=harness();h.run("tvReader={active:true,page:0,pageCount:5,zoom:1,minZoom:1,maxZoom:3};$('tvZoom').min=1;$('tvZoom').max=3;$('zoomTrack').onpointerdown({pointerId:1,clientY:29,preventDefault(){}})");
- assert.deepEqual(sent(h)[0],{action:'reader-zoom',zoom:3});assert.equal(h.run("$('zoomThumb').style.top"),'calc((100% - 58px)*0)');assert.equal(h.run("$('zoomLabel').textContent"),'300%');
- const low=harness();low.run("tvReader={active:true,page:0,pageCount:5,zoom:2,minZoom:1,maxZoom:3};$('tvZoom').min=1;$('tvZoom').max=3;$('zoomTrack').onpointerdown({pointerId:1,clientY:271,preventDefault(){}})");
+ const h=harness();h.run("tvReader={active:true,page:0,pageCount:5,zoom:1,minZoom:1,maxZoom:3};$('tvZoom').min=1;$('tvZoom').max=3;$('zoomTrack').onpointerdown({pointerId:1,clientY:17,preventDefault(){}})");
+ assert.deepEqual(sent(h)[0],{action:'reader-zoom',zoom:3});assert.equal(h.run("$('zoomThumb').style.top"),'calc((100% - 34px)*0)');assert.equal(h.run("$('zoomLabel').textContent"),'300%');
+ const low=harness();low.run("tvReader={active:true,page:0,pageCount:5,zoom:2,minZoom:1,maxZoom:3};$('tvZoom').min=1;$('tvZoom').max=3;$('zoomTrack').onpointerdown({pointerId:1,clientY:283,preventDefault(){}})");
  assert.deepEqual(sent(low)[0],{action:'reader-zoom',zoom:1});assert.equal(low.run("$('zoomLabel').textContent"),'100%');
- const nav=harness();nav.run("tvReader={active:false};$('zoomTrack').onpointerdown({pointerId:1,clientY:29,preventDefault(){}})");assert.equal(sent(nav).length,0);
+ const nav=harness();nav.run("tvReader={active:false};$('zoomTrack').onpointerdown({pointerId:1,clientY:17,preventDefault(){}})");assert.equal(sent(nav).length,0);
 });
 test('the bottom bar folds in every tab',()=>{
  for(const name of ['library','reader','control','files']){const h=harness();h.run("globalThis.log=[];document.body.classList.toggle=(n,on)=>log.push(n+':'+on);tab('"+name+"')");assert.ok(JSON.parse(h.run('JSON.stringify(log)')).includes('tabsFolded:true'),name)}
@@ -512,4 +512,44 @@ test('Novidades and Catálogo show six titles and a Ver mais card, and Ver mais 
  // the TV changed source while Ver mais was open: back to the library with a notice
  h.run("moreHas=true;libView='more'");reply({source:'Outra',items:[],more:false});await h.run('loadMore()');
  assert.equal(h.run('libView'),'home');
+});
+test('the round shortcuts follow the TV: chapters and automatic in the reader, dark mode in the browser',()=>{
+ const h=harness(),state=()=>JSON.parse(h.run("JSON.stringify(['quickPrev','quickAuto','quickNext','quickDark'].map(id=>$(id).disabled))"));
+ h.run("tvReader={active:false,browser:false};controlLayout()");assert.deepEqual(state(),[true,true,true,true]);
+ h.run("tvReader={active:true,page:0,pageCount:3,readerMenu:{chapters:true,automatic:true}};controlLayout()");assert.deepEqual(state(),[false,false,false,true]);
+ h.run("tvReader={active:true,page:0,pageCount:3,readerMenu:{chapters:false}};controlLayout()");assert.deepEqual(state(),[true,false,true,true]);
+ h.run("tvReader={active:false,browser:true,browserDark:true};controlLayout()");assert.deepEqual(state(),[true,true,true,false]);
+ h.run("$('quickDark').onclick()");assert.equal(JSON.parse(h.requests.at(-1).options.body).action,'browser-dark');
+ h.run("tvReader={active:true,page:0,pageCount:3,readerMenu:{chapters:true}};$('quickNext').onclick()");assert.deepEqual(JSON.parse(h.requests.at(-1).options.body),{action:'reader-option',text:'chapter-next'});
+});
+test('a pressed key lights in the color of the theme, and only keys of the Controle',()=>{
+ assert.match(html,/#control button\.lit,#control \.quick\.on\{background:var\(--accent\);color:var\(--ax\)/);
+ assert.match(html,/body\{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none\}input,textarea,#pageText\{user-select:text/);
+ assert.doesNotMatch(html,/height:calc\(25px \+ env\(safe-area-inset-bottom\)\)/);
+});
+test('the phone offers the sounds of the TV and its own, with five choices each',()=>{
+ const h=harness();h.run("tvReader={soundsOn:false,soundsVolume:30,soundsStyle:2};section='settings';soundsUI()");
+ assert.equal(h.run("$('tvSoundOn').checked"),false);assert.equal(h.run("$('tvSoundLabel').textContent"),'30%');assert.equal(h.run("$('tvSoundStyles').children.length"),5);assert.equal(h.run("$('tvSoundStyles').children[2].className"),'on');
+ h.run("$('tvSoundStyles').children[4].onclick()");assert.deepEqual(JSON.parse(h.requests.at(-1).options.body),{action:'sounds',soundsOn:false,soundsVolume:30,soundsStyle:4,delta:1});
+ assert.equal(h.run('PHONE_SOUNDS.length'),5);assert.equal(h.run("$('phoneSoundStyles').children.length"),5);
+ h.run("phoneBeep(true);phoneVibrate();phoneHaptic()");
+});
+test('a preset without paper keeps the temperature and tint of the edition',()=>{
+ const h=harness(),values=h.run("(()=>{const v=adjZero();v[0]=40;v[1]=-10;v[2]=50;const own=adjEncode(v);const now=adjZero();now[0]=7;now[1]=8;return JSON.stringify([adjPresetValues({values:own,paper:true},now).slice(0,3),adjPresetValues({values:own,paper:false},now).slice(0,3),adjPresetValues({values:'x',paper:true},now).slice(0,3)])})()");
+ assert.deepEqual(JSON.parse(values),[[40,-10,50],[7,8,50],[7,8,0]]);
+});
+test('with the adjustments open the page does not follow the finger',()=>{
+ assert.match(script,/addEventListener\('touchstart',e=>\{if\(adj\.open\)\{if\(adj\.picking&&e\.touches\.length===1\)startOne/);
+ assert.match(script,/addEventListener\('touchmove',e=>\{if\(e\.cancelable\)e\.preventDefault\(\);if\(adj\.open\)\{/);
+ assert.match(script,/gesturestart',e=>\{if\(adj\.open/);
+});
+test('a live preview of a drawing grows with the action and the final patch covers it all',()=>{
+ const h=harness();assert.equal(h.run("JSON.stringify(drawRectJoin(null,{x:1,y:2,w:3,h:4}))"),'{"x":1,"y":2,"w":3,"h":4}');assert.equal(h.run("JSON.stringify(drawRectJoin({x:1,y:2,w:3,h:4},{x:0,y:5,w:2,h:9}))"),'{"x":0,"y":2,"w":4,"h":12}');
+ h.run("syncOn=true;current={id:'c'};tvReader={active:true,comicId:'c'};ed.layers=[{}]");assert.equal(h.run("ed.stroke={live:true,tool:{}};drawLiveWanted()"),false);assert.equal(h.run("ed.stroke={live:true,tool:{taperAmount:.5}};drawLiveWanted()"),true);assert.equal(h.run("ed.stroke={direct:true,tool:{}};drawLiveWanted()"),true);assert.equal(h.run("ed.stroke=null;ed.float={};ed.modal={kind:'filter'};drawLiveWanted()"),false);assert.equal(h.run("ed.modal={kind:'transform'};drawLiveWanted()"),true);
+});
+test('a layer folder hides its layers and takes its opacity along',()=>{
+ const h=harness();h.run("ed.folders=[{id:9,name:'P',visible:false,opacity:.5,open:true}];globalThis.inside={visible:true,folder:9};globalThis.out={visible:true,folder:null}");
+ assert.equal(h.run('drawShown(inside)'),false);assert.equal(h.run('drawShown(out)'),true);h.run("ed.folders[0].visible=true");assert.equal(h.run('drawShown(inside)'),true);
+ h.run("const make=(n,folder)=>({name:n,folder});ed.layers=[make('a',9),make('b',null),make('c',null)];ed.active=2;drawFolderJoin(9)");assert.equal(h.run("ed.layers.map(l=>l.name).join()"),'a,c,b');assert.equal(h.run('ed.active'),1);
+ h.run("ed.layers.forEach(l=>{l.folder=null});drawFolderTidy()");assert.equal(h.run('ed.folders.length'),0);
 });

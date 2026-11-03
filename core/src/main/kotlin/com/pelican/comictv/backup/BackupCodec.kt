@@ -43,7 +43,8 @@ object BackupCodec {
             "carouselImagePreset" to text(30, true), "carouselImageIntensity" to smallNumber.copy(optional = true),
             "carouselAutoplay" to boolean.copy(optional = true, nullable = false),
             "carouselVerticalPan" to boolean.copy(optional = true, nullable = false),
-            "carouselMotion" to text(20).copy(optional = true, nullable = false)))
+            "carouselMotion" to text(20).copy(optional = true, nullable = false)),
+        "imagePresets" to Rule(element = obj("id" to text(60), "name" to text(40), "folder" to text(30), "values" to text(400), "paper" to boolean), limit = com.pelican.comictv.reader.AdjustmentPreset.MAX, optional = true))
 
     fun decode(input: InputStream): BackupDocument {
         val bytes = ByteArrayOutputStream().also { output ->
@@ -119,6 +120,9 @@ object BackupCodec {
                 require(entry.sha256 == null && OnlineIdentity.id(online.source, online.title, online.chapter) == entry.id)
                 require(online.pin.matches(Regex("[a-f0-9]{64}")) && online.source.packageName.matches(Regex("[A-Za-z_][A-Za-z0-9_.]{1,199}")))
             } else require(!entry.id.startsWith("online-") && entry.online == null && entry.sha256 != null) { "Arquivo local sem impressão digital ou identidade inválida." }
+        }
+        document.imagePresets?.let { presets ->
+            require(presets.size <= com.pelican.comictv.reader.AdjustmentPreset.MAX && presets.all { it.valid() } && presets.map { it.id }.toSet().size == presets.size) { "Presets inválidos." }
         }
         val comics = document.comics.map { it.id }.toSet(); val collections = document.collections.map { it.id }.toSet()
         require(document.links.toSet().size == document.links.size)

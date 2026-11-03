@@ -19,6 +19,7 @@ import androidx.tv.material3.Button
 import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.Border
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import com.pelican.comictv.BuildConfig
@@ -118,14 +119,17 @@ import kotlinx.coroutines.sync.withLock
                 settingsRow("sounds") {
                     val context = androidx.compose.ui.platform.LocalContext.current
                     val sounds = remember { NavigationSounds.of(context) }
-                    var soundsOn by remember { mutableStateOf(sounds.enabled) }
-                    var soundsVolume by remember { mutableIntStateOf(sounds.volumePercent) }
-                    androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)) {
-                        TvChoice("Sons: " + if (soundsOn) "ligados" else "desligados", soundsOn, { soundsOn = !soundsOn; sounds.enabled = soundsOn })
-                        if (soundsOn) TvChoice("Volume: $soundsVolume%", false, { soundsVolume = NavigationSounds.nextVolume(soundsVolume); sounds.volumePercent = soundsVolume; sounds.preview() })
+                    androidx.compose.foundation.layout.Column(verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
+                        TvChoice("Sons: " + if (sounds.enabled) "ligados" else "desligados", sounds.enabled, { sounds.enabled = !sounds.enabled })
+                        if (sounds.enabled) {
+                            SoundVolumeControl(sounds.volumePercent, { step -> sounds.volumePercent = NavigationSounds.stepVolume(sounds.volumePercent, step); sounds.preview() })
+                            androidx.compose.foundation.layout.Row(androidx.compose.ui.Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
+                                NavigationSounds.NAMES.forEachIndexed { index, name -> TvChoice(name, sounds.style == index, { sounds.style = index; sounds.preview() }) }
+                            }
+                        }
                     }
                 }
-                settingsRow("sounds-description") { Text("Um clique ao mover o foco, e um som diferente no OK.", color = TvColors.Muted, fontSize = 16.sp) }
+                settingsRow("sounds-description") { Text("Um som ao mover o foco, e outro no OK. O volume é só destes sons, não o da TV. Dá para mudar também pelo celular.", color = TvColors.Muted, fontSize = 16.sp) }
                 settingsRow("carousel-motion-title") { Text("Carrossel", fontSize = 23.sp) }
                 settingsRow("carousel-autoplay") {
                     TvChoice("Troca automática: " + if (options.carouselAutoplay) "ligada" else "desligada",

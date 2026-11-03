@@ -13,8 +13,8 @@ import java.util.UUID
 import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicInteger
 
-data class CompanionCommand(val action:String="",val text:String="",val id:String="",val x:Double=0.0,val y:Double=0.0,val delta:Int=0,val dx:Double=0.0,val dy:Double=0.0,val page:Int=0,val zoom:Float=1f,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorSize:Int=100,val cursorStyle:Int=0)
-data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f,val browser:Boolean=false,val comicId:String="",val browserScroll:Float=0f,val browserScrollable:Boolean=false,val readerScroll:Float=0f,val readerScrollable:Boolean=false,val browserCanBack:Boolean=false,val browserCanForward:Boolean=false,val readerText:Boolean=false,val readerMenu:CompanionReaderMenu=CompanionReaderMenu(),val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorAvailable:Boolean=false,val cursorSize:Int=100,val cursorStyle:Int=0,val theme:String="")
+data class CompanionCommand(val action:String="",val text:String="",val id:String="",val x:Double=0.0,val y:Double=0.0,val delta:Int=0,val dx:Double=0.0,val dy:Double=0.0,val page:Int=0,val zoom:Float=1f,val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorSize:Int=100,val cursorStyle:Int=0,val soundsOn:Boolean=true,val soundsVolume:Int=50,val soundsStyle:Int=0)
+data class CompanionReaderState(val active:Boolean=false,val page:Int=0,val pageCount:Int=0,val zoom:Float=1f,val minZoom:Float=1f,val maxZoom:Float=3f,val browser:Boolean=false,val comicId:String="",val browserScroll:Float=0f,val browserScrollable:Boolean=false,val readerScroll:Float=0f,val readerScrollable:Boolean=false,val browserCanBack:Boolean=false,val browserCanForward:Boolean=false,val readerText:Boolean=false,val readerMenu:CompanionReaderMenu=CompanionReaderMenu(),val readerSensitivity:Float=1f,val pointerSensitivity:Float=1f,val zoomSensitivity:Float=1f,val scrollSensitivity:Float=1f,val cursorAvailable:Boolean=false,val cursorSize:Int=100,val cursorStyle:Int=0,val theme:String="",val browserDark:Boolean=false,val soundsOn:Boolean=true,val soundsVolume:Int=50,val soundsStyle:Int=0)
 /** What the TV reader's own tools show now, so the phone panel can offer the same options. */
 data class CompanionReaderMenu(val layout:String="",val fit:String="",val rtl:Boolean=false,val filter:String="",val filterOn:Boolean=false,val intensity:Int=1,val compare:Boolean=false,val automatic:Boolean=false,val interval:Int=10,val rotatable:Boolean=false,val rotated:Boolean=false,val chapters:Boolean=false,val editions:Boolean=false,val cover:Boolean=false,val coverBusy:Boolean=false,val coverMessage:String="",val retry:Boolean=false,val fontSize:Int=0,val drawingsHidden:Boolean=false)
 val readerOptions=setOf("layout","fit","direction","rotate","cover","filter","intensity","compare","automatic","interval","chapter-prev","chapter-next","editions","retry","exit","font-down","font-up","drawings")
@@ -25,7 +25,7 @@ data class CompanionResource(val mime:String,val bytes:ByteArray?=null,val file:
 /** A stroke while the finger is down: points are page fractions and [size] a fraction of the page width. The TV draws it as a preview. */
 data class CompanionStroke(val id:String="",val page:Int=0,val kind:String="",val eraser:Boolean=false,val color:String="#000000",val size:Float=0f,val opacity:Float=1f,val points:List<Float> =emptyList())
 /** A change to the drawing of one page. A patch replaces one rectangle of the layer; save and delete reach the stored file. */
-data class CompanionDrawing(val kind:String,val id:String,val page:Int,val x:Int=0,val y:Int=0,val width:Int=0,val height:Int=0,val layerWidth:Int=0,val layerHeight:Int=0,val pageWidth:Int=0,val pageHeight:Int=0)
+data class CompanionDrawing(val kind:String,val id:String,val page:Int,val x:Int=0,val y:Int=0,val width:Int=0,val height:Int=0,val layerWidth:Int=0,val layerHeight:Int=0,val pageWidth:Int=0,val pageHeight:Int=0,val live:Boolean=false)
 
 /** An explicitly opened LAN session that ends when idle or at its absolute limit. No arbitrary URL/path/OS commands. */
 class CompanionServer(private val host:String,private val temporaryDirectory:File,private val html:String,
@@ -64,7 +64,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         addHeader("Content-Security-Policy","default-src 'none'; img-src 'self' blob:; media-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
     }
     private fun valid(c:CompanionCommand):Boolean {
-        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","reader-arrow","open-chapter","ok-long","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","reader-view","reader-adjust","image-adjust","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
+        if(c.action !in setOf("up","down","left","right","ok","back","menu","enter","text","tap","scroll","open","pointer","reader-pan","reader-page","reader-turn","reader-zoom","reader-pinch","reader-drag","reader-option","reader-arrow","open-chapter","ok-long","browser-open","home","settings","cursor","rotate","theme","browser-pointer","browser-scroll","browser-scroll-to","browser-history","reader-scroll-to","reader-view","reader-adjust","reader-replay","image-adjust","preset-save","preset-delete","preset-apply","export-cbz","sounds","browser-dark","browser-zoom","browser-pinch","browser-click","browser-context","browser-press","browser-release","browser-cancel","browser-up","browser-down","browser-left","browser-right","browser-ok"))return false
         if(c.text.length>1000||c.id.length>100||c.text.any {it=='\u0000'})return false
         if((c.action=="open"||c.action=="open-chapter")&&!c.id.matches(Regex("[A-Za-z0-9-]{1,100}")))return false
         if(!c.x.isFinite()||!c.y.isFinite()||!c.dx.isFinite()||!c.dy.isFinite()||!c.zoom.isFinite())return false
@@ -89,6 +89,12 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
             "reader-view"->c.zoom in 1f..3f&&c.x in 0.0..1.0&&c.y in 0.0..1.0
             "reader-adjust"->c.text.isEmpty()||com.pelican.comictv.reader.ImageAdjustments.parse(c.text)!=null
             "image-adjust"->c.id.matches(Regex("[A-Za-z0-9-]{1,100}"))&&com.pelican.comictv.reader.ImageAdjustments.parse(c.text)!=null
+            "reader-replay"->c.page in 0..99_999
+            "preset-save"->com.pelican.comictv.reader.AdjustmentPreset.parse(c.text)!=null
+            "preset-delete"->c.text.matches(com.pelican.comictv.reader.AdjustmentPreset.ID)
+            "preset-apply"->c.id.matches(Regex("[A-Za-z0-9-]{1,100}"))&&(c.text=="none"||c.text.matches(com.pelican.comictv.reader.AdjustmentPreset.ID))&&c.delta in 0..1
+            "export-cbz"->c.id.matches(Regex("[A-Za-z0-9-]{1,100}"))
+            "sounds"->c.soundsVolume in 0..100&&c.soundsStyle in 0..4
             "reader-pinch"->c.zoom in 1f..3f&&c.x in 0.0..1.0&&c.y in 0.0..1.0&&c.dx in -1.0..1.0&&c.dy in -1.0..1.0
             else->c.x in 0.0..1.0&&c.y in 0.0..1.0&&c.delta in -600..600
         }
@@ -127,7 +133,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
         try {
             if(session.method==Method.GET){
                 if(endpoint.isEmpty())return response(Response.Status.OK,html,"text/html; charset=utf-8")
-                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing-layers/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|image-adjust/[A-Za-z0-9-]{1,100}|text-excerpts/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|excerpt-base/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
+                if(!endpoint.matches(Regex("/(library|reader-state|home-sources|image-presets|export-state/[A-Za-z0-9-]{1,100}|export-file/[A-Za-z0-9-]{1,100}|home-more/[lc]/[0-9]{1,4}|source-cover/[lc][0-9]{1,4}|chapters/[A-Za-z0-9-]{1,100}|saga-cover/[A-Za-z0-9-]{1,100}|cover/[A-Za-z0-9-]{1,100}|file/[A-Za-z0-9-]{1,100}|page/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|drawing-layers/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|image-adjust/[A-Za-z0-9-]{1,100}|text-excerpts/[A-Za-z0-9-]{1,100}/[0-9]{1,5}|excerpt-base/[A-Za-z0-9-]{1,100}/[0-9]{1,5})")))return response(Response.Status.NOT_FOUND,"Item não encontrado.")
                 // The state poll is light and must keep answering while pages and covers load.
                 val limited=endpoint!="/reader-state"
                 val cover=endpoint.startsWith("/cover/")||endpoint.startsWith("/saga-cover/")
@@ -175,9 +181,9 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
             }
             if(endpoint.startsWith("/drawing/")) {
                 val parts=endpoint.removePrefix("/drawing/").split('/')
-                require(parts.size==3&&parts[0] in setOf("save","patch","delete","reset","layers")&&parts[1].matches(Regex("[A-Za-z0-9-]{1,100}"))&&parts[2].matches(Regex("[0-9]{1,5}"))){"Desenho inválido."}
+                require(parts.size==3&&parts[0] in setOf("save","patch","record","delete","reset","layers")&&parts[1].matches(Regex("[A-Za-z0-9-]{1,100}"))&&parts[2].matches(Regex("[0-9]{1,5}"))){"Desenho inválido."}
                 fun number(name:String)=session.parameters[name]?.singleOrNull()?.toIntOrNull()?:0
-                val request=CompanionDrawing(parts[0],parts[1],parts[2].toInt(),number("x"),number("y"),number("w"),number("h"),number("lw"),number("lh"),number("pw"),number("ph"))
+                val request=CompanionDrawing(parts[0],parts[1],parts[2].toInt(),number("x"),number("y"),number("w"),number("h"),number("lw"),number("lh"),number("pw"),number("ph"),number("live")==1)
                 if(request.kind=="layers") {
                     if(!drawings.tryAcquire(3000L,java.util.concurrent.TimeUnit.MILLISECONDS))return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
                     try {
@@ -188,7 +194,7 @@ class CompanionServer(private val host:String,private val temporaryDirectory:Fil
                         input.unread(magic);drawingLayers(request.id,request.page,input);return response(Response.Status.OK,"OK")
                     } finally {drawings.release()}
                 }
-                val image=request.kind=="save"||request.kind=="patch"
+                val image=request.kind=="save"||request.kind=="patch"||request.kind=="record"
                 if(image)require(validDrawing(request)){"Desenho inválido."}
                 if(!drawings.tryAcquire(3000L,java.util.concurrent.TimeUnit.MILLISECONDS))return response(Response.Status.CONFLICT,"Aguarde a operação atual.")
                 try {

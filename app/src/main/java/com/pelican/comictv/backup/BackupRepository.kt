@@ -18,7 +18,7 @@ data class RestoreResult(val added: Int, val updated: Int, val pending: Int)
 class BackupRepository(private val context: Context, private val db: LibraryDatabase,
     private val library: LibraryRepository, private val online: OnlineReaderRepository,
     private val appearance: AppearancePreferences, private val images: ReaderImageStore,
-    private val pending: RestorePendingStore, private val drawings: PageDrawingStore) {
+    private val pending: RestorePendingStore, private val drawings: PageDrawingStore, private val presets: AdjustmentPresetStore? = null) {
     private val directory = File(context.filesDir, "backup").apply { mkdirs() }
     private val journal = AtomicFile(File(directory, "restore-journal.json"))
     private val flags = context.getSharedPreferences("backup", Context.MODE_PRIVATE)
@@ -45,7 +45,8 @@ class BackupRepository(private val context: Context, private val db: LibraryData
             val document = BackupDocument(createdAt = System.currentTimeMillis(), comics = all, collections = collections, links = links,
                 appearance = BackupAppearance(options.preset.name, options.textSize, options.highContrast, options.coverBackground,
                     options.textPercent, options.cinemaMode, options.carouselImagePreset.name, options.carouselImageIntensity,
-                    options.carouselAutoplay, options.carouselVerticalPan, options.carouselMotion))
+                    options.carouselAutoplay, options.carouselVerticalPan, options.carouselMotion),
+                imagePresets = presets?.state?.value?.takeIf { it.isNotEmpty() })
             val exportDirectory = File(context.cacheDir,"backup-exports").apply {mkdirs()}
             val date = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss",java.util.Locale.ROOT).format(java.util.Date())
             val target = File.createTempFile("Comic-TV-${com.pelican.comictv.BuildConfig.VERSION_NAME}-$date-", ".ctvbackup",exportDirectory)
@@ -141,6 +142,7 @@ class BackupRepository(private val context: Context, private val db: LibraryData
         pending.write(BackupDocument(createdAt = document.createdAt, comics = deferred.values.toList(), collections = collections, links = deferredLinks))
         // Resolved journal choices survive date ties on replay; commit preferences in
         // one batch rather than thousands of disk commits for a large collection.
+        document.imagePresets?.let { presets?.merge(it) }
         images.saveAll(document.comics.associate { it.id to ReaderImageOptions.restore(it.imagePreset,it.imageIntensity,it.imageAdjustments) })
         if (restoreAppearance) {
             val a = document.appearance

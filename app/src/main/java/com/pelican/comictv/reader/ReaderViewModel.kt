@@ -41,7 +41,9 @@ class ReaderViewModel(
         options.outWidth to options.outHeight
     },
     drawingStore: PageDrawingStore? = null,
+    presetStore: AdjustmentPresetStore? = null,
 ) : ViewModel() {
+    internal val presets: kotlinx.coroutines.flow.StateFlow<List<AdjustmentPreset>> = presetStore?.state ?: MutableStateFlow(emptyList())
     internal val drawings = drawingStore?.let { PageDrawings(it, comicId, viewModelScope, ioDispatcher) }
     private val _state = MutableStateFlow(ReaderState())
     val state = _state.asStateFlow()
@@ -308,6 +310,13 @@ class ReaderViewModel(
         val old=_state.value;val value=zoom.coerceIn(1f,3f);val (fillX,fillY)=pageFill
         _state.value=old.copy(zoom=value,panX=pinchPan(fillX,old.zoom,value,old.panX,x-dx,x),panY=pinchPan(fillY,old.zoom,value,old.panY,y-dy,y))
     }
+    internal fun companionReplay(page:Int) {
+        check(companionAvailable()){ "Leitor indisponível para controle." }
+        val owner=checkNotNull(drawings){ "Desenhos indisponíveis." }
+        pauseAutomaticReading()
+        if(page in pages.indices&&page!=_state.value.page)companionPage(page)
+        owner.replay(page)
+    }
     internal fun companionPage(page:Int) {
         check(companionAvailable()){ "Leitor indisponível para controle." };require(page in pages.indices){ "Página não encontrada." }
         pauseAutomaticReading();val old=_state.value
@@ -412,6 +421,13 @@ class ReaderViewModel(
         if (closing || exited) return
         savedAdjustments = adjustments
         _imageOptions.value = _imageOptions.value.copy(adjustments = adjustments)
+    }
+    /** Chosen on the TV: the whole edition changes at once and stays that way. Null takes the adjustments off. */
+    fun applyPreset(preset: AdjustmentPreset?) {
+        if (closing || exited) return
+        savedAdjustments = preset?.over(savedAdjustments) ?: ImageAdjustments()
+        _imageOptions.value = _imageOptions.value.copy(adjustments = savedAdjustments)
+        saveImageOptions()
     }
     fun toggleOriginalComparison() { if (!closing && !exited) _compareOriginal.value = !_compareOriginal.value }
     private fun saveImageOptions() {

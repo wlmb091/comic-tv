@@ -39,6 +39,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     var sources:com.pelican.comictv.sources.SourcesViewModel?=null
     private val chapterContexts=LinkedHashMap<String,List<com.pelican.comictv.details.DetailChapter>>()
     private val chapterEditions=LinkedHashMap<String,com.pelican.comictv.sources.OnlineEditions>()
+    private val exporter=ComicExporter(container,File(activity.cacheDir,"companion-exports"),scope)
     private val preferences=activity.getSharedPreferences("companion-gestures",android.content.Context.MODE_PRIVATE)
     private fun sensitivity(key:String)=preferences.getFloat(key,1f).takeIf{it.isFinite()&&it in .25f..3f}?:1f
     fun start(){
@@ -58,7 +59,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 stroke={live->call{withContext(Dispatchers.Main.immediate){active();drawingsOf(live.id)?.stroke(live)}}},
                 drawing={request,bytes->call{applyDrawing(request,bytes)}},
                 drawingLayers={id,page,input->call(120_000){withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);container.pageDrawings.saveLayers(id,page,input)}},
-                excerpt={id,section,start,end,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);withContext(Dispatchers.IO){container.pageDrawings.addExcerpt(id,section,start,end,bytes).page}}})
+                excerpt={id,section,start,end,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);val page=withContext(Dispatchers.IO){container.pageDrawings.addExcerpt(id,section,start,end,bytes).page};withContext(Dispatchers.Main.immediate){drawingsOf(id)?.reload(page)};page}})
             owned=instance
             val url=withContext(Dispatchers.IO){instance.open();instance.url}
             ensureActive();check(sessionJob===job);server=instance
@@ -79,7 +80,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
     fun stop(message:String="Sessão encerrada.") {
         server?.close();server=null;sessionJob?.cancel();sessionJob=null
         activity.window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        mutable.value=CompanionState(message=message);pages.clear()
+        mutable.value=CompanionState(message=message);pages.clear();exporter.clear()
     }
     fun close(){stop();scope.cancel()}
     private fun active(){check(server!=null&&activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)){"O Comic TV precisa estar aberto na TV."}}
@@ -138,18 +139,21 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             val file=(group?.cover as? File)?.takeIf{it.isFile}?:container.library.cover(id).also{check(it.isFile){"Capa indisponível."}}
             return CompanionResource("image/jpeg",file=file)
         }
+        if(path=="/image-presets")return CompanionResource("application/json; charset=utf-8",Gson().toJson(container.imagePresets.state.value).toByteArray(Charsets.UTF_8))
         if(path=="/reader-state") {
             val snapshot=withContext(Dispatchers.Main.immediate){
                 val owner=reader?.takeIf{it.companionAvailable()&&dialogs.focused()==null}
                 val page=(activity.currentFocus as? com.pelican.comictv.browser.RemoteBrowserWebView)?.takeIf{dialogs.focused()==null&&activity.hasWindowFocus()}
                 val position=page?.companionScrollPosition()
                 val cursor=com.pelican.comictv.browser.BrowserCursorBridge.handle?.read?.invoke()
-                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null,browserCanBack=page?.canGoBack()==true,browserCanForward=page?.canGoForward()==true) else owner.state.value.let{val text=owner.companionTextScroll();CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId,readerScroll=text?.first?:((it.panY+1f)/2f).coerceIn(0f,1f),readerScrollable=text?.second?:(it.zoom>1.001f),readerText=text!=null,readerMenu=owner.companionMenu())}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"),cursorAvailable=cursor!=null&&owner==null,cursorSize=cursor?.first?:100,cursorStyle=cursor?.second?:0)
+                (if(owner==null)CompanionReaderState(browser=page!=null,browserScroll=position?:0f,browserScrollable=position!=null,browserCanBack=page?.canGoBack()==true,browserCanForward=page?.canGoForward()==true) else owner.state.value.let{val text=owner.companionTextScroll();CompanionReaderState(true,it.page,it.pageCount,it.zoom,comicId=owner.companionComicId,readerScroll=text?.first?:((it.panY+1f)/2f).coerceIn(0f,1f),readerScrollable=text?.second?:(it.zoom>1.001f),readerText=text!=null,readerMenu=owner.companionMenu())}).copy(readerSensitivity=sensitivity("reader"),pointerSensitivity=sensitivity("pointer"),zoomSensitivity=sensitivity("zoom"),scrollSensitivity=sensitivity("scroll"),cursorAvailable=cursor!=null&&owner==null,cursorSize=cursor?.first?:100,cursorStyle=cursor?.second?:0,browserDark=page!=null&&com.pelican.comictv.browser.BrowserCursorBridge.handle?.dark?.invoke()==true).let{state->com.pelican.comictv.ui.NavigationSounds.of(activity).let{sounds->state.copy(soundsOn=sounds.enabled,soundsVolume=sounds.volumePercent,soundsStyle=sounds.style)}}
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot.copy(theme=container.appearance.state.value.preset.name)).toByteArray(Charsets.UTF_8))
         }
         val parts=path.trim('/').split('/');val id=parts[1]
         val comic=container.library.getComic(id) // Existence and identity always come from the library.
+        if(parts[0]=="export-state")return CompanionResource("application/json; charset=utf-8",Gson().toJson(exporter.state(id)).toByteArray(Charsets.UTF_8))
+        if(parts[0]=="export-file")return CompanionResource("application/vnd.comicbook+zip",file=checkNotNull(exporter.file(id)){"Exportação não encontrada."},filename=comic.title.replace(Regex("[\\r\\n/\\\\]"),"_")+".cbz")
         if(parts[0]=="drawing"){
             val page=parts[2].toInt()
             val file=container.pageDrawings.file(id,page)?:return CompanionResource("image/png",ByteArray(0))
@@ -184,12 +188,15 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         withContext(Dispatchers.Main.immediate){active()}
         container.library.getComic(d.id)
         when(d.kind){
-            "save"->container.pageDrawings.save(d.id,d.page,d.pageWidth,d.pageHeight,bytes)
+            "save"->{container.pageDrawings.save(d.id,d.page,d.pageWidth,d.pageHeight,bytes);container.pageDrawings.commitReplay(d.id,d.page)}
             "delete"->container.pageDrawings.delete(d.id,d.page)
+            "reset"->container.pageDrawings.discardReplay(d.id,d.page)
+            "patch","record"->if(!d.live)container.pageDrawings.recordStep(d.id,d.page,com.pelican.comictv.reader.ReplayStep(d.x,d.y,d.width,d.height,d.layerWidth,d.layerHeight,bytes))
         }
+        if(d.kind=="record")return
         val patch=if(d.kind=="patch")checkNotNull(BitmapFactory.decodeByteArray(bytes,0,bytes.size)){"Imagem não reconhecida."} else null
         val owner=withContext(Dispatchers.Main.immediate){drawingsOf(d.id)}?:return
-        if(patch!=null)owner.patch(d.page,patch,d.x,d.y,d.width,d.height,d.layerWidth,d.layerHeight)
+        if(patch!=null)owner.patch(d.page,patch,d.x,d.y,d.width,d.height,d.layerWidth,d.layerHeight,keepLive=d.live)
         else withContext(Dispatchers.Main.immediate){owner.reload(d.page)}
     }
     private fun sourceTitle(ref:String):Pair<com.pelican.comictv.sources.SourceHandle,com.pelican.comictv.sources.OnlineTitle>{
@@ -259,6 +266,17 @@ internal class CompanionController(private val activity:ComponentActivity,privat
         if(c.action=="scroll")touch(MotionEvent.ACTION_MOVE,endY,now+20)
         touch(MotionEvent.ACTION_UP,endY,now+40)
     }
+    /** One edition, or every edition of its saga. Each keeps its own paper unless the preset carries one. */
+    private fun applyPreset(c:CompanionCommand){
+        val preset=if(c.text=="none")null else checkNotNull(container.imagePresets.state.value.firstOrNull{it.id==c.text}){"Preset não encontrado."}
+        fun tones(old:com.pelican.comictv.reader.ImageAdjustments)=preset?.over(old)?:com.pelican.comictv.reader.ImageAdjustments()
+        scope.launch(Dispatchers.IO){runCatching{
+            val ids=if(c.delta==1)container.library.sagaGroups(container.library.observeComics().first()).firstOrNull{group->group.editions.any{it.id==c.id}}?.editions?.map{it.id}.orEmpty().ifEmpty{listOf(c.id)} else listOf(c.id)
+            val changed=ids.associateWith{id->container.readerImages.read(id).let{it.copy(adjustments=tones(it.adjustments))}}
+            container.readerImages.saveAll(changed)
+            withContext(Dispatchers.Main.immediate){reader?.let{open->changed[open.companionComicId]?.let{open.companionAdjustSaved(it.adjustments)}}}
+        }}
+    }
     private fun control(c:CompanionCommand){
         active();val dialog=dialogs.focused();check(dialog!=null||activity.hasWindowFocus()){ "Volte ao Comic TV para controlar." }
         if(c.action=="rotate"){container.orientation.cycle();return}
@@ -267,6 +285,16 @@ internal class CompanionController(private val activity:ComponentActivity,privat
             scope.launch(Dispatchers.IO){runCatching{container.readerImages.save(c.id,container.readerImages.read(c.id).copy(adjustments=tones))}}
             reader?.takeIf{it.companionComicId==c.id}?.companionAdjustSaved(tones);return
         }
+        if(c.action=="preset-save"){container.imagePresets.save(checkNotNull(com.pelican.comictv.reader.AdjustmentPreset.parse(c.text)){"Preset inválido."});return}
+        if(c.action=="preset-delete"){container.imagePresets.delete(c.text);return}
+        if(c.action=="preset-apply"){applyPreset(c);return}
+        if(c.action=="export-cbz"){exporter.start(c.id);return}
+        if(c.action=="sounds"){
+            val sounds=com.pelican.comictv.ui.NavigationSounds.of(activity)
+            sounds.enabled=c.soundsOn;sounds.volumePercent=c.soundsVolume;sounds.style=c.soundsStyle
+            if(c.delta==1)sounds.preview();return
+        }
+        if(c.action=="browser-dark"){(com.pelican.comictv.browser.BrowserCursorBridge.handle?:error("Abra o navegador na TV para usar o modo escuro.")).toggleDark();return}
         if(c.action=="theme") {
             val preset=com.pelican.comictv.ui.ColorPreset.entries.firstOrNull{it.name==c.text&&it.selectable}?:error("Tema inválido.")
             scope.launch{container.appearance.update(container.appearance.state.value.copy(preset=preset))};return
@@ -320,6 +348,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 "reader-scroll-to"->owner.companionScrollTo(c.dy.toFloat())
                 "reader-pinch"->owner.companionPinch(c.zoom,c.x.toFloat(),c.y.toFloat(),c.dx.toFloat(),c.dy.toFloat())
                 "reader-view"->owner.companionView(c.zoom,c.x.toFloat(),c.y.toFloat())
+                "reader-replay"->owner.companionReplay(c.page)
                 "reader-adjust"->owner.companionAdjustPreview(if(c.text.isEmpty())null else com.pelican.comictv.reader.ImageAdjustments.parse(c.text))
                 else->error("Comando de leitor inválido.")
             };return

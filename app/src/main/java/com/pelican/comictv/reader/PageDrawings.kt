@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.IntOffset
@@ -51,7 +52,14 @@ internal class PageDrawings(private val store: PageDrawingStore, private val com
     }
     private val loads = mutableMapOf<Int, Job>()
     private var liveReset: Job? = null
+    private var replaying: Job? = null
+    /** While a replay runs the drawing shows, even with drawings hidden. */
+    var replayActive by mutableStateOf(false)
+        private set
     var version by mutableIntStateOf(0)
+        private set
+    /** Changes only when a stretch of text comes or goes: the phone's patches must not decode them all again. */
+    var excerptVersion by mutableIntStateOf(0)
         private set
     var live by mutableStateOf<LiveStroke?>(null)
         private set
@@ -92,6 +100,7 @@ internal class PageDrawings(private val store: PageDrawingStore, private val com
         loads.remove(page)?.cancel()
         layers.remove(page)
         if (live?.page == page) live = null
+        if (page >= TextExcerpt.FIRST_PAGE) excerptVersion++
         version++
     }
     fun stroke(s: CompanionStroke) {
@@ -105,17 +114,47 @@ internal class PageDrawings(private val store: PageDrawingStore, private val com
         // A lost phone must not leave its stroke over the page.
         if (live != null) liveReset = scope.launch { delay(4000); live = null }
     }
-    /** The stretches that have a drawing; one the phone is still editing stays plain text until saved. */
+    /** The drawing being made again: every saved action in order, over an empty layer. */
+    fun replay(page: Int) {
+        check(store.hasReplay(comicId, page)) { "Este desenho ainda não tem gravação. Só as ações feitas a partir da versão 1.4.26 são gravadas." }
+        replaying?.cancel()
+        replaying = scope.launch {
+            replayActive = true
+            try {
+                val count = withContext(io) { store.replayCount(comicId, page) }.coerceAtLeast(1)
+                val pause = (REPLAY_MILLIS / count).coerceIn(40L, 400L)
+                loads.remove(page)?.cancel()
+                layers[page] = null
+                live = null
+                version++
+                val steps = kotlinx.coroutines.channels.Channel<Pair<ReplayStep, Bitmap>>(2)
+                val reading = launch(io) {
+                    try { store.readReplay(comicId, page) { step ->
+                        val bitmap = BitmapFactory.decodeByteArray(step.png, 0, step.png.size)
+                        if (bitmap != null) steps.send(step to bitmap)
+                        true
+                    } } finally { steps.close() }
+                }
+                for ((step, bitmap) in steps) {
+                    patch(page, bitmap, step.x, step.y, step.width, step.height, step.layerWidth, step.layerHeight)
+                    delay(pause)
+                }
+                reading.join()
+                delay(800)
+            } finally { replayActive = false; reload(page) }
+        }
+    }
+    /** The stretches of a section, each a fixed image with its drawing on top. It appears as soon as the phone opens it. */
     suspend fun textPieces(section: Int, text: String): List<TextPiece> = withContext(io) {
         val rows = runCatching { store.excerpts(comicId, section) }.getOrDefault(emptyList())
-            .filter { store.file(comicId, it.page) != null && it.end <= text.length }
+            .filter { it.end <= text.length }
         val pieces = mutableListOf<TextPiece>()
         var at = 0
         for (row in rows) {
             if (row.start < at) continue
             val picture = runCatching { excerptPicture(row.page) }.getOrNull() ?: continue
             if (row.start > at) pieces += TextPiece.Words(text.substring(at, row.start).trimEnd('\n'))
-            pieces += TextPiece.Picture(picture)
+            pieces += TextPiece.Picture(picture, row.page)
             at = row.end
         }
         if (at < text.length) pieces += TextPiece.Words(text.substring(at).trimStart('\n'))
@@ -123,14 +162,10 @@ internal class PageDrawings(private val store: PageDrawingStore, private val com
     }
     private fun excerptPicture(page: Int): Bitmap? {
         val base = store.excerptBase(comicId, page) ?: return null
-        val image = BitmapFactory.decodeFile(base.path, BitmapFactory.Options().apply { inMutable = true; inPreferredConfig = Bitmap.Config.ARGB_8888 }) ?: return null
-        val drawing = store.file(comicId, page)?.let { BitmapFactory.decodeFile(it.path) } ?: return image
-        AndroidCanvas(image).drawBitmap(drawing, null, RectF(0f, 0f, image.width.toFloat(), image.height.toFloat()), AndroidPaint(AndroidPaint.FILTER_BITMAP_FLAG))
-        drawing.recycle()
-        return image
+        return BitmapFactory.decodeFile(base.path)
     }
     /** Replaces one rectangle of the layer, in the phone's layer coordinates. Transparent pixels erase. */
-    suspend fun patch(page: Int, patch: Bitmap, x: Int, y: Int, width: Int, height: Int, layerWidth: Int, layerHeight: Int) {
+    suspend fun patch(page: Int, patch: Bitmap, x: Int, y: Int, width: Int, height: Int, layerWidth: Int, layerHeight: Int, keepLive: Boolean = false) {
         val known = withContext(Dispatchers.Main.immediate) { layers.containsKey(page) }
         val loaded = if (known) null else withContext(io) { runCatching { decode(page, 0, 0) }.getOrNull() }
         withContext(Dispatchers.Main.immediate) {
@@ -143,7 +178,7 @@ internal class PageDrawings(private val store: PageDrawingStore, private val com
                 AndroidPaint(AndroidPaint.FILTER_BITMAP_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC) })
             patch.recycle()
             layers[page] = layer
-            if (live?.page == page) { liveReset?.cancel(); live = null }
+            if (!keepLive && live?.page == page) { liveReset?.cancel(); live = null }
             version++
         }
     }
@@ -151,13 +186,45 @@ internal class PageDrawings(private val store: PageDrawingStore, private val com
 
 internal sealed interface TextPiece {
     data class Words(val text: String) : TextPiece
-    data class Picture(val bitmap: Bitmap) : TextPiece
+    data class Picture(val bitmap: Bitmap, val page: Int) : TextPiece
 }
 
-/** A section's text with its drawn stretches in place. Hidden drawings bring the plain text back. */
+private const val REPLAY_MILLIS = 20_000L
+
+/** A stroke the phone is still drawing, at the place of the page on the TV. */
+private fun DrawScope.drawLiveStroke(stroke: LiveStroke, left: Float, top: Float, width: Float, height: Float) {
+    if (stroke.points.size < 2) return
+    fun at(n: Int) = Offset(left + stroke.points[n] * width, top + stroke.points[n + 1] * height)
+    val line = (stroke.size * width).coerceAtLeast(1f)
+    val blend = if (stroke.eraser) BlendMode.Clear else BlendMode.SrcOver
+    val alpha = if (stroke.eraser) 1f else stroke.opacity
+    if (stroke.points.size == 2) drawCircle(stroke.color, line / 2, at(0), alpha, blendMode = blend)
+    else {
+        val path = Path().apply {
+            at(0).let { moveTo(it.x, it.y) }
+            for (n in 2 until stroke.points.size - 1 step 2) at(n).let { lineTo(it.x, it.y) }
+        }
+        drawPath(path, stroke.color, alpha, Stroke(line, cap = StrokeCap.Round, join = StrokeJoin.Round), blendMode = blend)
+    }
+}
+
+/** The drawing over a stretch of text: the saved one, the phone's patches and its stroke while the finger is down. */
+@Composable internal fun ExcerptDrawing(drawings: PageDrawings, piece: TextPiece.Picture, modifier: Modifier = Modifier) {
+    val version = drawings.version
+    LaunchedEffect(version, piece.page) { drawings.request(piece.page, piece.bitmap.width, piece.bitmap.height) }
+    val live = drawings.live?.takeIf { it.page == piece.page }
+    val layer = drawings.peek(piece.page)
+    if (layer == null && live == null) return
+    Canvas(modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }) {
+        layer?.let { drawImage(it.asImageBitmap(), dstSize = IntSize(size.width.roundToInt().coerceAtLeast(1), size.height.roundToInt().coerceAtLeast(1)), filterQuality = FilterQuality.High) }
+        live?.let { drawLiveStroke(it, 0f, 0f, size.width, size.height) }
+    }
+}
+
+/** A section's text with its fixed stretches in place. Hidden drawings bring the plain text back. */
 @Composable internal fun rememberTextPieces(drawings: PageDrawings, section: Int, text: String): List<TextPiece> {
     val hidden = drawings.hidden
-    val pieces by produceState(listOf<TextPiece>(TextPiece.Words(text)), section, text, hidden, drawings.version) {
+    val pieces by produceState(listOf<TextPiece>(TextPiece.Words(text)), section, text, hidden, drawings.excerptVersion) {
         value = if (hidden) listOf(TextPiece.Words(text)) else drawings.textPieces(section, text)
     }
     return pieces
@@ -165,7 +232,7 @@ internal sealed interface TextPiece {
 
 /** Drawn over the page tiles with the same placement, so zoom, pan and turns carry the drawing along. */
 @Composable internal fun PageDrawingOverlay(drawings: PageDrawings, pages: List<PageImage?>, indices: List<Int>, placements: List<ZoomPlacement>) {
-    if (drawings.hidden) return
+    if (drawings.hidden && !drawings.replayActive) return
     val version = drawings.version
     LaunchedEffect(version, indices, pages.map { it?.file }) {
         pages.forEachIndexed { i, page -> if (page != null && i < indices.size) drawings.request(indices[i], page.width, page.height) }
@@ -182,20 +249,7 @@ internal sealed interface TextPiece {
                     drawImage(layer.asImageBitmap(), dstOffset = IntOffset(place.left.roundToInt(), place.top.roundToInt()),
                         dstSize = IntSize(place.width.roundToInt().coerceAtLeast(1), place.height.roundToInt().coerceAtLeast(1)), filterQuality = FilterQuality.High)
                 }
-                live?.takeIf { it.page == indices[i] && it.points.size >= 2 }?.let { stroke ->
-                    fun at(n: Int) = Offset(place.left + stroke.points[n] * place.width, place.top + stroke.points[n + 1] * place.height)
-                    val width = (stroke.size * place.width).coerceAtLeast(1f)
-                    val blend = if (stroke.eraser) BlendMode.Clear else BlendMode.SrcOver
-                    val alpha = if (stroke.eraser) 1f else stroke.opacity
-                    if (stroke.points.size == 2) drawCircle(stroke.color, width / 2, at(0), alpha, blendMode = blend)
-                    else {
-                        val path = Path().apply {
-                            at(0).let { moveTo(it.x, it.y) }
-                            for (n in 2 until stroke.points.size - 1 step 2) at(n).let { lineTo(it.x, it.y) }
-                        }
-                        drawPath(path, stroke.color, alpha, Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round), blendMode = blend)
-                    }
-                }
+                live?.takeIf { it.page == indices[i] }?.let { drawLiveStroke(it, place.left, place.top, place.width, place.height) }
             }
         }
     }

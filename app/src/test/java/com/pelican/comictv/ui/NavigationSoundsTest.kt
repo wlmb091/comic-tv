@@ -17,7 +17,8 @@ class NavigationSoundsTest {
         assertNull(navigationSoundOf(KeyEvent.KEYCODE_VOLUME_UP, 0))
     }
     @Test fun volumeGoesRound() {
-        assertEquals(75, NavigationSounds.nextVolume(50))
-        assertEquals(25, NavigationSounds.nextVolume(100))
+        assertEquals(55, NavigationSounds.stepVolume(50, 1))
+        assertEquals(100, NavigationSounds.stepVolume(100, 1))
+        assertEquals(0, NavigationSounds.stepVolume(0, -1))
     }
 }

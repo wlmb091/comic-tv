@@ -57,6 +57,7 @@ import kotlinx.coroutines.launch
     var narrationMode by remember(viewModel) { mutableStateOf(false) }
     val narrate: (() -> Unit)? = if (ReaderFeatures.narrationAndTranslation) ({ viewModel.beginNarration(); narrationMode = true }) else null
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val presets by viewModel.presets.collectAsStateWithLifecycle()
     val image by viewModel.image.collectAsStateWithLifecycle()
     val loading by viewModel.loading.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
@@ -280,7 +281,8 @@ import kotlinx.coroutines.launch
                 onNarrate = if (viewModel.canNarrateBook()) narrate else null, onRotate = onRotate,
                 onUsePageCover = onUsePageAsSagaCover?.let { { saveCover(displayedError != null) } }, pageCoverBusy = coverBusy,
                 pageCoverReady = canUseSagaPageCover(image, loading, displayedError != null), pageCoverMessage = coverMessage,
-                drawingsHidden = viewModel.drawings?.hidden, onToggleDrawings = { viewModel.drawings?.toggleHidden() })
+                drawingsHidden = viewModel.drawings?.hidden, onToggleDrawings = { viewModel.drawings?.toggleHidden() },
+                presets = presets, onPreset = viewModel::applyPreset)
         }
     }
 }
