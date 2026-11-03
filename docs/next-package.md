@@ -12,6 +12,8 @@ Os seis pedidos de 02 e 03/11/2026 entraram na 1.4.29 (código 103): carrossel d
 
 ## Ainda aberto
 
+- Player da TV (03/11/2026, análise do vídeo `player-tv.mp4`): tela preta com som, menus que não voltam, imagem 16:9 na preparação e troca de player no menu do vídeo. Análise, causa dos menus e dúvidas em `docs/pending/player-tv-2026-11-03.md`. Nada implementado; o Codex fará, depois das respostas do usuário.
+
 - O microfone do Navegador da TV não foi corrigido. Falta saber o que aparece na tela ao tocar no microfone.
 - O usuário não disse se, na 1.4.28, a tela do torrent passou de 90 s sem erro.
 - O usuário não respondeu às quatro dúvidas dos presets: pastas, o que o preset leva, onde aplicar e backup. Foi seguido o recomendado, e ele pode mudar.
