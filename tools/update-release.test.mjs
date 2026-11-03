@@ -15,7 +15,7 @@ test('version and bounded manifest agree with client contract',()=>{
     assert.equal(manifest.sizeBytes,9);assert.match(manifest.sha256,/^[a-f0-9]{64}$/);
     assert.equal(manifest.apkUrl,'https://github.com/wlmb091/comic-tv-updates/releases/download/v1.1.18/Comic-TV-1.1.18.apk');
     assert.deepEqual(validateManifest(manifest),manifest);
-    for(const bad of [{...manifest,versionCode:0},{...manifest,apkUrl:'https://evil.test/app.apk'},{...manifest,sizeBytes:64*1024*1024+1}])assert.throws(()=>validateManifest(bad));
+    for(const bad of [{...manifest,versionCode:0},{...manifest,apkUrl:'https://evil.test/app.apk'},{...manifest,sizeBytes:150*1024*1024+1}])assert.throws(()=>validateManifest(bad));
     assert.throws(()=>readBuildVersion('versionCode = 57\nversionName = "$(secret)"\nminSdk = 26'));
   } finally {fs.rmSync(root,{recursive:true,force:true});}
 });

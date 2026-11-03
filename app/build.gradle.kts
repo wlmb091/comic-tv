@@ -9,14 +9,20 @@ android {
     compileSdk = 36
     // JVM OSGi metadata from network modules is not used by Android.
     packaging.resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
-    // Compressed native libraries keep the APK under the 64 MiB limit that installed versions accept for updates.
+    // Post-quantum parameter tables (Picnic LowMC, SIKE) that BouncyCastle ships for PDFBox: PDF decryption never reads them.
+    packaging.resources.excludes += "org/bouncycastle/pqc/crypto/**"
+    // Compressed native libraries keep the APK small: versions before 1.4.31 accept updates up to 64 MiB, later ones 150 MiB.
     packaging.jniLibs.useLegacyPackaging = true
+    // libmpv, libtorrent4j and libass each bring libc++_shared.so; the copy in src/main/jniLibs is libmpv's, the newest NDK of the three.
+    packaging.jniLibs.pickFirsts += "lib/*/libc++_shared.so"
     defaultConfig {
         applicationId = "com.pelican.comictv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 104
-        versionName = "1.4.30"
+        versionCode = 105
+        versionName = "1.4.31"
+        // TVs and phones are ARM; libtorrent4j is only shipped for ARM, and x86 only adds PC/emulator size.
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -30,7 +36,8 @@ android {
             providers.gradleProperty("comicTv.debugKeystore").orNull?.let { storeFile = file(it) }
         }
     }
-    buildTypes { release { isMinifyEnabled = false } }
+    // The debug build installs next to the signed release, so test builds never replace the installed app or its data.
+    buildTypes { release { isMinifyEnabled = false }; debug { applicationIdSuffix = ".dev" } }
     testOptions { unitTests.isReturnDefaultValues = true }
 }
 kotlin { jvmToolchain(17) }
@@ -53,6 +60,8 @@ dependencies {
     // built by .github/workflows/media3-decoders.yml. Used only when the device decoder cannot play the track.
     implementation(files("libs/media3-decoder-ffmpeg-1.8.0.aar", "libs/media3-decoder-av1-1.8.0.aar"))
     implementation("androidx.media3:media3-decoder:1.8.0")
+    // mpv 0.41 with FFmpeg built with --enable-gpl (GPLv3): the default engine of the Comic TV player.
+    implementation("dev.jdtech.mpv:libmpv:1.0.0")
     implementation("org.libtorrent4j:libtorrent4j:2.1.0-38")
     runtimeOnly("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-38")
     runtimeOnly("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-38")

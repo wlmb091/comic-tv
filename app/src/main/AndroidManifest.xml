@@ -16,6 +16,7 @@
         <package android:name="com.mxtech.videoplayer.ad" />
         <package android:name="com.mxtech.videoplayer.pro" />
         <package android:name="com.brouken.player" />
+        <package android:name="org.courville.nova" />
     </queries>
     <application android:name=".ComicTvApplication" android:label="@string/app_name" android:theme="@style/Theme.ComicTV"
         android:icon="@drawable/ic_launcher" android:banner="@drawable/brand_wordmark"

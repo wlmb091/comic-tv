@@ -21,7 +21,7 @@ class UpdateManifestTest {
             json.replace("wlmb091/comic-tv-updates", "other/downloads"),
             json.replace("github.com/", "github.com.evil/"),
             json.replace("download/v1.1.18/", "download/v1.1.19/"),
-            json.replace("\"sizeBytes\":1024", "\"sizeBytes\":67108865"),
+            json.replace("\"sizeBytes\":1024", "\"sizeBytes\":157286401"),
             json.replace("\"sizeBytes\":1024", "\"sizeBytes\":1e3"),
             json.replace("a".repeat(64), "z".repeat(64)),
             json.replace(".apk\"", ".apk?token=secret\""),

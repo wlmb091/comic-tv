@@ -29,14 +29,20 @@ data class TvSubtitlePrefs(val auto:Boolean=true,val preferBrazil:Boolean=true,v
  * [sourceAudio]) is remembered for every title; empty means all.
  */
 data class TvVideoPrefs(val player:String="internal",val subtitles:TvSubtitlePrefs=TvSubtitlePrefs(),val publicTrackers:Boolean=true,
-    val sourceAddon:String="",val sourceQuality:String="",val sourceAudio:String="",val preparationArtwork:Boolean=true) {
-    fun normalized()=copy(player=player.takeIf{it in PLAYERS}?:"internal",subtitles=(subtitles?:TvSubtitlePrefs()).normalized(),
+    val sourceAddon:String="",val sourceQuality:String="",val sourceAudio:String="",val preparationArtwork:Boolean=true,
+    val decoder:String="auto") {
+    fun normalized()=copy(player=player.takeIf{it in PLAYERS}?:"internal",decoder=decoder?.takeIf{it in DECODERS}?:"auto",subtitles=(subtitles?:TvSubtitlePrefs()).normalized(),
         sourceAddon=(sourceAddon?:"").take(200).filter{it.code>=32},sourceQuality=sourceQuality?.takeIf{it in SourceFilter.QUALITIES}.orEmpty(),
         sourceAudio=sourceAudio?.takeIf{it in SourceFilter.AUDIOS}.orEmpty())
     companion object {
-        /** internal: Comic TV; ask: Android chooser; the others open that app directly. */
-        val PLAYERS=listOf("internal","ask","vlc","mx","just")
-        val PLAYER_NAMES=mapOf("internal" to "Player do Comic TV","ask" to "Perguntar sempre","vlc" to "VLC","mx" to "MX Player","just" to "Just Player")
+        /** internal: Comic TV with mpv; exo: Comic TV with ExoPlayer; ask: Android chooser; the others open that app directly. */
+        val PLAYERS=listOf("internal","exo","ask","vlc","mx","just","nova")
+        /** Players that run inside the Comic TV app. */
+        val INTERNAL=setOf("internal","exo")
+        /** Video decoder of the Comic TV players: auto tries the hardware one and switches to software when no frame appears. */
+        val DECODERS=listOf("auto","hardware","software")
+        val DECODER_NAMES=listOf("Automático","Hardware","Software")
+        val PLAYER_NAMES=mapOf("internal" to "Player do Comic TV (mpv)","exo" to "Player do Comic TV (ExoPlayer)","ask" to "Perguntar sempre","vlc" to "VLC","mx" to "MX Player","just" to "Just Player","nova" to "Nova Video Player")
     }
 }
 

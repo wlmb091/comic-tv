@@ -41,7 +41,7 @@ import com.pelican.comictv.ui.TvColors
         Column(Modifier.fillMaxWidth().background(TvColors.Panel).padding(28.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Text("Preparar ${selection.size} arquivo(s)", fontSize = 23.sp)
             Text("ZIP/CBZ, RAR/CBR ou 7z/CB7. Para partes binárias, escolha todas: .001, .002… A senha é usada somente agora; uma cópia CBZ sem senha será adicionada à biblioteca. Os originais são mantidos.", fontSize = 17.sp)
-            Text("RAR multipart, ZIP .z01, DRM e RAR com nomes criptografados não são suportados. Deixe a senha vazia se o conjunto não exigir senha.", fontSize = 16.sp, color = TvColors.Muted)
+            Text("Senha vale para ZIP/CBZ e 7z/CB7. RAR com senha, RAR multipart, ZIP .z01 e DRM não são suportados: converta o RAR com senha para CBZ ou 7z no computador. Deixe a senha vazia se o conjunto não exigir senha.", fontSize = 16.sp, color = TvColors.Muted)
             Text("Senha (opcional)", fontSize = 17.sp)
             BasicTextField(password, { password = it.take(1024) }, Modifier.fillMaxWidth().focusRequester(first).background(Color.Black).padding(16.dp),
                 textStyle = TextStyle(color = Color.White, fontSize = 19.sp), singleLine = true,

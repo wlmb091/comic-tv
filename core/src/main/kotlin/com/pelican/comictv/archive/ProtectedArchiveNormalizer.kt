@@ -20,8 +20,10 @@ object ProtectedArchiveNormalizer {
                 when (ComicContainers.detect(input)) {
                     ComicContainer.Zip -> fromZip(input, target, secret, limits)
                     ComicContainer.Rar, ComicContainer.SevenZip -> {
-                        val reader: ComicArchiveReader = if (ComicContainers.detect(input) == ComicContainer.Rar)
-                            RarComicArchive(limits, secret) else SevenZComicArchive(limits, secret)
+                        val rar = ComicContainers.detect(input) == ComicContainer.Rar
+                        // The RAR decoder (libarchive) does not read encrypted RAR; joined .001 parts without a password still work.
+                        if (rar && secret.isNotEmpty()) throw ComicArchiveException("RAR com senha não é suportado. Converta para CBZ ou 7z no computador e importe de novo.")
+                        val reader: ComicArchiveReader = if (rar) RarComicArchive(limits) else SevenZComicArchive(limits, secret)
                         val pageFile = File(output.parentFile, output.name + ".page")
                         try {
                             for (page in reader.index(input)) {

@@ -24,7 +24,7 @@ O código do app permanece privado. Os arquivos ZIP de código gerados automatic
 
 ## Limites e recuperação
 
-- Manifesto até 64 KiB; APK até 64 MiB; HTTPS e destinos GitHub explícitos. SHA-256, pacote, versão, Android mínimo, processador e certificado instalado são conferidos antes do instalador, que também faz sua própria verificação.
+- Manifesto até 64 KiB; APK até 150 MiB (era 64 MiB até 03/11/2026); HTTPS e destinos GitHub explícitos. SHA-256, pacote, versão, Android mínimo, processador e certificado instalado são conferidos antes do instalador, que também faz sua própria verificação.
 - Arquivos ficam em `cache/updates`, separados dos originais, downloads de leitura e cache de páginas. Não entram no backup. Reserva de 64 MiB além do tamanho do APK antes de baixar.
 - Se faltar espaço, libere itens por Armazenamento e tente novamente. Não é necessário apagar a biblioteca.
 - Se a rede falhar, use Verificar novamente ou Baixar novamente. Falha de publicação mantém a release em rascunho; uma execução posterior pode completá-la. Releases publicadas não são sobrescritas.

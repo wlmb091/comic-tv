@@ -7,7 +7,7 @@ export function validateManifest(m) {
   if(!m || typeof m!=='object' || Object.keys(m).length!==fields.length || fields.some(k=>!Object.hasOwn(m,k)))throw Error('Invalid fields');
   if(m.schemaVersion!==1 || m.applicationId!=='com.pelican.comictv' || !Number.isInteger(m.versionCode) || m.versionCode<1 || m.versionCode>2147483647)throw Error('Invalid application/version');
   if(typeof m.versionName!=='string' || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(m.versionName) || m.versionName.length>40)throw Error('Invalid version name');
-  if(!Number.isInteger(m.minSdk) || m.minSdk<1 || m.minSdk>10000 || !Number.isInteger(m.sizeBytes) || m.sizeBytes<1 || m.sizeBytes>67108864)throw Error('Invalid limits');
+  if(!Number.isInteger(m.minSdk) || m.minSdk<1 || m.minSdk>10000 || !Number.isInteger(m.sizeBytes) || m.sizeBytes<1 || m.sizeBytes>157286400)throw Error('Invalid limits');
   if(typeof m.sha256!=='string' || !/^[a-f0-9]{64}$/.test(m.sha256) || m.apkUrl!==`${CHANNEL}/releases/download/v${m.versionName}/Comic-TV-${m.versionName}.apk`)throw Error('Invalid APK identity');
   if(typeof m.notes!=='string' || m.notes.length>12000 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(m.notes))throw Error('Invalid notes');
   return m;
@@ -20,7 +20,7 @@ export function readBuildVersion(text) {
   return v;
 }
 export function createManifest(version,apk,notes) {
-  const sizeBytes=fs.statSync(apk).size;if(sizeBytes<1 || sizeBytes>67108864)throw Error('APK exceeds limits');
+  const sizeBytes=fs.statSync(apk).size;if(sizeBytes<1 || sizeBytes>157286400)throw Error('APK exceeds limits');
   return validateManifest({schemaVersion:1,applicationId:'com.pelican.comictv',...version,sizeBytes,
     sha256:crypto.createHash('sha256').update(fs.readFileSync(apk)).digest('hex'),
     apkUrl:`${CHANNEL}/releases/download/v${version.versionName}/Comic-TV-${version.versionName}.apk`,notes});

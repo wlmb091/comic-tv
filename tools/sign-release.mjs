@@ -11,7 +11,7 @@ const key=path.join(folder,'signing.jks');
 const output=path.join(root,'comic-release');fs.mkdirSync(output,{recursive:true});
 const version=readBuildVersion(fs.readFileSync('app/build.gradle.kts','utf8'));
 const unsigned=path.join(root,'comic-unsigned','app-release-unsigned.apk');
-if(!fs.statSync(unsigned).isFile() || fs.statSync(unsigned).size>67108864)throw Error('Invalid unsigned artifact');
+if(!fs.statSync(unsigned).isFile() || fs.statSync(unsigned).size>157286400)throw Error('Invalid unsigned artifact');
 const buildTools=path.join(process.env.ANDROID_HOME ?? '', 'build-tools','35.0.0');
 try {
   const bytes=Buffer.from(process.env.COMIC_TV_SIGNING_KEYSTORE ?? '','base64');if(bytes.length<100 || bytes.length>131072)throw Error('Missing signing key');

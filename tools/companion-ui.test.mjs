@@ -637,6 +637,10 @@ test('video settings on the phone send the whole preference set to the TV',async
  sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
  assert.equal(JSON.parse(sent.text).player,'vlc');assert.equal(JSON.parse(sent.text).subtitles.preferBrazil,false);
  assert.equal(h.elements.get('tvSubRemember').checked,true,'a TV without the new field keeps the subtitle memory on');
+ assert.equal(h.elements.get('tvDecoder').children.length,3);
+ await h.elements.get('tvDecoder').children[2].onclick();
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(JSON.parse(sent.text).decoder,'software');assert.equal(JSON.parse(sent.text).player,'vlc');
  h.run("$('tvSubRemember').checked=false");await h.run("$('tvSubRemember').onchange()");
  sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
  assert.equal(JSON.parse(sent.text).subtitles.remember,false);assert.equal(JSON.parse(sent.text).player,'vlc');

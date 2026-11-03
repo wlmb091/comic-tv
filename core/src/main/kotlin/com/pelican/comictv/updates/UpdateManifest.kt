@@ -18,7 +18,7 @@ data class UpdateManifest(val versionCode: Long, val versionName: String, val mi
     }
     fun isNewerThan(installed: Long) = versionCode > installed
     companion object {
-        const val MAX_APK_BYTES = 64L * 1024 * 1024
+        const val MAX_APK_BYTES = 150L * 1024 * 1024
         const val RELEASE_BASE = "https://github.com/wlmb091/comic-tv-updates/releases/download"
         const val CHANNEL_URL = "https://github.com/wlmb091/comic-tv-updates/releases/latest/download/update.json"
     }

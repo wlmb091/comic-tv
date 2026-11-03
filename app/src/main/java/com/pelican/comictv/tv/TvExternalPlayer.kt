@@ -19,11 +19,11 @@ data class TvExternalLaunch(val intent:Intent,val playerName:String)
 
 /** Builds the intents Stremio-style apps accept: VLC's own extras, and MX Player's, which Just Player also reads. */
 object TvExternalPlayers {
-    private val packages=mapOf("vlc" to listOf("org.videolan.vlc"),"mx" to listOf("com.mxtech.videoplayer.pro","com.mxtech.videoplayer.ad"),"just" to listOf("com.brouken.player"))
+    private val packages=mapOf("vlc" to listOf("org.videolan.vlc"),"mx" to listOf("com.mxtech.videoplayer.pro","com.mxtech.videoplayer.ad"),"just" to listOf("com.brouken.player"),"nova" to listOf("org.courville.nova"))
     fun installed(context:Context,player:String):String?=packages[player]?.firstOrNull { name ->
         runCatching { context.packageManager.getPackageInfo(name,0) }.isSuccess
     }
-    fun available(context:Context)=TvVideoPrefs.PLAYERS.filter { it=="internal"||it=="ask"||installed(context,it)!=null }
+    fun available(context:Context)=TvVideoPrefs.PLAYERS.filter { it in TvVideoPrefs.INTERNAL||it=="ask"||installed(context,it)!=null }
 
     /** Null when the chosen app is not installed. [subtitle] is a loopback or HTTP address. */
     fun intent(context:Context,player:String,video:String,mime:String,title:String,positionMs:Long,subtitle:String?,subtitleName:String?):Intent? {
@@ -45,6 +45,11 @@ object TvExternalPlayers {
                             putExtra("subs",subs);putExtra("subs.enable",subs);putExtra("subs.name",arrayOf(subtitleName?:"Legenda"))
                         }
                     }
+            }
+            // Nova Video Player opens a plain VIEW intent; it brings its own FFmpeg decoders for chips whose hardware decoder shows no picture.
+            "nova"->{
+                val name=installed(context,"nova")?:return null
+                base.setPackage(name)
             }
             else->Intent.createChooser(base.apply { if(subtitle!=null)putExtra("subtitles_location",subtitle) },"Abrir com")
         }

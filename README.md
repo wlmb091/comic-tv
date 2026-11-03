@@ -4,6 +4,8 @@
 
 Leitor nativo para Android TV e Google TV, em português e operado pelo controle remoto.
 
+**Licença:** desde 1.4.31, Comic TV é software livre sob a [GNU GPL versão 3](LICENSE), porque inclui o mpv e o FFmpeg compilados com GPL. Componentes de terceiros e suas licenças: [NOTICE.md](NOTICE.md).
+
 ## Versão1.2.2
 
 Layouts atualizados aprovados: Flix com menu em degradê, Prime com capas/banner e marca à direita, Cinema com drawer à direita/Buscar/foco corrigido, Max com Buscar no dock e controles secundários no final da página. Botões translúcidos e Comic original preservados. Veja [notas e limites físicos](docs/releases/1.2.2.md) e [cinco referências aprovadas](docs/design/themes/previews-1.2.2/README.md).
@@ -259,7 +261,7 @@ Cada sessão dura até 15 minutos e termina ao parar, sair da tela, mudar de red
 
 O portal remoto ainda não está ativo. Os servidores da rede local e FTP funcionam somente durante uma sessão iniciada pelo usuário.
 
-As licenças de NanoHTTPD, ZXing, Junrar, SLF4J e Jsoup estão em `docs/licenses/` e são incluídas nos assets do APK. PdfRenderer é API do Android; desugaring de APIs Java permanece habilitado; o aplicativo exige minSdk 26.
+As licenças de NanoHTTPD, ZXing, SLF4J, Jsoup, libarchive e mpv estão em `docs/licenses/` e são incluídas nos assets do APK. RAR é lido pelo libarchive 3.8.11 (BSD), compilado por `native/archive/build.ps1`; o Junrar ficou só nos testes JVM. PdfRenderer é API do Android; desugaring de APIs Java permanece habilitado; o aplicativo exige minSdk 26.
 
 ## Estrutura
 

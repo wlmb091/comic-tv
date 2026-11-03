@@ -4,8 +4,12 @@ import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
 
-/** Bound metadata allocations before Junrar constructs its in-memory header list. */
-internal fun preflightRar(file: File, limits: ArchiveLimits) {
+/**
+ * Bounds metadata before the decoder reads the headers, and refuses encrypted, split and oversized archives.
+ * Returns true for a solid archive, whose pages can only be decoded in order.
+ */
+internal fun preflightRar(file: File, limits: ArchiveLimits): Boolean {
+    var solid = false
     RandomAccessFile(file, "r").use { input ->
         val length = input.length()
         if (length > limits.maxArchiveBytes) throw ComicArchiveException("O arquivo excede o limite de 1 GiB.")
@@ -41,9 +45,14 @@ internal fun preflightRar(file: File, limits: ArchiveLimits) {
                 if (remainingHeader > 1024 * 1024 || headerSize > length - position) invalid()
                 val type = vint()
                 val flags = vint()
-                if (type == 4L) throw ComicArchiveException("RAR protegido por senha não é suportado.")
+                if (type == 4L) throw ComicArchiveException(PASSWORD)
                 if (flags and 1L != 0L) vint()
                 if (flags and 2L != 0L) dataSize = vint()
+                if (type == 1L) {
+                    val archive = vint()
+                    if (archive and 1L != 0L) throw ComicArchiveException(SPLIT)
+                    if (archive and 4L != 0L) solid = true
+                }
                 if (input.filePointer > position + headerSize) invalid()
             } else {
                 if (length - position < 7) invalid()
@@ -52,7 +61,11 @@ internal fun preflightRar(file: File, limits: ArchiveLimits) {
                 val flags = byte() or (byte() shl 8)
                 headerSize = (byte() or (byte() shl 8)).toLong()
                 if (headerSize < 7 || headerSize > length - position) invalid()
-                if (type == 0x73 && flags and 0x80 != 0) throw ComicArchiveException("RAR protegido por senha não é suportado.")
+                if (type == 0x73 && flags and 0x80 != 0) throw ComicArchiveException(PASSWORD)
+                if (type == 0x73 && flags and 0x01 != 0) throw ComicArchiveException(SPLIT)
+                if (type == 0x73 && flags and 0x08 != 0) solid = true
+                if (type == 0x74 && flags and 0x04 != 0) throw ComicArchiveException(PASSWORD)
+                if (type == 0x74 && flags and 0x03 != 0) throw ComicArchiveException(SPLIT)
                 if (flags and 0x8000 != 0) {
                     if (headerSize < 11) invalid()
                     dataSize = uint()
@@ -70,4 +83,8 @@ internal fun preflightRar(file: File, limits: ArchiveLimits) {
             position += headerSize + dataSize
         }
     }
+    return solid
 }
+
+private const val PASSWORD = "RAR protegido por senha não é suportado. Converta para CBZ ou 7z no computador."
+private const val SPLIT = "RAR dividido em partes não é suportado. Envie um arquivo único."

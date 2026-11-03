@@ -43,15 +43,18 @@ import kotlinx.coroutines.withContext
         item {
             Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 TvVideoPrefs.PLAYERS.forEach { id ->
-                    val installed=id=="internal"||id=="ask"||TvExternalPlayers.installed(context,id)!=null
+                    val installed=id in TvVideoPrefs.INTERNAL||id=="ask"||TvExternalPlayers.installed(context,id)!=null
                     TvChoice(TvVideoPrefs.PLAYER_NAMES[id].orEmpty()+if(installed)"" else " · não instalado",prefs.player==id,{save { it.copy(player=id) }})
                 }
             }
         }
+        item { Text("O player do Comic TV usa o mpv, que decodifica por software quando o decodificador do aparelho não mostra imagem. O ExoPlayer continua como opção, se algum vídeo tocar melhor nele. Se o mpv não abrir um vídeo, o Comic TV tenta o mesmo vídeo no ExoPlayer.",color=TvColors.Muted) }
         item { Text("Como no Stremio: o Comic TV encontra as fontes e o player escolhido reproduz. Em torrents, o Comic TV continua baixando enquanto o player externo estiver aberto. Legendas automáticas são enviadas junto.",color=TvColors.Muted) }
         item { TvChoice("Trackers públicos nos torrents: "+if(prefs.publicTrackers)"ligados" else "desligados",prefs.publicTrackers,{save { it.copy(publicTrackers=!it.publicTrackers) }}) }
         item { Text("Ligados, todo torrent recebe uma lista de trackers públicos além dos do complemento, o que costuma achar conexões mais rápido. Desligados, valem só os do complemento e a rede DHT.",color=TvColors.Muted) }
         item { TvChoice("Imagem durante a preparação: "+if(prefs.preparationArtwork)"ligada" else "desligada",prefs.preparationArtwork,{save { it.copy(preparationArtwork=!it.preparationArtwork) }}) }
+        item { Options("Decodificador de vídeo",TvVideoPrefs.DECODER_NAMES,TvVideoPrefs.DECODERS.indexOf(prefs.decoder).coerceAtLeast(0)) { i->save { it.copy(decoder=TvVideoPrefs.DECODERS[i]) } } }
+        item { Text("Automático: usa o decodificador do aparelho e, se em 10 segundos não aparecer nenhum quadro de vídeo, troca sozinho para o decodificador por software. Hardware nunca troca. Software usa o decodificador por software desde o início, mais lento em vídeos pesados. Vale para o player do Comic TV, a partir do próximo vídeo.",color=TvColors.Muted) }
         item { Text("Legendas",fontSize=23.sp) }
         item { TvChoice("Legendas automáticas: "+if(p.auto)"ligadas" else "desligadas",p.auto,{subs { it.copy(auto=!it.auto) }}) }
         item { TvChoice("Lembrar legenda de cada vídeo: "+if(p.remember)"ligado" else "desligado",p.remember,{subs { it.copy(remember=!it.remember) }}) }

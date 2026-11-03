@@ -1,0 +1,209 @@
+{
+  "libarchive": "libarchive 3.8.9",
+  "library": "C:/Windows/System32/archiveint.dll",
+  "junrar": "8.1.2",
+  "results": [
+    {
+      "file": "TFormers-Segredos&Mentiras#01(TFComics-SQ).cbr",
+      "archiveSha256": "7c7fc58e2e26d4055b03078f2b0f13cab29b323ef68aa73ff20baa386c9abe05",
+      "format": "RAR5",
+      "entries": 22,
+      "expandedBytes": 62721872,
+      "allPagesMatchJunrar": true,
+      "passwordProvided": false,
+      "originalUnchanged": true,
+      "libarchiveSeconds": 0.564,
+      "pages": {
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-000.jpg": {
+          "size": 5669757,
+          "sha256": "0404ce2fe3ab003fdbad2cb246eee77a437075a53ebba4ab224b0998b306b33a"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-001.jpg": {
+          "size": 1514308,
+          "sha256": "6bd74826170ef225ce0629ac8493177449d698de9580c2bd40fdad978603c1d5"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-002.jpg": {
+          "size": 3334114,
+          "sha256": "ae3fe6cccb4c71a7d98f9ec8af04d3f3d767b66b0e4788cb5194362b06504272"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-003.jpg": {
+          "size": 3572014,
+          "sha256": "afac56bfde6eb3b0932c54b6fc5571a8c252d55d14775b1477069e58b75dc45e"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-004.jpg": {
+          "size": 2528126,
+          "sha256": "447e3319dcc9243c4b86ed5770c43c61bfe3a716efd0086f8fd4d533cef9064c"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-005.jpg": {
+          "size": 2967626,
+          "sha256": "87231b458337993f58a89998ec34b1e12729187d130f7efce70fc13bd0cccf69"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-006.jpg": {
+          "size": 2835520,
+          "sha256": "874f846169b7c61f3196553928ff7c39e2a4c5052ed6ae2664e82a46ad4041f1"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-007.jpg": {
+          "size": 2878784,
+          "sha256": "23cd171d49afc3a3b0e042478547ffed08b965d7a2298aed8847e74033721a4b"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-008.jpg": {
+          "size": 2780277,
+          "sha256": "bf263667f45ac2f75470cfa43935b831f07f93c6686f34cb58fb7abecd278335"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-009.jpg": {
+          "size": 2266066,
+          "sha256": "c02d6fa80108be87b6d1e2a035fa64d258ecff0a771626893d33cf6abfdc1cbc"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-010.jpg": {
+          "size": 2900349,
+          "sha256": "22fa3a65a29a429d91346f69aa570058d0606720bcf9f5320ba3d57d65db1163"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-011.jpg": {
+          "size": 2584019,
+          "sha256": "31385667b854296cea56bb8bd648d5f01de482ba54c241ac28726095e2dc9f19"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-012.jpg": {
+          "size": 2629814,
+          "sha256": "9c011ac45a544e0f260fe632d36ab917481e22d9d5d3102b5fb0ed4e8af5ad69"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-013.jpg": {
+          "size": 3038263,
+          "sha256": "b4f247c287eab8e8be01baa659ca25af70c4a035c689fbdb85c50675322f6f7f"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-014.jpg": {
+          "size": 2930912,
+          "sha256": "683bdea5a050815578d96f8cd4135545a44bd50ba8f9482c7d53116d38911bc0"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-015.jpg": {
+          "size": 3278236,
+          "sha256": "9bdf2a073b930f072159e5847420d87f28b7dd5ea391dde2bd58642aad7f8384"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-016.jpg": {
+          "size": 2887129,
+          "sha256": "0aa5dd4200cd9547ceb0837f7f3b83739aa922b63132855c81d8dac21b645cde"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-017.jpg": {
+          "size": 2752058,
+          "sha256": "b9a65190ede844ad67f8378d45e855cb3ee917502601b073d5ec207cc38634fb"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-018.jpg": {
+          "size": 2255426,
+          "sha256": "95639bcc52e9192f56b60ce2b5c3d814bb390b0dc69ba15d4c6a4cca0e8827f5"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-019.jpg": {
+          "size": 2356786,
+          "sha256": "3e746c72b04ef4ac2510ce99f872434ce9261385feab9daea95187407baba163"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-020.jpg": {
+          "size": 2164088,
+          "sha256": "ba31d190e7be65787feb7d01c0ca621cb60ff643f5efbb3901d6e5e719b9f718"
+        },
+        "Transformers ‘84 - Secrets and Lies 01 (of 04)-021.jpg": {
+          "size": 2598200,
+          "sha256": "570336fa303dda5d5be64fa5611c50c765669d82da484fbb55e22b520e439a49"
+        }
+      }
+    },
+    {
+      "file": "TFormers-Segredos&Mentiras#02(TFComics-SQ).cbr",
+      "archiveSha256": "c3a5fe488975da48a090c1c4a4a8fc13fce40eaf7576b5ccc5943c38da1e69cb",
+      "format": "RAR5",
+      "entries": 22,
+      "expandedBytes": 69079266,
+      "allPagesMatchJunrar": true,
+      "passwordProvided": false,
+      "originalUnchanged": true,
+      "libarchiveSeconds": 0.63,
+      "pages": {
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-000.jpg": {
+          "size": 5225402,
+          "sha256": "30ecde6ed7cd263b2560b4602db184587e6c47136c7ffc55fe58c906ea09a4fc"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-001.jpg": {
+          "size": 1515080,
+          "sha256": "4af298e108a390d6c5b22198920d31fd7204dec529bbaabfccd1f9f756bda71f"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-002.jpg": {
+          "size": 2738989,
+          "sha256": "75ee820770d0c377a3f280b2577a9aadc4f395c0dde32946803252a9160eba5b"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-003.jpg": {
+          "size": 3167993,
+          "sha256": "14c877480bec1e33dda1299a106d5e4561aafbc8c4df00d0b9ac97659c850111"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-004.jpg": {
+          "size": 2279314,
+          "sha256": "c915b414a781421364254841ecfec55d9886ed97461b9ed9d3fda42246818171"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-005.jpg": {
+          "size": 2459543,
+          "sha256": "eff6d9c85e53e44dbed533605ba77e4506b57b57c7ca5ebda8e31538dd760949"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-006.jpg": {
+          "size": 2826550,
+          "sha256": "4acf6b8505780dfe6ea816e237898f4bfda1c7514324d586be3725ea146eab2f"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-007.jpg": {
+          "size": 2762899,
+          "sha256": "9407b38ecae6931ac77174bd665f4edf9028779073239addf5b81f372da35074"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-008.jpg": {
+          "size": 3215058,
+          "sha256": "90f518a5be52f7f38d70f7e09a6c6910a549c819b1d4a65eb6ae833d98c1a93a"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-009.jpg": {
+          "size": 3012548,
+          "sha256": "807e1541535cde9d3d9515dc0e3b6c6e40f141960214735a4503c4cbbec25b9d"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-010.jpg": {
+          "size": 3198092,
+          "sha256": "277821a31e47e1dfd42cb26f69fab15607ef592e7bb4390982b5d9e8d5038f9a"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-011.jpg": {
+          "size": 2646446,
+          "sha256": "52d371353579a36023c1a1de1e5a6ac7fb4927e5ec169f04310481f0e732979d"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-012.jpg": {
+          "size": 2979262,
+          "sha256": "d01f6725b351723b72ed75a1f27551a4983dd3fdced39073f3b0bfa4e9d4352d"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-013.jpg": {
+          "size": 3448404,
+          "sha256": "91aeca61d18b4aef31fac79f5e0e1d576b27e3f5d15c6116bd427397dd1d735b"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-014.jpg": {
+          "size": 3619073,
+          "sha256": "cb82c0d68ab7b4d4528addeda5002d96282d936e729cdfe63612f47ba00eb3b8"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-015.jpg": {
+          "size": 3421657,
+          "sha256": "0993483c86276a2e7f7de5278f635e584c64e3388ccf66482944c45d7c367e12"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-016.jpg": {
+          "size": 3773015,
+          "sha256": "f352bbf43bb504a07c6794d40b8cdfadc3467a23cd2d82741fc5bcebdb0632fb"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-017.jpg": {
+          "size": 3829152,
+          "sha256": "ff6b2c1eb372e53d163e759bec1ce5b5ec6e562f3ac8597365ef07d0a272a166"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-018.jpg": {
+          "size": 3711351,
+          "sha256": "d7c45533b8cd28c6f4ae8f424a9f1ed1d8e2118475372a02b8be4bc471e70bbb"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-019.jpg": {
+          "size": 3421784,
+          "sha256": "99fe4be77ae05158b57ac286ee98b79b125920afa56ed39e7b4339fe68b367c2"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-020.jpg": {
+          "size": 3066980,
+          "sha256": "2d2ba31464466ee60d444bf157f364561c1713c556e20c0caf727e6c37fe1a7f"
+        },
+        "Transformers ‘84 - Secrets and Lies 02 (of 04)-021.jpg": {
+          "size": 2760674,
+          "sha256": "0429f854ed49ca73308c7ac7289a4952ce2c7a621b5c47d2b8ddad7ca39b8433"
+        }
+      }
+    }
+  ]
+}

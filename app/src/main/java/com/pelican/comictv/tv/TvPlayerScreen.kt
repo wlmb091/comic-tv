@@ -116,7 +116,17 @@ import kotlinx.coroutines.delay
             else->false
         }
     }.focusRequester(rootFocus).focusable()) {
-        if(state.external.isBlank()) AndroidView(factory={context->PlayerView(context).apply { useController=false;isFocusable=false;isFocusableInTouchMode=false;descendantFocusability=android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS;keepScreenOn=true;setShutterBackgroundColor(android.graphics.Color.BLACK) }},
+        LaunchedEffect(aspect,state.engine) { controller.setAspect(aspect) }
+        LaunchedEffect(style,state.engine) { controller.subtitleStyle(style) }
+        if(state.external.isBlank()&&state.engine=="mpv") AndroidView(factory={context->android.view.SurfaceView(context).apply {
+                isFocusable=false;isFocusableInTouchMode=false;keepScreenOn=true
+                holder.addCallback(object:android.view.SurfaceHolder.Callback {
+                    override fun surfaceCreated(holder:android.view.SurfaceHolder) { controller.surfaceReady(holder.surface,width,height) }
+                    override fun surfaceChanged(holder:android.view.SurfaceHolder,format:Int,w:Int,h:Int) { controller.surfaceChanged(w,h) }
+                    override fun surfaceDestroyed(holder:android.view.SurfaceHolder) { controller.surfaceGone() }
+                })
+            }},modifier=Modifier.fillMaxSize())
+        else if(state.external.isBlank()) AndroidView(factory={context->PlayerView(context).apply { useController=false;isFocusable=false;isFocusableInTouchMode=false;descendantFocusability=android.view.ViewGroup.FOCUS_BLOCK_DESCENDANTS;keepScreenOn=true;setShutterBackgroundColor(android.graphics.Color.BLACK) }},
             update={view->
                 view.player=controller.player
                 view.resizeMode=aspects[aspect].second
