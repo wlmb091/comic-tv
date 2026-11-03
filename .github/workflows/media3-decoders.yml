@@ -16,7 +16,7 @@ jobs:
       MEDIA3_TAG: '1.8.0'
       FFMPEG_BRANCH: 'release/6.0'
       NDK_VERSION: '26.1.10909125'
-      ANDROID_API: '26'
+      ANDROID_API: '21'
     steps:
       - uses: actions/setup-java@v4
         with:
