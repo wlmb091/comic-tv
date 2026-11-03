@@ -8,9 +8,12 @@ import java.nio.charset.CodingErrorAction
 /** An external subtitle offered by an add-on, a stream or the phone. [url] stays private to the TV. */
 data class TvSubtitle(val id:String,val url:String,val lang:String,val label:String="",val addonName:String="")
 
-/** Player and subtitle choices shared by the TV settings, the player menu and the phone panel. */
+/**
+ * Player and subtitle choices shared by the TV settings, the player menu and the phone panel. [remember] keeps the
+ * subtitles chosen or imported for each video, with their sync, and reopens the last one.
+ */
 data class TvSubtitlePrefs(val auto:Boolean=true,val preferBrazil:Boolean=true,val originalAssStyle:Boolean=true,
-    val sizePercent:Int=100,val color:Int=0,val background:Int=1,val edge:Int=1,val bottomPercent:Int=8) {
+    val sizePercent:Int=100,val color:Int=0,val background:Int=1,val edge:Int=1,val bottomPercent:Int=8,val remember:Boolean=true) {
     fun normalized()=copy(sizePercent=(sizePercent/10*10).coerceIn(50,200),color=color.coerceIn(0,COLORS.lastIndex),
         background=background.coerceIn(0,2),edge=edge.coerceIn(0,2),bottomPercent=bottomPercent.coerceIn(0,30))
     companion object {
@@ -26,7 +29,7 @@ data class TvSubtitlePrefs(val auto:Boolean=true,val preferBrazil:Boolean=true,v
  * [sourceAudio]) is remembered for every title; empty means all.
  */
 data class TvVideoPrefs(val player:String="internal",val subtitles:TvSubtitlePrefs=TvSubtitlePrefs(),val publicTrackers:Boolean=true,
-    val sourceAddon:String="",val sourceQuality:String="",val sourceAudio:String="") {
+    val sourceAddon:String="",val sourceQuality:String="",val sourceAudio:String="",val preparationArtwork:Boolean=true) {
     fun normalized()=copy(player=player.takeIf{it in PLAYERS}?:"internal",subtitles=(subtitles?:TvSubtitlePrefs()).normalized(),
         sourceAddon=(sourceAddon?:"").take(200).filter{it.code>=32},sourceQuality=sourceQuality?.takeIf{it in SourceFilter.QUALITIES}.orEmpty(),
         sourceAudio=sourceAudio?.takeIf{it in SourceFilter.AUDIOS}.orEmpty())

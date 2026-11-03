@@ -51,8 +51,22 @@ import kotlinx.coroutines.withContext
         item { Text("Como no Stremio: o Comic TV encontra as fontes e o player escolhido reproduz. Em torrents, o Comic TV continua baixando enquanto o player externo estiver aberto. Legendas automáticas são enviadas junto.",color=TvColors.Muted) }
         item { TvChoice("Trackers públicos nos torrents: "+if(prefs.publicTrackers)"ligados" else "desligados",prefs.publicTrackers,{save { it.copy(publicTrackers=!it.publicTrackers) }}) }
         item { Text("Ligados, todo torrent recebe uma lista de trackers públicos além dos do complemento, o que costuma achar conexões mais rápido. Desligados, valem só os do complemento e a rede DHT.",color=TvColors.Muted) }
+        item { TvChoice("Imagem durante a preparação: "+if(prefs.preparationArtwork)"ligada" else "desligada",prefs.preparationArtwork,{save { it.copy(preparationArtwork=!it.preparationArtwork) }}) }
         item { Text("Legendas",fontSize=23.sp) }
         item { TvChoice("Legendas automáticas: "+if(p.auto)"ligadas" else "desligadas",p.auto,{subs { it.copy(auto=!it.auto) }}) }
+        item { TvChoice("Lembrar legenda de cada vídeo: "+if(p.remember)"ligado" else "desligado",p.remember,{subs { it.copy(remember=!it.remember) }}) }
+        item {
+            Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("Ligado, a legenda que você escolhe, importa ou envia pelo celular fica guardada na TV com a sincronia, até 5 por vídeo, e volta sozinha na próxima vez, em qualquer fonte do mesmo vídeo. Ela vem antes das legendas automáticas.",color=TvColors.Muted)
+                var cleared by remember { mutableStateOf(false) }
+                val context=androidx.compose.ui.platform.LocalContext.current
+                val scope=rememberCoroutineScope()
+                TvButton(if(cleared)"Legendas guardadas apagadas" else "Apagar legendas guardadas",{
+                    scope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { SubtitleMemory(java.io.File(context.filesDir,"tv-subtitles-saved")).clear() } }
+                    cleared=true
+                },enabled=!cleared)
+            }
+        }
         item {
             Column(verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 Text("Idioma preferido",fontSize=18.sp)

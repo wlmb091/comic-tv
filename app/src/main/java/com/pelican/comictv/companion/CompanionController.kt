@@ -376,6 +376,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 "tv-subtitle"->container.tvPlayback.selectSubtitle(c.text)
                 "tv-audio"->container.tvPlayback.selectAudio(c.text)
                 "tv-subtitle-delay"->container.tvPlayback.setSubtitleDelay(c.delta*100L)
+                "tv-subtitle-search"->container.tvPlayback.searchSubtitles()
             }
             return
         }

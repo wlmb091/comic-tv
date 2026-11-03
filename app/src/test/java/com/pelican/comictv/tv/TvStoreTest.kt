@@ -32,6 +32,24 @@ class TvStoreTest {
         } finally {dir.deleteRecursively()}
     }
 
+    @Test fun preparationArtworkMigratesAndPersistsWithoutChangingOtherPreferences() {
+        val dir=Files.createTempDirectory("tv-store-artwork").toFile()
+        try {
+            val store=TvStore(dir)
+            dir.resolve("state.json").writeText("""{"video":{"player":"vlc","publicTrackers":false,"sourceQuality":"1080p"}}""")
+            val old=store.load()
+            assertTrue(old.video.preparationArtwork)
+            assertTrue("subtitle memory starts on for saved states without the field",old.video.subtitles.remember)
+            assertEquals("vlc",old.video.player)
+            store.save(old.copy(video=old.video.copy(preparationArtwork=false)))
+            val reloaded=store.load()
+            assertFalse(reloaded.video.preparationArtwork)
+            assertEquals("vlc",reloaded.video.player)
+            assertFalse(reloaded.video.publicTrackers)
+            assertEquals("1080p",reloaded.video.sourceQuality)
+        } finally {dir.deleteRecursively()}
+    }
+
     @Test fun invalidPersistedAddonCannotCrashTheNextCatalogRead() {
         val dir=Files.createTempDirectory("tv-store-corrupt").toFile()
         try {

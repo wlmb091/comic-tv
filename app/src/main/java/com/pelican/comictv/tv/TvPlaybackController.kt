@@ -2,6 +2,10 @@ package com.pelican.comictv.tv
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.DecoderCounters
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.annotation.MainThread
 import androidx.media3.common.*
 import androidx.media3.datasource.*
@@ -30,6 +34,11 @@ data class TvTrackInfo(val id:String,val label:String,val selected:Boolean)
 /** Public snapshot contains no source URL, headers, tracker address or addon credentials. */
 data class TvPlaybackState(
     val active: Boolean = false,
+    @Transient val poster: String = "",
+    @Transient val background: String = "",
+    val firstFrame: Boolean = false,
+    val noVideo: Boolean = false,
+    val storageWarning: String = "",
     val title: String = "",
     val playing: Boolean = false,
     val buffering: Boolean = false,
@@ -46,6 +55,10 @@ data class TvPlaybackState(
     val audio: List<TvTrackInfo> = emptyList(),
     val subtitleDelayMs: Long = 0,
     val subtitleBusy: Boolean = false,
+    /** The subtitle add-ons are being asked again. */
+    val subtitleSearching: Boolean = false,
+    /** Result of the last subtitle search or import, shown in the subtitle panel. */
+    val subtitleNote: String = "",
     /** Name of the external player in use, empty for the Comic TV player. */
     val external: String = "",
     /** Another source of the same video can be tried. */
@@ -79,6 +92,7 @@ class TvPlaybackController(private val context: Context, private val repository:
     /** The source list the video was started from, for "Tentar próxima fonte". */
     private var alternatives: List<TvStream> = emptyList()
     private var startedAt = 0L
+    private var playingWithoutFrameMs = 0L
     private var mediaUri: String = ""
     private var dataFactory: DataSource.Factory? = null
     private var external: List<TvSubtitle> = emptyList()
@@ -88,11 +102,23 @@ class TvPlaybackController(private val context: Context, private val repository:
     private var pendingSideload = false
     private var autoPending = false
     private var phoneCount = 0
+    private val memory = SubtitleMemory(File(context.filesDir, "tv-subtitles-saved"))
+    /** Choice kept for this video, applied once instead of the automatic choice. */
+    private var savedChoice: SubtitleMemory.Choice? = null
+    /** The loaded external subtitle was picked by the user, so it is kept for this video. */
+    private var userPicked = false
+    /** The TV file picker is open: leaving the app for it must not stop the video. */
+    private var picking = false
+    private var resumeAfterPick = false
+    private val videoKey get() = meta?.let { m -> video?.let { "${m.id}|${it.id}" } }
     /** Fixed part of the external-player status; the ticker appends connections and speed for torrents. */
     private var externalBase = ""
     private val progressWrites = Channel<TvProgress>(Channel.UNLIMITED)
     private val http = okhttp3.OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).build()
     private val subtitleDir = File(context.cacheDir, "tv-subtitles")
+    /** One writer at a time, so a later choice never lands before an earlier one. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val memoryIo = Dispatchers.IO.limitedParallelism(1)
 
     init {
         // Keep writes in playback order: an older periodic save must not overtake the final stop save.
@@ -112,6 +138,7 @@ class TvPlaybackController(private val context: Context, private val repository:
         this.stream = stream
         alternatives = sources.filter { it.externalUrl.isBlank() }.take(500)
         startedAt = System.nanoTime()
+        playingWithoutFrameMs = 0L
         val token = ++generation
         val isTorrent = StreamRank.torrent(stream)
         val player = externalPlayer ?: prefs.player
@@ -121,17 +148,27 @@ class TvPlaybackController(private val context: Context, private val repository:
         autoPending = true
         mutable.value = TvPlaybackState(
             active = true,
+            poster = meta.poster,
+            background = meta.background,
             title = meta.name + if (video.id != meta.id) " · ${video.title}" else "",
             buffering = true,
+            positionMs = position.coerceAtLeast(0),
             torrent = isTorrent,
             stage = if (isTorrent) "Iniciando torrent…" else "Abrindo vídeo…",
             external = if (outside) TvVideoPrefs.PLAYER_NAMES[player].orEmpty() else "",
             hasNext = nextSource(stream) != null,
         )
+        savedChoice = null
+        userPicked = false
         subtitleJob = scope.launch {
+            val key = "${meta.id}|${video.id}"
+            val kept = if (prefs.subtitles.remember) withContext(Dispatchers.IO) { runCatching { keptSubtitles(key) }.getOrDefault(emptyList()) } else emptyList()
+            if (token != generation) return@launch
+            if (prefs.subtitles.remember) savedChoice = withContext(Dispatchers.IO) { runCatching { memory.choice(key) }.getOrNull() }
+            for ((sub, text) in kept) texts[sub.id] = text
             val found = try { withContext(Dispatchers.IO) { repository.subtitles(meta, video) } } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
             if (token != generation) return@launch
-            external = (external + found).distinctBy { it.url.ifBlank { it.id } }
+            external = (kept.map { it.first } + external + found).distinctBy { it.url.ifBlank { it.id } }
             subtitlesLoaded = true
             publishTracks()
             tryAutoSubtitle()
@@ -147,6 +184,9 @@ class TvPlaybackController(private val context: Context, private val repository:
                     session.prepare(stream)
                     ensureActive()
                     if (token != generation) return@launch
+                    if(session.size>context.cacheDir.usableSpace)mutable.update {
+                        it.copy(storageWarning="O vídeo é maior que o espaço livre. Será usado um buffer pequeno; a reprodução pode parar se faltar espaço.")
+                    }
                     factory = RoutingFactory(DataSource.Factory { TorrentDataSource(session) })
                     uri = "torrent://video"
                 } else {
@@ -214,9 +254,32 @@ class TvPlaybackController(private val context: Context, private val repository:
         val factory = dataFactory ?: return
         val exo = buildPlayer(factory)
         player = exo
+        exo.addAnalyticsListener(object : AnalyticsListener {
+            override fun onVideoDecoderInitialized(eventTime: AnalyticsListener.EventTime, decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                if(token==generation)Log.i("ComicTvVideo", "decoder=$decoderName initMs=$initializationDurationMs")
+            }
+            override fun onVideoInputFormatChanged(eventTime: AnalyticsListener.EventTime, format: Format, decoderReuseEvaluation: DecoderReuseEvaluation?) {
+                if(token==generation)Log.i("ComicTvVideo", "mime=${format.sampleMimeType} codecs=${format.codecs} size=${format.width}x${format.height} fps=${format.frameRate} color=${format.colorInfo}")
+            }
+            override fun onDroppedVideoFrames(eventTime: AnalyticsListener.EventTime, droppedFrames: Int, elapsedMs: Long) {
+                if(token==generation)Log.i("ComicTvVideo", "dropped=$droppedFrames elapsedMs=$elapsedMs")
+            }
+            override fun onVideoDisabled(eventTime: AnalyticsListener.EventTime, decoderCounters: DecoderCounters) {
+                if(token==generation)Log.i("ComicTvVideo", "videoDisabled rendered=${decoderCounters.renderedOutputBufferCount} dropped=${decoderCounters.droppedBufferCount}")
+            }
+        })
         exo.addListener(object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                if(token==generation) {
+                    Log.i("ComicTvVideo", "firstFrame positionMs=${exo.currentPosition}")
+                    mutable.update { it.copy(firstFrame=true,noVideo=false) }
+                }
+            }
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if(token==generation)Log.i("ComicTvVideo", "videoSize=${videoSize.width}x${videoSize.height} ratio=${videoSize.pixelWidthHeightRatio}")
+            }
             override fun onPlayerError(error: PlaybackException) {
-                if (token == generation) scope.launch { fail(token, explain(error)) }
+                if (token == generation) { Log.e("ComicTvVideo", "playerError code=${error.errorCodeName}");scope.launch { fail(token, explain(error)) } }
             }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 if (token == generation) mutable.update { it.copy(playing = isPlaying) }
@@ -230,6 +293,10 @@ class TvPlaybackController(private val context: Context, private val repository:
             }
             override fun onTracksChanged(tracks: Tracks) {
                 if (token != generation) return
+                for(group in tracks.groups.filter { it.type==C.TRACK_TYPE_VIDEO })for(t in 0 until group.length) {
+                    val f=group.getTrackFormat(t)
+                    Log.i("ComicTvVideo", "track supported=${group.isTrackSupported(t)} selected=${group.isTrackSelected(t)} mime=${f.sampleMimeType} codecs=${f.codecs} size=${f.width}x${f.height} color=${f.colorInfo}")
+                }
                 if (pendingSideload) selectSideloaded(tracks)
                 publishTracks()
                 tryAutoSubtitle()
@@ -267,11 +334,20 @@ class TvPlaybackController(private val context: Context, private val repository:
 
     private suspend fun tick(token: Long) {
         var ticks = 0
+        var lastTick = android.os.SystemClock.elapsedRealtime()
         while (currentCoroutineContext().isActive && token == generation) {
+            val clockNow = android.os.SystemClock.elapsedRealtime()
+            val elapsed = (clockNow-lastTick).coerceIn(0,2000)
+            lastTick = clockNow
             val exo = player
             if (exo != null) {
                 val duration = exo.duration.takeIf { it != C.TIME_UNSET && it > 0 } ?: 0
                 mutable.update { it.copy(positionMs = exo.currentPosition.coerceAtLeast(0), durationMs = duration) }
+                if(exo.isPlaying&&!state.value.firstFrame)playingWithoutFrameMs+=elapsed
+                if(playingWithoutFrameMs>=10_000&&!state.value.firstFrame&&!state.value.noVideo) {
+                    Log.w("ComicTvVideo", "noFirstFrame playingMs=$playingWithoutFrameMs videoSelected=${exo.currentTracks.isTypeSelected(C.TRACK_TYPE_VIDEO)}")
+                    mutable.update { it.copy(noVideo=true) }
+                }
                 if (++ticks % 10 == 0) saveProgress()
             }
             val now = mutable.value
@@ -323,6 +399,17 @@ class TvPlaybackController(private val context: Context, private val repository:
         play(m, v, next, position, sources = list)
     }
 
+    /** A per-video override: never writes the default preference. */
+    @MainThread fun switchPlayer(id: String) {
+        if(id !in TvVideoPrefs.PLAYERS)return
+        val m=meta?:return
+        val v=video?:return
+        val source=stream?:return
+        val position=player?.currentPosition?.coerceAtLeast(0)?:state.value.positionMs
+        val sources=alternatives
+        play(m,v,source,position,externalPlayer=id,sources=sources)
+    }
+
     private fun connections(n: Int) = if (n == 1) "1 conexão" else "$n conexões"
     private fun speed(bytes: Long) = when {
         bytes >= 1024 * 1024 -> "%.1f MB/s".format(bytes / 1048576.0).replace('.', ',')
@@ -332,8 +419,14 @@ class TvPlaybackController(private val context: Context, private val repository:
     // ---- subtitles and audio ----
 
     private fun subtitleLabel(s: TvSubtitle): String {
+        if (s.id.startsWith("saved-")) return (s.label.ifBlank { SubtitleLanguages.name(s.lang, "") } + " · Guardada na TV").take(160)
         val language = SubtitleLanguages.name(s.lang, s.label)
-        val origin = if (s.id.startsWith("phone-")) "Enviada pelo celular" else s.addonName.ifBlank { "Complemento" }
+        val origin = when {
+            s.id.startsWith("phone-") -> "Enviada pelo celular"
+            s.id.startsWith("file-") -> "Importada na TV"
+            s.id.startsWith("saved-") -> "Guardada na TV"
+            else -> s.addonName.ifBlank { "Complemento" }
+        }
         return listOf(language, s.label.takeIf { it.isNotBlank() && it != s.lang && it != language }, origin).filterNotNull().joinToString(" · ").take(160)
     }
 
@@ -383,6 +476,20 @@ class TvPlaybackController(private val context: Context, private val repository:
         if (waited) return
         autoPending = false
         val p = prefs.subtitles
+        // The last choice kept for this video comes before the automatic choice, even with it turned off.
+        val kept = savedChoice?.takeIf { p.remember }
+        savedChoice = null
+        if (kept != null) {
+            if (kept.id == "off") { setTextDisabled(true); publishTracks(); return }
+            val index = external.indexOfFirst { it.id == "saved-${kept.id}" }
+            if (index >= 0) {
+                userPicked = true
+                mutable.update { it.copy(subtitleDelayMs = kept.delayMs) }
+                loadExternal(external[index])
+                publishTracks()
+                return
+            }
+        }
         if (!p.auto) { setTextDisabled(true); publishTracks(); return }
         var best: Pair<Int, String>? = null
         for ((index, g) in groups(C.TRACK_TYPE_TEXT)) for (t in 0 until g.length) {
@@ -395,7 +502,7 @@ class TvPlaybackController(private val context: Context, private val repository:
             val rank = SubtitleLanguages.rank(s.lang, s.label, p.preferBrazil)
             if (rank != Int.MAX_VALUE && (best == null || rank < best!!.first)) best = rank to "x:$i"
         }
-        selectSubtitle(best?.second ?: "off")
+        selectSubtitle(best?.second ?: "off", user = false)
     }
 
     private fun setTextDisabled(disabled: Boolean) {
@@ -403,13 +510,21 @@ class TvPlaybackController(private val context: Context, private val repository:
         exo.trackSelectionParameters = exo.trackSelectionParameters.buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_TEXT, disabled).build()
     }
 
-    /** "off", "e:<embedded key>" for a track inside the video, or "x:<n>" for an external subtitle. */
-    @MainThread fun selectSubtitle(id: String) {
+    /**
+     * "off", "e:<embedded key>" for a track inside the video, or "x:<n>" for an external subtitle. A [user] choice is
+     * kept for this video: an external subtitle with its sync, "off" as off, a track of the video by forgetting the choice.
+     */
+    @MainThread fun selectSubtitle(id: String, user: Boolean = true) {
         val exo = player ?: return
         autoPending = false
+        if (user) savedChoice = null
         when {
-            id == "off" -> setTextDisabled(true)
+            id == "off" -> {
+                setTextDisabled(true)
+                if (user) { userPicked = false; remember("off") }
+            }
             id.startsWith("e:") -> {
+                if (user) { userPicked = false; remember(null) }
                 val key = id.removePrefix("e:")
                 val match = groups(C.TRACK_TYPE_TEXT).firstNotNullOfOrNull { (index, g) ->
                     (0 until g.length).firstOrNull { embeddedKey(g, index, it) == key }?.let { g to it }
@@ -420,6 +535,7 @@ class TvPlaybackController(private val context: Context, private val repository:
             }
             id.startsWith("x:") -> {
                 val sub = external.getOrNull(id.removePrefix("x:").toIntOrNull() ?: -1) ?: return
+                userPicked = user
                 mutable.update { it.copy(subtitleDelayMs = 0) }
                 loadExternal(sub)
             }
@@ -473,6 +589,7 @@ class TvPlaybackController(private val context: Context, private val repository:
                 exo.setMediaItem(mediaItem(file, sub, kind), position)
                 exo.prepare()
                 exo.playWhenReady = play
+                if (userPicked) keep(sub)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 if (token == generation) mutable.update { it.copy(message = e.message?.takeIf { m -> m.startsWith("Arquivo") || m.startsWith("Legenda") || m.startsWith("A legenda") } ?: "Não foi possível abrir esta legenda. Escolha outra.") }
@@ -494,25 +611,98 @@ class TvPlaybackController(private val context: Context, private val repository:
     @MainThread fun setSubtitleDelay(ms: Long) {
         val value = ms.coerceIn(-60_000, 60_000)
         val sub = loaded
-        if (sub == null) { mutable.update { it.copy(message = "A sincronia vale para legendas de complementos e enviadas pelo celular.") }; return }
+        if (sub == null) { mutable.update { it.copy(message = "A sincronia vale para legendas de complementos, importadas e enviadas pelo celular.") }; return }
+        // Adjusting the sync is a choice: the subtitle, even an automatic one, is kept with it for this video.
+        userPicked = true
         mutable.update { it.copy(subtitleDelayMs = value, message = "") }
         delayJob?.cancel()
         delayJob = scope.launch { delay(700); if (loaded == sub) loadExternal(sub) }
     }
 
     /** A subtitle file sent from the phone panel; it becomes the current subtitle when a video is playing. */
-    fun addPhoneSubtitle(name: String, bytes: ByteArray) {
+    fun addPhoneSubtitle(name: String, bytes: ByteArray) = addFileSubtitle("phone", name, bytes)
+
+    /**
+     * A subtitle file from the phone ([origin] "phone") or opened with the TV file picker ("file"). Invalid files throw
+     * before anything changes; a valid one becomes the current subtitle when a video is playing.
+     */
+    fun addFileSubtitle(origin: String, name: String, bytes: ByteArray) {
         val text = SubtitleText.decode(bytes)
         val kind = SubtitleText.validate(text)
         val lower = name.lowercase()
         val lang = when { Regex("pt[-_ .]?br|pob|brazil|brasil").containsMatchIn(lower) -> "pob"; Regex("(^|[^a-z])(pt|por)([^a-z]|$)").containsMatchIn(lower) -> "por"; Regex("(^|[^a-z])(en|eng)([^a-z]|$)").containsMatchIn(lower) -> "eng"; else -> "" }
         scope.launch {
-            val sub = TvSubtitle("phone-${++phoneCount}", "", lang, name.take(120))
+            val sub = TvSubtitle("$origin-${++phoneCount}", "", lang, name.take(120))
             texts[sub.id] = text to kind
             external = listOf(sub) + external
             if (player != null) selectSubtitle("x:0") else publishTracks()
         }
     }
+
+    /** Asks the subtitle add-ons again, keeping the subtitles already listed and the current choice. */
+    @MainThread fun searchSubtitles() {
+        val m = meta ?: return
+        val v = video ?: return
+        if (state.value.subtitleSearching) return
+        val token = generation
+        mutable.update { it.copy(subtitleSearching = true, message = "") }
+        scope.launch {
+            val found = try { withContext(Dispatchers.IO) { repository.subtitles(m, v) } } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
+            if (token != generation) return@launch
+            val before = external.size
+            // New subtitles go to the end, so the "x:<n>" ids of the listed ones stay the same.
+            external = (external + found).distinctBy { it.url.ifBlank { it.id } }.take(400)
+            subtitlesLoaded = true
+            val added = external.size - before
+            mutable.update { it.copy(subtitleSearching = false, subtitleNote = when {
+                added > 1 -> "$added legendas novas encontradas."
+                added == 1 -> "1 legenda nova encontrada."
+                found.isEmpty() -> "Nenhum complemento de legendas respondeu para este vídeo."
+                else -> "Nenhuma legenda nova."
+            }) }
+            publishTracks()
+        }
+    }
+
+    /** The TV file picker opens over the app: pause, and do not stop the video when the app goes to the background. */
+    @MainThread fun pickStarted() {
+        picking = true
+        resumeAfterPick = player?.playWhenReady == true
+        player?.pause()
+    }
+
+    @MainThread fun pickFinished() {
+        picking = false
+        if (resumeAfterPick) player?.play()
+        resumeAfterPick = false
+    }
+
+    @MainThread fun subtitleNote(text: String) { mutable.update { it.copy(subtitleNote = text) } }
+
+    private fun keptSubtitles(key: String): List<Pair<TvSubtitle, Pair<String, SubtitleText.Kind>>> =
+        memory.list(key).mapNotNull { e ->
+            val text = runCatching { e.file.readText(Charsets.UTF_8) }.getOrNull() ?: return@mapNotNull null
+            TvSubtitle("saved-${e.id}", "", e.lang, e.label) to (text to e.kind)
+        }
+
+    /** Keeps the subtitle picked by the user for this video, with the current sync. */
+    private fun keep(sub: TvSubtitle) {
+        val key = videoKey ?: return
+        if (!prefs.subtitles.remember) return
+        val (text, kind) = texts[sub.id] ?: return
+        val delay = state.value.subtitleDelayMs
+        val label = if (sub.id.startsWith("saved-")) sub.label else subtitleLabel(sub)
+        scope.launch(memoryIo) { runCatching { memory.choose(key, memory.save(key, label, sub.lang, text, kind), delay) } }
+    }
+
+    private fun remember(choice: String?) {
+        val key = videoKey ?: return
+        if (!prefs.subtitles.remember) return
+        scope.launch(memoryIo) { runCatching { memory.choose(key, choice) } }
+    }
+
+    /** Erases every subtitle kept per video. */
+    fun forgetSubtitles() { scope.launch(memoryIo) { runCatching { memory.clear() } } }
 
     // ---- external players ----
 
@@ -577,7 +767,7 @@ class TvPlaybackController(private val context: Context, private val repository:
     @MainThread fun stopExternal() { if (state.value.external.isNotBlank()) stop() }
 
     /** Leaving the app stops the Comic TV player; an external player keeps the transfer alive. */
-    @MainThread fun stopIfInternal() { if (state.value.active && state.value.external.isBlank()) stop() }
+    @MainThread fun stopIfInternal() { if (!picking && state.value.active && state.value.external.isBlank()) stop() }
 
     // ---- lifecycle ----
 
@@ -641,6 +831,10 @@ class TvPlaybackController(private val context: Context, private val repository:
         texts.clear()
         loaded = null
         pendingSideload = false
+        savedChoice = null
+        userPicked = false
+        picking = false
+        resumeAfterPick = false
         externalBase = ""
         mutable.value = TvPlaybackState()
     }

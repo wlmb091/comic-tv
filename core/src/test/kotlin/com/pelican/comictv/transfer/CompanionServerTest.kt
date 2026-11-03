@@ -35,6 +35,7 @@ class CompanionServerTest {
             assertEquals(200,request(server.url+"/command","""{"action":"tv-audio","text":"a:2"}""").first)
             assertEquals(400,request(server.url+"/command","""{"action":"tv-audio","text":"x:1"}""").first)
             assertEquals(200,request(server.url+"/command","""{"action":"tv-subtitle-delay","delta":-25}""").first)
+            assertEquals(200,request(server.url+"/command","""{"action":"tv-subtitle-search"}""").first)
             assertEquals(400,request(server.url+"/command","""{"action":"tv-subtitle-delay","delta":601}""").first)
             assertEquals(200,request(server.url+"/command","""{"action":"tv-prefs","text":"{\"player\":\"vlc\",\"subtitles\":{\"sizePercent\":120}}"}""").first)
             assertEquals(400,request(server.url+"/command","""{"action":"tv-prefs","text":"not json"}""").first)

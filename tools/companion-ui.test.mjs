@@ -604,6 +604,14 @@ test('TV subtitles: choosing a track, nudging the sync and sending a file from t
  sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
  assert.equal(sent.action,'tv-subtitle-delay');assert.equal(sent.delta,5);
  assert.equal(h.elements.get('tvDelayLabel').textContent,'Sincronia +0,5 s');
+ await h.run("$('tvDelayZero').onclick()");
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-subtitle-delay');assert.equal(sent.delta,0);
+ await h.run("$('tvSubtitleSearch').onclick()");
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-subtitle-search');
+ h.run("tvPlay.subtitleNote='2 legendas novas encontradas.';tvTracksUI()");
+ assert.equal(h.elements.get('tvSubtitleStatus').textContent,'2 legendas novas encontradas.');
  h.run("$('tvSubtitleFile').files=[{name:'episodio.pt-BR.ass',size:2048}]");
  await h.run("$('tvSubtitleFile').onchange()");
  const upload=h.requests.find(r=>r.url.includes('/tv-subtitle?name='));
@@ -628,6 +636,10 @@ test('video settings on the phone send the whole preference set to the TV',async
  h.run("$('tvPlayerSelect').value='vlc'");await h.run("$('tvPlayerSelect').onchange()");
  sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
  assert.equal(JSON.parse(sent.text).player,'vlc');assert.equal(JSON.parse(sent.text).subtitles.preferBrazil,false);
+ assert.equal(h.elements.get('tvSubRemember').checked,true,'a TV without the new field keeps the subtitle memory on');
+ h.run("$('tvSubRemember').checked=false");await h.run("$('tvSubRemember').onchange()");
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(JSON.parse(sent.text).subtitles.remember,false);assert.equal(JSON.parse(sent.text).player,'vlc');
 });
 
 test('the source filter on the phone changes the TV choice for every title, and the next source is one tap',async()=>{
@@ -670,4 +682,16 @@ test('TV appearance from the phone sends only what changed, and reset asks first
  await h.run("$('tvResetYes').onclick()");assert.equal(sent2(h).text,'reset');
  h.run("$('phoneNeon').checked=false;localStorage={setItem(){}};$('phoneNeon').onchange()");assert.equal(h.run('phoneSound.neon'),false);
  assert.match(html,/#control button\.tap\{border-color:var\(--accent\)/);
+});
+
+
+test('preparation artwork switch preserves the player, subtitles and source filters',async()=>{
+ const h=harness();h.run("globalThis.setTimeout=f=>{f();return 1}");
+ h.run("tvVideo={player:'vlc',publicTrackers:false,sourceQuality:'1080p',sourceAudio:'Dublado',subtitles:{auto:false}};tvPlayers=['internal','vlc'];tvPrefsUI()");
+ assert.equal(h.elements.get('tvPreparationArtwork').checked,true);
+ h.run("$('tvPreparationArtwork').checked=false");await h.run("$('tvPreparationArtwork').onchange()");
+ const prefs=JSON.parse(sent2(h).text);
+ assert.equal(prefs.preparationArtwork,false);assert.equal(prefs.player,'vlc');
+ assert.equal(prefs.publicTrackers,false);assert.equal(prefs.sourceQuality,'1080p');
+ assert.equal(prefs.sourceAudio,'Dublado');assert.equal(prefs.subtitles.auto,false);
 });
