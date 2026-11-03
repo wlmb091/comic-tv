@@ -1,6 +1,6 @@
 # Próximo pacote do Comic TV
 
-Pedidos aprovados pelo usuário em 02/11/2026, ainda não implementados. A última versão publicada é a 1.4.26 (código 100), sem teste no iPhone nem na Box; decisões em `docs/validation/1.4.26.md`.
+Pedidos aprovados pelo usuário em 02/11/2026, ainda não implementados. A última versão publicada é a 1.4.28 (código 102), sem teste no iPhone nem na Box: a 1.4.27 trouxe a aba TV do Codex e a 1.4.28 as legendas, o player em tela cheia, os decodificadores e o player externo (`docs/validation/1.4.27.md` e `1.4.28.md`). Os três itens abaixo continuam pendentes. Quem continuar parte do `main` atual.
 
 **Não implementar nem publicar antes do aviso do usuário.** Ele ainda pode acrescentar pedidos e vai testar a 1.4.26 no aparelho. Ao receber o aviso, listar dúvidas e sugestões antes de alterar, e perguntar quem publica: a autorização de publicar vale só para um lote.
 
