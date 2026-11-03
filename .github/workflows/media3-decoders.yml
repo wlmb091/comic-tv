@@ -1,0 +1,67 @@
+name: Build Media3 decoders
+
+# Manual build of the official Media3 FFmpeg (audio, LGPL FFmpeg) and AV1 (libgav1) modules.
+# The resulting AARs are committed to app/libs; this workflow never publishes anything.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decoders:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      MEDIA3_TAG: '1.8.0'
+      FFMPEG_BRANCH: 'release/6.0'
+      NDK_VERSION: '26.1.10909125'
+      ANDROID_API: '26'
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install NDK and CMake
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${NDK_VERSION}" "cmake;3.22.1" > /dev/null
+          echo "NDK_PATH=$ANDROID_HOME/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+      - name: Fetch sources
+        run: |
+          git clone --depth 1 --branch "$MEDIA3_TAG" https://github.com/androidx/media.git media
+          git clone --depth 1 --branch "$FFMPEG_BRANCH" https://github.com/FFmpeg/FFmpeg.git ffmpeg
+          AV1="$PWD/media/libraries/decoder_av1/src/main/jni"
+          git clone --depth 1 https://github.com/google/cpu_features "$AV1/cpu_features"
+          git clone --depth 1 https://chromium.googlesource.com/codecs/libgav1 "$AV1/libgav1"
+          git clone --depth 1 https://github.com/abseil/abseil-cpp.git "$AV1/libgav1/third_party/abseil-cpp"
+          echo "FFmpeg $(git -C ffmpeg rev-parse HEAD)" > sources.txt
+          echo "libgav1 $(git -C "$AV1/libgav1" rev-parse HEAD)" >> sources.txt
+          echo "abseil $(git -C "$AV1/libgav1/third_party/abseil-cpp" rev-parse HEAD)" >> sources.txt
+          echo "cpu_features $(git -C "$AV1/cpu_features" rev-parse HEAD)" >> sources.txt
+          echo "media $(git -C media rev-parse HEAD)" >> sources.txt
+      - name: Build FFmpeg (LGPL, audio decoders only)
+        run: |
+          MOD="$PWD/media/libraries/decoder_ffmpeg/src/main"
+          ln -s "$PWD/ffmpeg" "$MOD/jni/ffmpeg"
+          cd "$MOD/jni"
+          ./build_ffmpeg.sh "$MOD" "$NDK_PATH" linux-x86_64 "$ANDROID_API" \
+            aac ac3 eac3 dca mlp truehd flac alac opus vorbis mp1 mp2 mp3 \
+            wmav1 wmav2 wmapro amrnb amrwb pcm_mulaw pcm_alaw
+          grep -q "CONFIG_GPL 0" "$PWD/ffmpeg/config.h" 2>/dev/null || true
+      - name: Build AARs
+        working-directory: media
+        run: |
+          echo "android.ndkVersion=${NDK_VERSION}" >> gradle.properties
+          sed -i "s/ndkVersion .*/ndkVersion '${NDK_VERSION}'/" libraries/decoder_ffmpeg/build.gradle libraries/decoder_av1/build.gradle || true
+          ./gradlew --no-daemon :lib-decoder-ffmpeg:assembleRelease :lib-decoder-av1:assembleRelease
+          mkdir -p ../out
+          find . -path '*decoder_ffmpeg*' -name '*release*.aar' -exec cp {} ../out/media3-decoder-ffmpeg-1.8.0.aar \;
+          find . -path '*decoder_av1*' -name '*release*.aar' -exec cp {} ../out/media3-decoder-av1-1.8.0.aar \;
+          cp ../sources.txt ../out/
+          ls -l ../out
+          for f in ../out/*.aar; do unzip -l "$f" | grep '\.so'; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: media3-decoders
+          path: out/
+          retention-days: 14
