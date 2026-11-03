@@ -162,11 +162,26 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
     CompositionLocalProvider(LocalShellLibrarySearch provides openLibrarySearch, com.pelican.comictv.companion.LocalCompanionDialogs provides companionDialogs) {
     NavHost(navController = nav, startDestination = "library") {
         composable("tv") {
+            val playing by container.tvPlayback.state.collectAsStateWithLifecycle()
+            LaunchedEffect(playing.active) { if (playing.active) nav.navigate("tv-player") { launchSingleTop = true } }
             TvShell("tv", onNavigate = { route -> navigationContentTarget = route; nav.navigate(route) { launchSingleTop = true } },
                 focusContentOnEntry = navigationContentTarget == "tv", onSectionFocused = { navigationContentTarget = null }) {
                 com.pelican.comictv.tv.TvScreen(container.television, container.tvPlayback,
                     onBrowser = { url -> nav.navigate("browser?url=" + android.net.Uri.encode(url)) })
             }
+        }
+        composable("tv-player") { entry ->
+            val playback = container.tvPlayback
+            val playing by playback.state.collectAsStateWithLifecycle()
+            LaunchedEffect(playing.active) { if (!playing.active) nav.popBackStack("tv-player", inclusive = true) }
+            androidx.activity.compose.BackHandler { playback.stop() }
+            DisposableEffect(entry) {
+                // Leaving the app stops the Comic TV player; an external player keeps its transfer running.
+                val observer = androidx.lifecycle.LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) playback.stopIfInternal() }
+                entry.lifecycle.addObserver(observer)
+                onDispose { entry.lifecycle.removeObserver(observer) }
+            }
+            com.pelican.comictv.tv.TvPlayerScreen(playback, container.television)
         }
         composable("global-search") {
             val sources: SourcesViewModel = viewModel(viewModelStoreOwner = sourcesOwner, key = "online-sources", factory = sourcesFactory)
@@ -332,7 +347,7 @@ internal val LocalShellLibrarySearch = compositionLocalOf<(() -> Unit)?> { null 
             })
             TvShell("settings", onNavigate = { startupFocusPending = false; navigationContentTarget = it; nav.navigate(it) { popUpTo("library"); launchSingleTop = true } },
                 focusContentOnEntry = navigationContentTarget == "settings", onSectionFocused = { navigationContentTarget = null }) {
-                SettingsScreen(container.appearance, storage, backup, onDownloads = {nav.navigate("downloads")}, updater = updater, installUpdate = installUpdate, orientation = container.orientation) { nav.popBackStack("library", false) }
+                SettingsScreen(container.appearance, storage, backup, onDownloads = {nav.navigate("downloads")}, updater = updater, installUpdate = installUpdate, orientation = container.orientation, television = container.television) { nav.popBackStack("library", false) }
             }
         }
         composable("details/{id}") { entry ->

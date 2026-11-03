@@ -22,7 +22,8 @@ data class TvAddon(val url:String,val manifest:AddonManifest,val enabled:Boolean
 data class TvVideo(val id:String,val title:String,val season:Int=0,val episode:Int=0,val thumbnail:String="")
 data class TvMeta(val id:String,val type:String,val name:String,val poster:String="",val background:String="",val description:String="",val genres:List<String> = emptyList(),val videos:List<TvVideo> = emptyList())
 data class TvStream(val name:String="",val description:String="",val url:String="",val infoHash:String="",val fileIdx:Int?=null,
-    val sources:List<String> = emptyList(),val externalUrl:String="",val headers:Map<String,String> = emptyMap(),val addonName:String="")
+    val sources:List<String> = emptyList(),val externalUrl:String="",val headers:Map<String,String> = emptyMap(),val addonName:String="",
+    val subtitles:List<TvSubtitle> = emptyList())
 
 object StremioLinks {
     private val schemes=setOf("http","https")
@@ -83,8 +84,14 @@ object StremioJson {
         val o=e.asJsonObject
         val index=if(o.has("fileIdx"))o.integer("fileIdx")?.takeIf{it>=0}?:return@mapNotNull null else null
         val headers=o.o("behaviorHints").o("proxyHeaders").o("request").entrySet().filter{it.value.isJsonPrimitive&&it.value.asJsonPrimitive.isString&&it.key.length<=100&&it.value.asString.length<=8192&&it.key.none{c->c.code<32||c.code==127}&&it.value.asString.none{c->c=='\r'||c=='\n'}}.take(40).associate{it.key to it.value.asString}
-        TvStream(o.s("name"),o.s("description").ifBlank{o.s("title")},o.s("url"),o.s("infoHash"),index,o.a("sources").strings(),o.s("externalUrl"),headers)
+        TvStream(o.s("name"),o.s("description").ifBlank{o.s("title")},o.s("url"),o.s("infoHash"),index,o.a("sources").strings(),o.s("externalUrl"),headers,
+            subtitles=subtitleList(o.a("subtitles")))
     }.distinct()
+    private fun subtitleList(items:JsonArray)=items.filter{it.isJsonObject}.take(200).mapNotNull{e->
+        val o=e.asJsonObject;val url=o.s("url")
+        if(!StremioLinks.http(url))null else TvSubtitle(o.s("id").ifBlank{url}.take(500),url,o.s("lang").take(40),o.s("label").ifBlank{o.s("name")}.take(200))
+    }.distinctBy{it.url}
+    fun subtitles(text:String)=subtitleList(root(text).a("subtitles"))
 }
 
 /** Byte windows are absolute offsets in torrent storage, never offsets in sparse on-disk files. */

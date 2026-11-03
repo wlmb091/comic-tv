@@ -1,0 +1,5 @@
+libgav1 (AV1 software decoder) — Apache License 2.0
+https://chromium.googlesource.com/codecs/libgav1 commit 4ad433700e5d7c45df3d6146b7c92c8945c19e64
+Abseil C++ — Apache License 2.0, commit 1dc74f6f0aadd77ed263a34afa9af20c91fd35f8
+cpu_features — Apache License 2.0, commit 4814778e45acc394b37ca0837441ad32a2305bb1
+Built through the Media3 1.8.0 AV1 decoder module (Apache License 2.0).

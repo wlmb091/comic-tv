@@ -148,7 +148,7 @@ import kotlinx.coroutines.*
         streams.mapIndexed { index,stream -> index to stream }.groupBy { it.second.addonName }.forEach { (addon,group) ->
             item("addon:$addon") { Text(addon.ifBlank { "Fontes" },color=TvColors.Muted,fontSize=17.sp) }
             items(group,key={it.first}) { (index,stream) ->
-                TvButton(listOf(stream.name,stream.description).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Fonte ${index+1}" }.take(600),{
+                TvButton((if(StreamRank.slow(stream))"Poucos seeders, pode demorar · " else "")+listOf(stream.name,stream.description).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Fonte ${index+1}" }.take(600),{
                     lastSource=index
                     if(stream.externalUrl.isNotBlank()) {
                         if(StremioLinks.http(stream.externalUrl))onBrowser(stream.externalUrl)else message="Este destino externo não é compatível."

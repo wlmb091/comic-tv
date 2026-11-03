@@ -1,0 +1,19 @@
+FFmpeg (audio decoders only)
+
+This application includes libffmpegJNI.so, built from the Media3 FFmpeg decoder module
+(Apache License 2.0) statically linked with FFmpeg libavcodec, libavutil and libswresample.
+
+FFmpeg is licensed under the GNU Lesser General Public License version 2.1 or later.
+It was configured without --enable-gpl and without --enable-nonfree, with only these
+decoders: aac ac3 eac3 dca mlp truehd flac alac opus vorbis mp1 mp2 mp3 wmav1 wmav2
+wmapro amrnb amrwb pcm_mulaw pcm_alaw.
+
+Exact sources used for this build:
+  FFmpeg release/6.0, commit 573f2b81ebd97da81def2ba762e81b0328547004
+  https://github.com/FFmpeg/FFmpeg/tree/573f2b81ebd97da81def2ba762e81b0328547004
+  androidx/media 1.8.0, commit b7bbc6e2bc3e45ff3ed99884c114c50f03bba5c9
+  Build script: .github/workflows/media3-decoders.yml in the Comic TV source repository.
+
+The LGPL text is available at https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html.
+You may replace libffmpegJNI.so in the installed package with a build of your own
+from the sources above; on request, the build files used here will be provided.

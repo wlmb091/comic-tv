@@ -60,6 +60,7 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                     when(command.action){
                         "tv-addon-preview"->call(50_000){previewTvAddon(command.text)}
                         "tv-addon-install"->call{installTvAddon(command.id)}
+                        "tv-prefs"->call{withContext(Dispatchers.Main.immediate){active()};val prefs=Gson().fromJson(command.text,com.pelican.comictv.tv.TvVideoPrefs::class.java);container.television.video{prefs}}
                         "open-chapter"->call(95_000){prepareChapter(command)}
                         else->call{if(command.action=="open")container.library.getComic(command.id);withContext(Dispatchers.Main.immediate){control(command)}}
                     }
@@ -69,7 +70,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 stroke={live->call{withContext(Dispatchers.Main.immediate){active();drawingsOf(live.id)?.stroke(live)}}},
                 drawing={request,bytes->call{applyDrawing(request,bytes)}},
                 drawingLayers={id,page,input->call(120_000){withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);container.pageDrawings.saveLayers(id,page,input)}},
-                excerpt={id,section,start,end,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);val page=withContext(Dispatchers.IO){container.pageDrawings.addExcerpt(id,section,start,end,bytes).page};withContext(Dispatchers.Main.immediate){drawingsOf(id)?.reload(page)};page}})
+                excerpt={id,section,start,end,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.library.getComic(id);val page=withContext(Dispatchers.IO){container.pageDrawings.addExcerpt(id,section,start,end,bytes).page};withContext(Dispatchers.Main.immediate){drawingsOf(id)?.reload(page)};page}},
+                subtitle={name,bytes->call{withContext(Dispatchers.Main.immediate){active()};container.tvPlayback.addPhoneSubtitle(name,bytes)}})
             owned=instance
             val url=withContext(Dispatchers.IO){instance.open();instance.url}
             ensureActive();check(sessionJob===job);server=instance
@@ -102,7 +104,8 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 active()
                 val preview=tvPreviews.peek()?.let{(nonce,addon)->mapOf("nonce" to nonce,"name" to addon.manifest.name,
                     "description" to addon.manifest.description,"types" to addon.manifest.types,"configurationRequired" to addon.manifest.configurationRequired)}
-                mapOf("playback" to container.tvPlayback.state.value,"preview" to preview,
+                mapOf("playback" to container.tvPlayback.state.value,"preview" to preview,"video" to container.television.state.value.video,
+                    "players" to com.pelican.comictv.tv.TvExternalPlayers.available(activity),
                     "addons" to container.television.state.value.addons.map{mapOf("name" to it.manifest.name,"enabled" to it.enabled)})
             }
             return CompanionResource("application/json; charset=utf-8",Gson().toJson(snapshot).toByteArray(Charsets.UTF_8))
@@ -317,6 +320,9 @@ internal class CompanionController(private val activity:ComponentActivity,privat
                 "tv-resume"->container.tvPlayback.resume()
                 "tv-stop"->container.tvPlayback.stop()
                 "tv-seek"->container.tvPlayback.seekTo(c.positionMs)
+                "tv-subtitle"->container.tvPlayback.selectSubtitle(c.text)
+                "tv-audio"->container.tvPlayback.selectAudio(c.text)
+                "tv-subtitle-delay"->container.tvPlayback.setSubtitleDelay(c.delta*100L)
             }
             return
         }

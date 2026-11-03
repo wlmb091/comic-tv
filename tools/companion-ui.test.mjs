@@ -589,3 +589,43 @@ test('editing the TV addon URL invalidates the local confirmation',async()=>{
  assert.equal(h.requests.filter(r=>r.url.endsWith('/command')).length,before);
  assert.equal(h.elements.get('tvAddonInstall').disabled,true);
 });
+
+test('TV subtitles: choosing a track, nudging the sync and sending a file from the phone',async()=>{
+ const h=harness();
+ h.run("tvPlay={active:true,playerReady:true,canPlay:true,subtitleDelayMs:0,subtitles:[{id:'off',label:'Desligadas',selected:false},{id:'x:0',label:'Português (Brasil) · OpenSubtitles',selected:true}],audio:[{id:'a:1',label:'Japonês · AAC',selected:true},{id:'a:2',label:'Inglês · AC-3',selected:false}]};tvTracksUI()");
+ assert.equal(h.elements.get('tvSubtitleList').children.length,2);
+ await h.elements.get('tvSubtitleList').children[0].onclick();
+ let sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-subtitle');assert.equal(sent.text,'off');
+ await h.elements.get('tvAudioList').children[1].onclick();
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-audio');assert.equal(sent.text,'a:2');
+ await h.run("$('tvDelayPlus').onclick()");
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-subtitle-delay');assert.equal(sent.delta,5);
+ assert.equal(h.elements.get('tvDelayLabel').textContent,'Sincronia +0,5 s');
+ h.run("$('tvSubtitleFile').files=[{name:'episodio.pt-BR.ass',size:2048}]");
+ await h.run("$('tvSubtitleFile').onchange()");
+ const upload=h.requests.find(r=>r.url.includes('/tv-subtitle?name='));
+ assert.ok(upload,'the file goes to the TV subtitle endpoint');assert.match(upload.url,/episodio\.pt-BR\.ass/);
+ assert.equal(upload.options.headers['Content-Type'],'application/octet-stream');
+});
+
+test('TV subtitles are hidden while an external player has the video',()=>{
+ const h=harness();
+ h.run("$('tvTracks')");let hidden;h.elements.get('tvTracks').classList.toggle=(name,value)=>{if(name==='hidden')hidden=value};
+ h.run("tvPlay={active:true,playerReady:true,external:'VLC',subtitles:[]};tvTracksUI()");
+ assert.equal(hidden,true);
+});
+
+test('video settings on the phone send the whole preference set to the TV',async()=>{
+ const h=harness();h.run("globalThis.setTimeout=f=>{f();return 1}");
+ h.run("tvVideo={player:'internal',subtitles:{auto:true,preferBrazil:true,originalAssStyle:true,sizePercent:100,color:0,background:1,edge:1,bottomPercent:8}};tvPlayers=['internal','ask','vlc'];tvPrefsUI()");
+ assert.equal(h.elements.get('tvPlayerSelect').children.length,3);
+ await h.elements.get('tvSubLang').children[1].onclick();
+ let sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(sent.action,'tv-prefs');assert.equal(JSON.parse(sent.text).subtitles.preferBrazil,false);
+ h.run("$('tvPlayerSelect').value='vlc'");await h.run("$('tvPlayerSelect').onchange()");
+ sent=JSON.parse(h.requests.filter(r=>r.url.endsWith('/command')).at(-1).options.body);
+ assert.equal(JSON.parse(sent.text).player,'vlc');assert.equal(JSON.parse(sent.text).subtitles.preferBrazil,false);
+});

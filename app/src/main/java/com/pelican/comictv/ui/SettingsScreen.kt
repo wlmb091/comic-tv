@@ -33,13 +33,14 @@ import kotlinx.coroutines.sync.withLock
 @Composable internal fun SettingsScreen(preferences: AppearancePreferences, storage: com.pelican.comictv.storage.StorageViewModel,
     backup: com.pelican.comictv.backup.BackupViewModel, onDownloads: (() -> Unit)? = null,
     updater: com.pelican.comictv.updates.AppUpdateViewModel? = null, installUpdate: (java.io.File) -> Unit = {},
-    orientation: AppOrientationPreferences? = null, onBack: () -> Unit) {
+    orientation: AppOrientationPreferences? = null, television: com.pelican.comictv.tv.TvRepository? = null, onBack: () -> Unit) {
     val options by preferences.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var accessibility by rememberSaveable { mutableStateOf(true) }
     var storageOpen by rememberSaveable { mutableStateOf(false) }
     var backupOpen by rememberSaveable { mutableStateOf(false) }
     var updatesOpen by rememberSaveable { mutableStateOf(false) }
+    var videoOpen by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var diagnostics by remember { mutableStateOf(false) }
@@ -66,11 +67,16 @@ import kotlinx.coroutines.sync.withLock
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenTitle("Configurações", "Comic TV · versão " + BuildConfig.VERSION_NAME)
         LazyRow(state = sections, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { TvChoice("Acessibilidade e aparência", accessibility && !storageOpen && !backupOpen && !updatesOpen, { accessibility = true; storageOpen = false; backupOpen = false; updatesOpen = false }, firstSection) }
-            item { TvChoice("Controle remoto", !accessibility && !storageOpen && !backupOpen && !updatesOpen, { accessibility = false; storageOpen = false; backupOpen = false; updatesOpen = false }) }
-            item { TvChoice("Armazenamento", storageOpen && !backupOpen && !updatesOpen, { storageOpen = true; backupOpen = false; updatesOpen = false; storage.refresh() }) }
-            item { TvChoice("Backup e restauração", backupOpen && !updatesOpen, { backupOpen = true; storageOpen = false; updatesOpen = false }) }
-            if (updater != null) item { TvChoice("Atualizações", updatesOpen, { updatesOpen = true; backupOpen = false; storageOpen = false }) }
+            item { TvChoice("Acessibilidade e aparência", accessibility && !storageOpen && !backupOpen && !updatesOpen && !videoOpen, { accessibility = true; storageOpen = false; backupOpen = false; updatesOpen = false; videoOpen = false }, firstSection) }
+            item { TvChoice("Controle remoto", !accessibility && !storageOpen && !backupOpen && !updatesOpen && !videoOpen, { accessibility = false; storageOpen = false; backupOpen = false; updatesOpen = false; videoOpen = false }) }
+            if (television != null) item { TvChoice("Vídeo e legendas", videoOpen, { videoOpen = true; storageOpen = false; backupOpen = false; updatesOpen = false }) }
+            item { TvChoice("Armazenamento", storageOpen && !backupOpen && !updatesOpen && !videoOpen, { storageOpen = true; backupOpen = false; updatesOpen = false; videoOpen = false; storage.refresh() }) }
+            item { TvChoice("Backup e restauração", backupOpen && !updatesOpen && !videoOpen, { backupOpen = true; storageOpen = false; updatesOpen = false; videoOpen = false }) }
+            if (updater != null) item { TvChoice("Atualizações", updatesOpen && !videoOpen, { updatesOpen = true; backupOpen = false; storageOpen = false; videoOpen = false }) }
+        }
+        if (videoOpen && television != null) {
+            com.pelican.comictv.tv.TvVideoSettings(television, Modifier.weight(1f))
+            return@Column
         }
         if (updatesOpen && updater != null) {
             com.pelican.comictv.updates.AppUpdateSettings(updater, installUpdate, Modifier.weight(1f))

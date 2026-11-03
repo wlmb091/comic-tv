@@ -9,12 +9,14 @@ android {
     compileSdk = 36
     // JVM OSGi metadata from network modules is not used by Android.
     packaging.resources.excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+    // Compressed native libraries keep the APK under the 64 MiB limit that installed versions accept for updates.
+    packaging.jniLibs.useLegacyPackaging = true
     defaultConfig {
         applicationId = "com.pelican.comictv"
         minSdk = 26
         targetSdk = 36
-        versionCode = 101
-        versionName = "1.4.27"
+        versionCode = 102
+        versionName = "1.4.28"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -44,6 +46,13 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.8.0")
     implementation("androidx.media3:media3-exoplayer-dash:1.8.0")
     implementation("androidx.media3:media3-ui:1.8.0")
+    implementation("androidx.media3:media3-datasource-okhttp:1.8.0")
+    // libass for ASS/SSA with original styles and fonts embedded in MKV files (MIT/ISC).
+    implementation("io.github.peerless2012:ass-media:0.5.1")
+    // Official Media3 FFmpeg (LGPL audio decoders: DTS, TrueHD, AC-3, E-AC-3, Opus, FLAC...) and AV1 modules,
+    // built by .github/workflows/media3-decoders.yml. Used only when the device decoder cannot play the track.
+    implementation(files("libs/media3-decoder-ffmpeg-1.8.0.aar", "libs/media3-decoder-av1-1.8.0.aar"))
+    implementation("androidx.media3:media3-decoder:1.8.0")
     implementation("org.libtorrent4j:libtorrent4j:2.1.0-38")
     runtimeOnly("org.libtorrent4j:libtorrent4j-android-arm:2.1.0-38")
     runtimeOnly("org.libtorrent4j:libtorrent4j-android-arm64:2.1.0-38")

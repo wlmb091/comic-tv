@@ -24,6 +24,29 @@ class CompanionServerTest {
             assertEquals(404,request(server.url.substringBefore("/s/")+"/s/wrong/tv-state").first)
         } finally {server.close();root.deleteRecursively()}
     }
+    @Test fun tvSubtitleAudioAndPrefsCommandsAreBounded() {
+        val root=Files.createTempDirectory("companion-tv-subs").toFile();val commands=mutableListOf<CompanionCommand>();val files=mutableListOf<Pair<String,Int>>()
+        val server=CompanionServer("127.0.0.1",root,"panel",get={CompanionResource("application/json","{}".toByteArray())},command={commands+=it},
+            subtitle={name,bytes->files+=name to bytes.size})
+        try {
+            server.open()
+            for(text in listOf("off","e:3:1","x:12"))assertEquals(200,request(server.url+"/command","""{"action":"tv-subtitle","text":"$text"}""").first)
+            assertEquals(400,request(server.url+"/command","""{"action":"tv-subtitle","text":"https://example.org/a.srt"}""").first)
+            assertEquals(200,request(server.url+"/command","""{"action":"tv-audio","text":"a:2"}""").first)
+            assertEquals(400,request(server.url+"/command","""{"action":"tv-audio","text":"x:1"}""").first)
+            assertEquals(200,request(server.url+"/command","""{"action":"tv-subtitle-delay","delta":-25}""").first)
+            assertEquals(400,request(server.url+"/command","""{"action":"tv-subtitle-delay","delta":601}""").first)
+            assertEquals(200,request(server.url+"/command","""{"action":"tv-prefs","text":"{\"player\":\"vlc\",\"subtitles\":{\"sizePercent\":120}}"}""").first)
+            assertEquals(400,request(server.url+"/command","""{"action":"tv-prefs","text":"not json"}""").first)
+            fun upload(name:String,bytes:ByteArray):Int{val c=URL(server.url+"/tv-subtitle?name="+name).openConnection() as HttpURLConnection;c.requestMethod="POST";c.doOutput=true;c.setRequestProperty("Content-Type","application/octet-stream");c.outputStream.use{it.write(bytes)};return c.responseCode}
+            assertEquals(200,upload("ep.pt-BR.srt","1\n00:00:01,000 --> 00:00:02,000\nOlá\n".toByteArray()))
+            assertEquals(400,upload("video.mkv",ByteArray(10)))
+            // Refused before the body is read: the server may close while the phone is still sending.
+            assertEquals(400,runCatching{upload("big.srt",ByteArray(5*1024*1024+1))}.getOrDefault(400))
+            assertEquals(listOf("ep.pt-BR.srt"),files.map{it.first})
+            assertEquals(-25,commands.first{it.action=="tv-subtitle-delay"}.delta)
+        } finally {server.close();root.deleteRecursively()}
+    }
     /** The server is an allowlist: a phone button whose action is missing here fails as "Comando inválido". */
     @Test fun rotateBrowserArrowsAndPinchReachTheApp() {
         val root=Files.createTempDirectory("companion-actions").toFile();val commands=mutableListOf<CompanionCommand>()

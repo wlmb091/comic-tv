@@ -16,7 +16,8 @@ import kotlin.coroutines.resumeWithException
 
 data class TvShelf(val addon:TvAddon,val catalog:TvCatalog,val items:List<TvMeta>,val error:Boolean=false)
 data class TvProgress(val meta:TvMeta,val video:TvVideo,val positionMs:Long,val durationMs:Long)
-data class TvSnapshot(val addons:List<TvAddon> = emptyList(),val favorites:List<TvMeta> = emptyList(),val progress:List<TvProgress> = emptyList(),val cacheGiB:Int=8)
+data class TvSnapshot(val addons:List<TvAddon> = emptyList(),val favorites:List<TvMeta> = emptyList(),val progress:List<TvProgress> = emptyList(),val cacheGiB:Int=8,
+    val video:TvVideoPrefs=TvVideoPrefs())
 
 /** Private atomic persistence: configured transport URLs never enter comic backups or routes. */
 class TvStore(private val directory:File) {
@@ -33,7 +34,7 @@ class TvStore(private val directory:File) {
             StremioJson.manifest(gson.toJson(addon.manifest))
             require(addon.animeCatalogs!=null)
         }
-        snapshot
+        snapshot.copy(video=(snapshot.video?:TvVideoPrefs()).let{it.copy(subtitles=it.subtitles?:TvSubtitlePrefs())}.normalized())
     }.getOrDefault(TvSnapshot())
     @Synchronized fun save(value:TvSnapshot){
         directory.mkdirs();val tmp=File(directory,"state.tmp")
@@ -64,6 +65,19 @@ class StremioClient {
     suspend fun meta(a:TvAddon,type:String,id:String)=StremioJson.meta(get(StremioLinks.resource(a.url,"meta",type,id)))
     suspend fun streams(a:TvAddon,type:String,id:String)=StremioJson.streams(get(StremioLinks.resource(a.url,"stream",type,id))).map{it.copy(addonName=a.manifest.name)}
     suspend fun addonCatalog(a:TvAddon,c:TvCatalog)=StremioJson.addonUrls(get(StremioLinks.resource(a.url,"addon_catalog",c.type,c.id)))
+    suspend fun subtitles(a:TvAddon,type:String,id:String)=StremioJson.subtitles(get(StremioLinks.resource(a.url,"subtitles",type,id))).map{it.copy(addonName=a.manifest.name)}
+    /** Raw bytes of one subtitle file, at most [max] bytes, for charset repair on the TV. */
+    suspend fun download(url:String,max:Int):ByteArray=slots.withPermit {
+        require(StremioLinks.http(url)){"Endereço de legenda inválido."}
+        withContext(Dispatchers.IO) {
+            client.newCall(Request.Builder().url(url).build()).execute().use { r ->
+                check(r.isSuccessful){"A legenda não pôde ser baixada."}
+                val body=r.body;require(body.contentLength()<=max){"Legenda grande demais."}
+                val out=java.io.ByteArrayOutputStream();body.byteStream().use{input->val b=ByteArray(8192);while(true){val n=input.read(b);if(n<0)break;require(out.size()+n<=max){"Legenda grande demais."};out.write(b,0,n)}}
+                out.toByteArray()
+            }
+        }
+    }
 }
 
 class TvRepository(context:Context) {
@@ -77,6 +91,7 @@ class TvRepository(context:Context) {
     @Synchronized fun favorite(meta:TvMeta){val list=state.value.favorites;update(state.value.copy(favorites=if(list.any{it.id==meta.id&&it.type==meta.type})list.filterNot{it.id==meta.id&&it.type==meta.type}else (list+meta).takeLast(500)))}
     @Synchronized fun progress(meta:TvMeta,video:TvVideo,position:Long,duration:Long){if(position<0)return;val p=TvProgress(meta,video,position,duration.coerceAtLeast(0));update(state.value.copy(progress=(state.value.progress.filterNot{it.meta.id==meta.id&&it.meta.type==meta.type}+p).takeLast(500)))}
     @Synchronized fun cache(gib:Int){require(gib in setOf(1,2,4,8,16));update(state.value.copy(cacheGiB=gib))}
+    @Synchronized fun video(change:(TvVideoPrefs)->TvVideoPrefs){update(state.value.copy(video=change(state.value.video).normalized()))}
     private fun update(value:TvSnapshot){store.save(value);mutable.value=value}
     fun catalogs(section:String,query:String=""):List<Pair<TvAddon,TvCatalog>> =state.value.addons.filter{it.enabled}.flatMap{a->a.manifest.catalogs.filter{c->
         val anime=c.type.equals("anime",true)||c.name.contains("anime",true)||"${c.type}:${c.id}" in a.animeCatalogs
@@ -105,6 +120,19 @@ class TvRepository(context:Context) {
         val collected=mutableListOf<TvStream>()
         try {withTimeoutOrNull(60_000){repeat(candidates.size){collected.addAll(results.receive())}}}
         finally {jobs.forEach{it.cancel()};results.cancel()}
-        collected
+        StreamRank.sorted(collected)
+    }
+    /** Subtitles from every enabled add-on that declares them, collected for at most 20 seconds. */
+    suspend fun subtitles(meta:TvMeta,video:TvVideo):List<TvSubtitle> =supervisorScope {
+        val candidates=state.value.addons.filter{it.enabled&&it.manifest.supports("subtitles",meta.type,video.id)}
+        val results=kotlinx.coroutines.channels.Channel<List<TvSubtitle>>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+        val jobs=candidates.map{a->launch{
+            val value=try{client.subtitles(a,meta.type,video.id)}catch(e:CancellationException){throw e}catch(_:Exception){emptyList()}
+            results.send(value)
+        }}
+        val collected=mutableListOf<TvSubtitle>()
+        try {withTimeoutOrNull(20_000){repeat(candidates.size){collected.addAll(results.receive())}}}
+        finally {jobs.forEach{it.cancel()};results.cancel()}
+        collected.distinctBy{it.url}.take(300)
     }
 }

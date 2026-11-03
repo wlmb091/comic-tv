@@ -1,0 +1,6 @@
+libass-android 0.5.1 (ass, ass-kt, ass-media) — MIT License, https://github.com/peerless2012/libass-android
+libass — ISC License, https://github.com/libass/libass
+FreeType — FreeType License (FTL), https://freetype.org
+HarfBuzz — MIT License, https://harfbuzz.github.io
+FriBidi — GNU LGPL 2.1 or later, https://github.com/fribidi/fribidi
+These libraries are linked as shared libraries (libass.so) and may be replaced in the installed package.

@@ -16,6 +16,9 @@ import java.nio.file.Path
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.atomic.AtomicLong
 
+/** What the player shows while a torrent connects and fills the start of the video. */
+data class TorrentStats(val peers:Int,val seeds:Int,val downloadRate:Long,val done:Long,val target:Long,val metadata:Boolean)
+
 /** Owns one native session and its private cache. All JNI calls finish before native teardown. */
 class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable {
     private val parent = File(context.cacheDir, "tv-torrents")
@@ -24,10 +27,14 @@ class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable 
     private var ownsPermit = false
     private val flushes = AtomicLong()
     private var manager: SessionManager? = null
-    private var handle: TorrentHandle? = null
+    @Volatile private var handle: TorrentHandle? = null
+    private val statsGuard = Any()
+    @Volatile private var startTarget = 0L
     private var target: File? = null
     var size: Long = 0
         private set
+    /** Name of the chosen video inside the torrent, for the external player's content type. */
+    val fileName: String get() = target?.name.orEmpty()
     private var offset = 0L
     private var pieceSize = 0
     private val flushed = HashSet<Int>()
@@ -133,6 +140,8 @@ class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable 
                 h.setSequentialRange(first, last)
                 h.setPieceDeadline(first, 0)
                 h.setPieceDeadline(last, 1000)
+                // Rough amount the player reads before the first frame: two pieces, at least 8 MiB.
+                startTarget = minOf(size, maxOf(pieceSize.toLong() * 2, 8L * 1024 * 1024))
             }
             this@TvTorrentSession
         } catch (e: CancellationException) {
@@ -187,6 +196,17 @@ class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable 
         return count
     }
 
+    /** Light status for the player; never waits for a pending read. */
+    fun stats(): TorrentStats? = synchronized(statsGuard) {
+        if (stopped) return null
+        val h = handle ?: return TorrentStats(0, 0, 0, 0, 0, false)
+        runCatching {
+            if (!h.isValid) return null
+            val s = h.status()
+            TorrentStats(s.numPeers(), s.numSeeds(), s.downloadPayloadRate().toLong(), s.totalWantedDone(), startTarget, s.hasMetadata())
+        }.getOrNull()
+    }
+
     private fun checkOpen() { if (stopped) throw IOException("Torrent encerrado.") }
     private fun checkRead(deadline: Long, cancelled: () -> Boolean) {
         checkOpen()
@@ -205,6 +225,8 @@ class TvTorrentSession(context: Context, private val quotaGiB: Int) : Closeable 
 
     override fun close() {
         cancelPendingReads()
+        // A status call already in progress finishes before the native session stops.
+        synchronized(statsGuard) { }
         synchronized(this) {
             val session = manager
             manager = null

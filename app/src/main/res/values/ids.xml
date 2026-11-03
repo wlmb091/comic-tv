@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- libass handler attached to the player's subtitle view, so a new player replaces the old overlay. -->
+    <item type="id" name="tv_ass_handler" />
+</resources>

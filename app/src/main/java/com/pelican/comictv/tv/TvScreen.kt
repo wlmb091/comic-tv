@@ -29,7 +29,6 @@ import java.security.MessageDigest
 /** URLs remain in private memory; saveable navigation contains only opaque UI keys. */
 @Composable internal fun TvScreen(repository:TvRepository,playback:TvPlaybackController,onBrowser:(String)->Unit) {
     val stored by repository.state.collectAsState()
-    val playing by playback.state.collectAsState()
     var section by rememberSaveable { mutableStateOf("Início") }
     val metaSaver=remember { Saver<TvMeta?,String>(save={meta->meta?.let { Gson().toJson(it.copy(videos=emptyList(),description=it.description.take(2000))) }},
         restore={raw->runCatching { Gson().fromJson(raw,TvMeta::class.java) }.getOrNull()}) }
@@ -37,17 +36,11 @@ import java.security.MessageDigest
     var restorePoster by rememberSaveable { mutableStateOf<String?>(null) }
     val screens=rememberSaveableStateHolder()
     val memory=remember { TvBrowseMemory() }
-    val lifecycle=LocalLifecycleOwner.current.lifecycle
-    DisposableEffect(lifecycle,playback) {
-        val observer=LifecycleEventObserver { _,event -> if(event==Lifecycle.Event.ON_STOP)playback.stop() }
-        lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer);playback.stop() }
-    }
-    BackHandler(playing.active||selected!=null||section!="Início") {
-        when { playing.active->playback.stop();selected!=null->selected=null;else->section="Início" }
+    // The player is its own full-screen route; this screen only lists titles, details and sources.
+    BackHandler(selected!=null||section!="Início") {
+        when { selected!=null->selected=null;else->section="Início" }
     }
     when {
-        playing.active -> TvPlayerScreen(playback)
         selected!=null -> {
             val meta=selected!!
             screens.SaveableStateProvider("details:${meta.type}:${meta.id}") {
